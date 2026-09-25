@@ -38,10 +38,26 @@ export class TemporalStabilityBuffer {
    */
   public processFrame(
     stickers: StickerSample[],
-    expectedFace: Face
+    expectedFace: Face,
+    detection?: import('./ml/types').CubeDetectionResult
   ): FrameClassificationResult {
     if (stickers.length !== 9) {
       throw new Error(`Expected 9 sticker samples, received ${stickers.length}`);
+    }
+
+    // If ML detector identifies a human face or non-cube, strictly reject stability accumulation
+    if (detection && !detection.isCube) {
+      this.consecutiveMatches = 0;
+      this.history = [];
+      return {
+        stickers,
+        averageConfidence: 0,
+        isStable: false,
+        stabilityProgress: 0,
+        stableFramesCount: 0,
+        expectedFace,
+        detection,
+      };
     }
 
     const currentColors: CubeColor[] = stickers.map((s) => s.predictedColor);
@@ -82,6 +98,7 @@ export class TemporalStabilityBuffer {
       stabilityProgress: Math.round(progress * 100) / 100,
       stableFramesCount: this.consecutiveMatches,
       expectedFace,
+      detection,
     };
   }
 

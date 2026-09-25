@@ -60,6 +60,63 @@ export const CVDebugger: React.FC = () => {
         </div>
       </div>
 
+      {/* ML Cube vs Face Detector Telemetry */}
+      {currentClassification?.detection && (
+        <div className="bg-neutral-900/90 border border-neutral-800 p-2.5 rounded-lg flex flex-col gap-1.5 text-[11px]">
+          <div className="flex items-center justify-between border-b border-neutral-800/80 pb-1">
+            <span className="text-sky-400 font-bold uppercase tracking-wider text-[10px]">
+              ML Presence Verification
+            </span>
+            <span
+              className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${
+                currentClassification.detection.isCube
+                  ? 'bg-emerald-950 text-emerald-400 border border-emerald-800'
+                  : currentClassification.detection.classification === 'face'
+                  ? 'bg-rose-950 text-rose-400 border border-rose-800'
+                  : 'bg-neutral-800 text-neutral-400'
+              }`}
+            >
+              {currentClassification.detection.isCube
+                ? 'Cube Verified'
+                : currentClassification.detection.classification === 'face'
+                ? 'Face Detected'
+                : 'No Cube'}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-[10px]">
+            <div>
+              <span className="text-neutral-400">P(Cube):</span>{' '}
+              <span className="text-white font-semibold">
+                {Math.round(currentClassification.detection.cubeConfidence * 100)}%
+              </span>
+            </div>
+            <div>
+              <span className="text-neutral-400">P(Face):</span>{' '}
+              <span className={currentClassification.detection.faceConfidence > 0.4 ? 'text-rose-400 font-semibold' : 'text-white'}>
+                {Math.round(currentClassification.detection.faceConfidence * 100)}%
+              </span>
+            </div>
+            <div>
+              <span className="text-neutral-400">Skin Ratio:</span>{' '}
+              <span className="text-neutral-200">
+                {Math.round(currentClassification.detection.features.skinFraction * 100)}%
+              </span>
+            </div>
+            <div>
+              <span className="text-neutral-400">Seam Contrast:</span>{' '}
+              <span className="text-neutral-200">
+                {Math.round(currentClassification.detection.features.gridSeamContrast * 100)}%
+              </span>
+            </div>
+          </div>
+
+          <div className="text-[9px] text-neutral-400 truncate pt-0.5">
+            {currentClassification.detection.reason}
+          </div>
+        </div>
+      )}
+
       {/* 3x3 Live Sticker Matrix */}
       <div>
         <div className="text-[10px] text-neutral-400 uppercase tracking-wider mb-1 flex items-center gap-1">

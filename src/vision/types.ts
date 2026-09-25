@@ -35,6 +35,8 @@ export interface StickerSample {
   colorScores: Record<CubeColor, number>;
 }
 
+import { CubeDetectionResult } from './ml/types';
+
 export interface FrameClassificationResult {
   stickers: StickerSample[]; // Exactly 9 samples
   averageConfidence: number; // 0.0 - 1.0
@@ -42,6 +44,7 @@ export interface FrameClassificationResult {
   stabilityProgress: number; // 0.0 - 1.0
   stableFramesCount: number;
   expectedFace: Face;
+  detection?: CubeDetectionResult;
 }
 
 export type CameraStatus =
