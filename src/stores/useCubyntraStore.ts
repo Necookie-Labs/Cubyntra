@@ -51,7 +51,7 @@ export interface CubyntraStore {
   // Actions
   startScanning: () => void;
   setClassification: (res: FrameClassificationResult | null) => void;
-  captureFace: (scannedFace: ScannedFace) => void;
+  captureFace: (scannedFace: ScannedFace) => Promise<void>;
   rescanFace: (face: Face) => void;
   setCameraActive: (active: boolean) => void;
   setCameraError: (error: string | null) => void;
@@ -111,7 +111,7 @@ export const useCubyntraStore = create<CubyntraStore>((set, get) => ({
 
   toggleDebugMode: () => set((s) => ({ isDebugMode: !s.isDebugMode })),
 
-  captureFace: (scannedFace: ScannedFace) => {
+  captureFace: async (scannedFace: ScannedFace) => {
     const { scannedFaces, currentStepIndex } = get();
     const nextScannedFaces = {
       ...scannedFaces,
@@ -141,7 +141,7 @@ export const useCubyntraStore = create<CubyntraStore>((set, get) => ({
       });
 
       // Automatically validate and solve
-      get().validateAndSolve();
+      await get().validateAndSolve();
     } else {
       set({
         scannedFaces: nextScannedFaces,
