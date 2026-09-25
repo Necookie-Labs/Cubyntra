@@ -14,7 +14,7 @@
  */
 
 import { CubeColor, CubeState, Face, ValidationIssue, ValidationResult } from './types';
-import { CANONICAL_CENTER_COLORS, COLORS, FACES, OPPOSITE_COLORS } from './constants';
+import { CANONICAL_CENTER_COLORS, COLORS, FACES } from './constants';
 
 interface CornerDefinition {
   name: string;
