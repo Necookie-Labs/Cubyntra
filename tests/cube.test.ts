@@ -161,12 +161,13 @@ describe('Cube State Validator & Parity Invariants', () => {
 
   it('detects and rejects impossible opposing colors on a corner piece', () => {
     const invalid = createSolvedCubeState();
-    // Force UFR corner to have white and yellow (impossible opposites)
+    // Force UFR corner to have white and yellow on the same piece (impossible opposites)
     invalid.U[8] = 'yellow';
-    invalid.D[0] = 'white'; // Keep color counts 9 each
+    invalid.F[2] = 'white'; // Keep color counts balanced and test opposing colors on one corner
 
     const res = validateCubeState(invalid);
     expect(res.valid).toBe(false);
+    expect(res.issues.some((i) => i.code === 'INVALID_CORNER_COLORS')).toBe(true);
   });
 
   it('detects and rejects an isolated twisted corner (twist parity)', () => {
