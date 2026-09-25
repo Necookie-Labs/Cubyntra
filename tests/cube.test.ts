@@ -15,7 +15,6 @@ import {
   isCubeSolved,
   cubeStateToFaceletString,
   faceletStringToCubeState,
-  cloneCubeState,
 } from '../src/cube/transforms';
 import { validateCubeState } from '../src/cube/validator';
 import { Face } from '../src/cube/types';
