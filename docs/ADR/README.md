@@ -16,3 +16,4 @@ This directory contains records of key architectural and engineering decisions m
 | [ADR-003](003-computer-vision-strategy.md) | Guided Reticle Sampling with CIELAB Delta-E vs Deep Learning Object Detection | Accepted | 2026-09 |
 | [ADR-004](004-solver-selection.md) | Deterministic Kociemba Two-Phase Engine vs Optimal IDA* / Korf Solver | Accepted | 2026-09 |
 | [ADR-005](005-threejs-rendering.md) | Three.js Digital Twin with Drift-Free Orthonormal Snapping | Accepted | 2026-09 |
+| [ADR-006](006-ml-cube-detection-face-rejection.md) | Client-Side Machine Learning Cube Presence & Face Rejection Pipeline | Accepted | 2026-09 |

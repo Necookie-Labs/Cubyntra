@@ -12,7 +12,19 @@ import { CubeColor, FaceStickers, ScannedFace } from '@/cube/types';
 import { initializeCameraStream, terminateCameraStream } from '@/vision/camera';
 import { calculateROIBounds, sampleGridFromContext } from '@/vision/sampling';
 import { TemporalStabilityBuffer } from '@/vision/stability';
-import { Camera, CheckCircle2, RotateCw, AlertTriangle, Sparkles, RefreshCw, Zap } from 'lucide-react';
+import { detectCubeInROISync } from '@/vision/cubeDetector';
+import { CubeDetectionResult } from '@/vision/ml/types';
+import {
+  Camera,
+  CheckCircle2,
+  RotateCw,
+  AlertTriangle,
+  Sparkles,
+  RefreshCw,
+  Zap,
+  UserX,
+  Box,
+} from 'lucide-react';
 
 export const CameraScanner: React.FC = () => {
   const {
@@ -29,6 +41,7 @@ export const CameraScanner: React.FC = () => {
   const streamRef = useRef<MediaStream | null>(null);
   const stabilityBufferRef = useRef<TemporalStabilityBuffer>(new TemporalStabilityBuffer({ requiredStableFrames: 8 }));
   const animationFrameIdRef = useRef<number | null>(null);
+  const nativeFaceSignalRef = useRef(0.0);
 
   const [cameraStatus, setCameraStatus] = useState<'loading' | 'streaming' | 'error'>('loading');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -36,12 +49,14 @@ export const CameraScanner: React.FC = () => {
   const [stabilityProgress, setStabilityProgress] = useState(0);
   const [avgConfidence, setAvgConfidence] = useState(0);
   const [liveStickers, setLiveStickers] = useState<{ predictedColor: CubeColor; confidence: number }[]>([]);
+  const [cubeDetection, setCubeDetection] = useState<CubeDetectionResult | null>(null);
   const [torchEnabled, setTorchEnabled] = useState(false);
   const [hasTorch, setHasTorch] = useState(false);
 
   const currentStep = SCAN_SEQUENCE[Math.min(currentStepIndex, SCAN_SEQUENCE.length - 1)];
   const currentStepRef = useRef(currentStep);
   const liveStickersRef = useRef(liveStickers);
+  const cubeDetectionRef = useRef(cubeDetection);
 
   useEffect(() => {
     currentStepRef.current = currentStep;
@@ -51,8 +66,15 @@ export const CameraScanner: React.FC = () => {
     liveStickersRef.current = liveStickers;
   }, [liveStickers]);
 
+  useEffect(() => {
+    cubeDetectionRef.current = cubeDetection;
+  }, [cubeDetection]);
+
   // Handle Face Capture
   const handleCaptureFace = useCallback(() => {
+    // Strictly prevent capture if ML model did not verify a cube or detected a human face
+    if (!cubeDetectionRef.current || !cubeDetectionRef.current.isCube) return;
+
     const stickersSnapshot = liveStickersRef.current;
     if (stickersSnapshot.length !== 9) return;
 
@@ -112,6 +134,53 @@ export const CameraScanner: React.FC = () => {
     };
   }, []);
 
+  // Native FaceDetector background polling (every 250ms)
+  useEffect(() => {
+    if (cameraStatus !== 'streaming') return;
+    let isCancelled = false;
+
+    const checkNativeFace = async () => {
+      const video = videoRef.current;
+      if (
+        typeof window !== 'undefined' &&
+        'FaceDetector' in window &&
+        window.FaceDetector &&
+        video &&
+        video.readyState >= 2
+      ) {
+        try {
+          const detector = new window.FaceDetector({ fastMode: true, maxDetectedFaces: 2 });
+          const faces = await detector.detect(video);
+          if (!isCancelled) {
+            const width = video.videoWidth || 640;
+            const height = video.videoHeight || 480;
+            const roi = calculateROIBounds(width, height, 0.65);
+            const faceInROI = faces.some(
+              (f: { boundingBox: { x: number; y: number; width: number; height: number } }) => {
+                const b = f.boundingBox;
+                return !(
+                  b.x + b.width < roi.x ||
+                  b.x > roi.x + roi.size ||
+                  b.y + b.height < roi.y ||
+                  b.y > roi.y + roi.size
+                );
+              }
+            );
+            nativeFaceSignalRef.current = faceInROI ? 1.0 : 0.0;
+          }
+        } catch {
+          nativeFaceSignalRef.current = 0.0;
+        }
+      }
+    };
+
+    const interval = setInterval(checkNativeFace, 250);
+    return () => {
+      isCancelled = true;
+      clearInterval(interval);
+    };
+  }, [cameraStatus]);
+
   // Frame Sampling & Stability Loop
   useEffect(() => {
     if (cameraStatus !== 'streaming') return;
@@ -139,27 +208,44 @@ export const CameraScanner: React.FC = () => {
           const roi = calculateROIBounds(width, height, 0.65);
           const samples = sampleGridFromContext(ctx, roi);
 
-          // 2. Evaluate Temporal Stability
+          // 2. Evaluate ML Cube vs Face presence
+          const detection = detectCubeInROISync(
+            ctx,
+            roi,
+            samples,
+            nativeFaceSignalRef.current
+          );
+          setCubeDetection(detection);
+
+          // 3. Evaluate Temporal Stability (strictly gated by ML cube presence)
           const stabilityResult = stabilityBufferRef.current.processFrame(
             samples,
-            currentStepRef.current.face
+            currentStepRef.current.face,
+            detection
           );
 
           setIsStable(stabilityResult.isStable);
           setStabilityProgress(stabilityResult.stabilityProgress);
           setAvgConfidence(stabilityResult.averageConfidence);
-          setLiveStickers(
-            samples.map((s) => ({
-              predictedColor: s.predictedColor,
-              confidence: s.confidence,
-            }))
-          );
+
+          // Only display live colors when ML confirms a genuine Rubik's Cube
+          if (detection.isCube) {
+            setLiveStickers(
+              samples.map((s) => ({
+                predictedColor: s.predictedColor,
+                confidence: s.confidence,
+              }))
+            );
+          } else {
+            // Clear live stickers so human face is NEVER classified or displayed as cube colors
+            setLiveStickers([]);
+          }
 
           // Update store for debugger view
           setClassification(stabilityResult);
 
-          // Optional: Auto-capture when rock-solid stability is reached
-          if (stabilityResult.isStable && stabilityResult.stabilityProgress >= 1.0) {
+          // Auto-capture ONLY when ML strictly confirms a Rubik's cube with 100% stability
+          if (detection.isCube && stabilityResult.isStable && stabilityResult.stabilityProgress >= 1.0) {
             handleCaptureFace();
             return;
           }
@@ -246,36 +332,105 @@ export const CameraScanner: React.FC = () => {
             {/* Darkened vignette surround */}
             <div className="absolute inset-0 bg-neutral-950/35" />
 
-            {/* Central square target */}
-            <div className="relative w-[65%] h-[65%] border-2 border-white/40 rounded-xl p-1.5 grid grid-cols-3 gap-1.5 backdrop-blur-[0.5px] shadow-2xl">
+            {/* Real-Time ML Verification Badge */}
+            <div className="absolute top-4 left-4 right-14 z-20 pointer-events-none flex justify-center">
+              {cubeDetection?.classification === 'face' ? (
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-rose-950/90 border border-rose-500/80 text-rose-300 text-xs font-mono shadow-xl backdrop-blur-md animate-pulse">
+                  <UserX className="w-3.5 h-3.5 text-rose-400" />
+                  <span>FACE DETECTED — ALIGN RUBIK&apos;S CUBE</span>
+                </div>
+              ) : cubeDetection?.isCube ? (
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-sky-950/90 border border-sky-400/80 text-sky-200 text-xs font-mono shadow-xl backdrop-blur-md">
+                  <Box className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>RUBIK&apos;S CUBE VERIFIED ({Math.round(cubeDetection.cubeConfidence * 100)}%)</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-neutral-900/90 border border-neutral-700 text-neutral-400 text-xs font-mono shadow-xl backdrop-blur-md">
+                  <Box className="w-3.5 h-3.5 text-neutral-400" />
+                  <span>SEARCHING FOR RUBIK&apos;S CUBE...</span>
+                </div>
+              )}
+            </div>
+
+            {/* Central square target with dynamic ML border */}
+            <div
+              className={`relative w-[65%] h-[65%] border-2 rounded-xl p-1.5 grid grid-cols-3 gap-1.5 backdrop-blur-[0.5px] transition-all duration-200 shadow-2xl ${
+                cubeDetection?.classification === 'face'
+                  ? 'border-rose-500 shadow-[0_0_30px_rgba(244,63,94,0.4)]'
+                  : cubeDetection?.isCube
+                  ? 'border-sky-400 shadow-[0_0_30px_rgba(56,189,248,0.35)]'
+                  : 'border-white/30'
+              }`}
+            >
               {/* Corner Reticle Brackets */}
-              <div className="absolute -top-2.5 -left-2.5 w-5 h-5 border-t-2 border-l-2 border-sky-400" />
-              <div className="absolute -top-2.5 -right-2.5 w-5 h-5 border-t-2 border-r-2 border-sky-400" />
-              <div className="absolute -bottom-2.5 -left-2.5 w-5 h-5 border-b-2 border-l-2 border-sky-400" />
-              <div className="absolute -bottom-2.5 -right-2.5 w-5 h-5 border-b-2 border-r-2 border-sky-400" />
+              <div
+                className={`absolute -top-2.5 -left-2.5 w-5 h-5 border-t-2 border-l-2 transition-colors ${
+                  cubeDetection?.classification === 'face'
+                    ? 'border-rose-400'
+                    : cubeDetection?.isCube
+                    ? 'border-sky-400'
+                    : 'border-neutral-500'
+                }`}
+              />
+              <div
+                className={`absolute -top-2.5 -right-2.5 w-5 h-5 border-t-2 border-r-2 transition-colors ${
+                  cubeDetection?.classification === 'face'
+                    ? 'border-rose-400'
+                    : cubeDetection?.isCube
+                    ? 'border-sky-400'
+                    : 'border-neutral-500'
+                }`}
+              />
+              <div
+                className={`absolute -bottom-2.5 -left-2.5 w-5 h-5 border-b-2 border-l-2 transition-colors ${
+                  cubeDetection?.classification === 'face'
+                    ? 'border-rose-400'
+                    : cubeDetection?.isCube
+                    ? 'border-sky-400'
+                    : 'border-neutral-500'
+                }`}
+              />
+              <div
+                className={`absolute -bottom-2.5 -right-2.5 w-5 h-5 border-b-2 border-r-2 transition-colors ${
+                  cubeDetection?.classification === 'face'
+                    ? 'border-rose-400'
+                    : cubeDetection?.isCube
+                    ? 'border-sky-400'
+                    : 'border-neutral-500'
+                }`}
+              />
 
               {/* 9 Sampling Cells with Live Feedback */}
               {Array.from({ length: 9 }).map((_, index) => {
                 const sample = liveStickers[index];
                 const isCenter = index === 4;
-                const cellColorHex = sample ? COLOR_HEX[sample.predictedColor] : 'transparent';
+                const isCubeVerified = Boolean(cubeDetection?.isCube);
+                const cellColorHex = sample && isCubeVerified ? COLOR_HEX[sample.predictedColor] : 'transparent';
 
                 return (
                   <div
                     key={index}
-                    className="relative rounded-lg border border-white/20 flex flex-col items-center justify-center overflow-hidden transition-all duration-150"
+                    className={`relative rounded-lg border flex flex-col items-center justify-center overflow-hidden transition-all duration-150 ${
+                      isCubeVerified
+                        ? 'border-white/30'
+                        : 'border-white/10 bg-neutral-900/30'
+                    }`}
                     style={{
-                      backgroundColor: sample ? `${cellColorHex}40` : 'transparent',
+                      backgroundColor: sample && isCubeVerified ? `${cellColorHex}40` : 'transparent',
                     }}
                   >
                     {/* Inner sampling dot */}
-                    <div
-                      className="w-3.5 h-3.5 rounded-full shadow-md border border-white/60 transition-transform duration-150"
-                      style={{
-                        backgroundColor: cellColorHex,
-                        transform: isStable ? 'scale(1.15)' : 'scale(1)',
-                      }}
-                    />
+                    {isCubeVerified ? (
+                      <div
+                        className="w-3.5 h-3.5 rounded-full shadow-md border border-white/60 transition-transform duration-150"
+                        style={{
+                          backgroundColor: cellColorHex,
+                          transform: isStable ? 'scale(1.15)' : 'scale(1)',
+                        }}
+                      />
+                    ) : (
+                      <div className="w-2.5 h-2.5 rounded-full border border-neutral-600 bg-neutral-800/40" />
+                    )}
 
                     {/* Center piece indicator */}
                     {isCenter && (
@@ -325,11 +480,21 @@ export const CameraScanner: React.FC = () => {
         {/* Stability Progress Indicator */}
         <div className="flex flex-col gap-1.5">
           <div className="flex items-center justify-between text-[11px] font-mono">
-            <span className={isStable ? 'text-emerald-400 font-semibold' : 'text-neutral-400'}>
-              {isStable ? '✓ HOLD STILL (READY)' : 'ALIGN CUBE WITH RETICLE'}
-            </span>
+            {cubeDetection?.classification === 'face' ? (
+              <span className="text-rose-400 font-semibold flex items-center gap-1.5">
+                <UserX className="w-3.5 h-3.5" />
+                <span>FACE DETECTED (SCANNING BLOCKED)</span>
+              </span>
+            ) : !cubeDetection?.isCube ? (
+              <span className="text-neutral-400">ALIGN CUBE WITH RETICLE</span>
+            ) : isStable ? (
+              <span className="text-emerald-400 font-semibold">✓ HOLD STILL (READY)</span>
+            ) : (
+              <span className="text-sky-400">STABILIZING CUBE COLORS...</span>
+            )}
+
             <span className="text-neutral-400">
-              {avgConfidence > 0 ? `Conf ${Math.round(avgConfidence * 100)}% • ` : ''}
+              {cubeDetection?.isCube && avgConfidence > 0 ? `Conf ${Math.round(avgConfidence * 100)}% • ` : ''}
               {Math.round(stabilityProgress * 100)}%
             </span>
           </div>
@@ -337,7 +502,11 @@ export const CameraScanner: React.FC = () => {
           <div className="w-full h-2 rounded-full bg-neutral-800 overflow-hidden">
             <div
               className={`h-full transition-all duration-150 rounded-full ${
-                isStable ? 'bg-emerald-500' : 'bg-sky-500'
+                cubeDetection?.classification === 'face'
+                  ? 'bg-rose-500'
+                  : isStable
+                  ? 'bg-emerald-500'
+                  : 'bg-sky-500'
               }`}
               style={{ width: `${Math.max(5, stabilityProgress * 100)}%` }}
             />
@@ -355,11 +524,21 @@ export const CameraScanner: React.FC = () => {
           <button
             type="button"
             onClick={handleCaptureFace}
-            disabled={cameraStatus !== 'streaming'}
-            className="flex-1 py-2.5 rounded-lg bg-white text-neutral-950 font-semibold text-xs hover:bg-neutral-200 transition-colors flex items-center justify-center gap-2 shadow-md disabled:opacity-50"
+            disabled={cameraStatus !== 'streaming' || !cubeDetection?.isCube}
+            className="flex-1 py-2.5 rounded-lg bg-white text-neutral-950 font-semibold text-xs hover:bg-neutral-200 transition-colors flex items-center justify-center gap-2 shadow-md disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            <Camera className="w-4 h-4" />
-            <span>Capture Face</span>
+            {cubeDetection?.classification === 'face' ? (
+              <UserX className="w-4 h-4 text-rose-600" />
+            ) : (
+              <Camera className="w-4 h-4" />
+            )}
+            <span>
+              {cubeDetection?.isCube
+                ? 'Capture Face'
+                : cubeDetection?.classification === 'face'
+                ? 'Face Detected (Align Cube)'
+                : 'No Cube Detected'}
+            </span>
           </button>
 
           <button
