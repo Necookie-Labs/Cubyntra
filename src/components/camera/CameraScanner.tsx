@@ -48,7 +48,7 @@ export const CameraScanner: React.FC = () => {
   const [isStable, setIsStable] = useState(false);
   const [stabilityProgress, setStabilityProgress] = useState(0);
   const [avgConfidence, setAvgConfidence] = useState(0);
-  const [liveStickers, setLiveStickers] = useState<{ predictedColor: CubeColor; confidence: number }[]>([]);
+  const [liveStickers, setLiveStickers] = useState<{ predictedColor: CubeColor; confidence: number; isCubeColor?: boolean }[]>([]);
   const [cubeDetection, setCubeDetection] = useState<CubeDetectionResult | null>(null);
   const [torchEnabled, setTorchEnabled] = useState(false);
   const [hasTorch, setHasTorch] = useState(false);
@@ -234,6 +234,7 @@ export const CameraScanner: React.FC = () => {
               samples.map((s) => ({
                 predictedColor: s.predictedColor,
                 confidence: s.confidence,
+                isCubeColor: s.isCubeColor,
               }))
             );
           } else {
@@ -405,22 +406,25 @@ export const CameraScanner: React.FC = () => {
                 const sample = liveStickers[index];
                 const isCenter = index === 4;
                 const isCubeVerified = Boolean(cubeDetection?.isCube);
-                const cellColorHex = sample && isCubeVerified ? COLOR_HEX[sample.predictedColor] : 'transparent';
+                const isValidCubeColor = Boolean(sample && sample.isCubeColor !== false && isCubeVerified);
+                const cellColorHex = isValidCubeColor && sample ? COLOR_HEX[sample.predictedColor] : 'transparent';
 
                 return (
                   <div
                     key={index}
                     className={`relative rounded-lg border flex flex-col items-center justify-center overflow-hidden transition-all duration-150 ${
-                      isCubeVerified
+                      isValidCubeColor
                         ? 'border-white/30'
+                        : cubeDetection?.classification === 'face'
+                        ? 'border-rose-500/40 bg-rose-950/20'
                         : 'border-white/10 bg-neutral-900/30'
                     }`}
                     style={{
-                      backgroundColor: sample && isCubeVerified ? `${cellColorHex}40` : 'transparent',
+                      backgroundColor: isValidCubeColor ? `${cellColorHex}40` : 'transparent',
                     }}
                   >
                     {/* Inner sampling dot */}
-                    {isCubeVerified ? (
+                    {isValidCubeColor ? (
                       <div
                         className="w-3.5 h-3.5 rounded-full shadow-md border border-white/60 transition-transform duration-150"
                         style={{
@@ -428,6 +432,8 @@ export const CameraScanner: React.FC = () => {
                           transform: isStable ? 'scale(1.15)' : 'scale(1)',
                         }}
                       />
+                    ) : cubeDetection?.classification === 'face' ? (
+                      <div className="w-2.5 h-2.5 rounded-full border border-rose-500/80 bg-rose-500/30" />
                     ) : (
                       <div className="w-2.5 h-2.5 rounded-full border border-neutral-600 bg-neutral-800/40" />
                     )}

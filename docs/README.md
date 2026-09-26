@@ -33,6 +33,7 @@ All documents in this directory represent the actual implemented codebase and ar
 | Document | Format | Description |
 | :--- | :--- | :--- |
 | [**Computer Vision Pipeline**](./COMPUTER_VISION.md) | [Markdown](./COMPUTER_VISION.md) • [PDF](./pdf/Cubyntra-Computer-Vision.pdf) | ROI targeting, trimmed-mean aggregation, HSV/CIELAB classification, and temporal stability |
+| [**AI Model Training Methodology**](./AI_MODEL_TRAINING_METHODOLOGY.md) | [Markdown](./AI_MODEL_TRAINING_METHODOLOGY.md) • [PDF](./pdf/Cubyntra-AI-Model-Training.pdf) | Kaggle dataset training, empirical CIELAB color profiles, and Fitzpatrick skin tone rejection |
 | [**Cube Domain Model**](./CUBE_MODEL.md) | [Markdown](./CUBE_MODEL.md) • [PDF](./pdf/Cubyntra-Cube-Model.pdf) | URFDLB standards, 54-facelet mapping, 3D cubie coordinates, and permutation invariants |
 | [**Kociemba Two-Phase Solver**](./SOLVER.md) | [Markdown](./SOLVER.md) • [PDF](./pdf/Cubyntra-Solver.pdf) | Two-phase algorithm, Half Turn Metric (HTM), and pre/post-solve verification |
 

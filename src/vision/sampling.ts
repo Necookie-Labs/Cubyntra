@@ -130,6 +130,8 @@ export function sampleGridFromContext(
         predictedColor: classification.color,
         confidence: classification.confidence,
         colorScores: classification.scores,
+        isCubeColor: classification.isCubeColor,
+        rejectionReason: classification.rejectionReason,
       });
     }
   }

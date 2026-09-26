@@ -45,8 +45,9 @@ export class TemporalStabilityBuffer {
       throw new Error(`Expected 9 sticker samples, received ${stickers.length}`);
     }
 
-    // If ML detector identifies a human face or non-cube, strictly reject stability accumulation
-    if (detection && !detection.isCube) {
+    // If ML detector identifies a human face or non-cube, or if any cell fails authentic cube color criteria, strictly reject stability accumulation
+    const hasNonCubeCell = stickers.some((s) => s.isCubeColor === false);
+    if ((detection && !detection.isCube) || hasNonCubeCell) {
       this.consecutiveMatches = 0;
       this.history = [];
       return {

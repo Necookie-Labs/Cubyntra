@@ -200,15 +200,39 @@ function randomVector(len: number): number[] {
 
 async function trainModel() {
   console.log('=== Cubyntra Machine Learning Model Training: Cube vs Face/Background ===');
+  console.log('Ingesting empirical features from Kaggle dataset (bjoernjostein/rubix-cube)...');
+
+  const datasetFeaturesPath = path.join(process.cwd(), 'src/vision/ml/datasetFeatures.json');
+  let empiricalFeatures: number[][] = [];
+  if (fs.existsSync(datasetFeaturesPath)) {
+    try {
+      empiricalFeatures = JSON.parse(fs.readFileSync(datasetFeaturesPath, 'utf8'));
+      console.log(`Loaded ${empiricalFeatures.length} empirical feature vectors from Kaggle dataset.`);
+    } catch {
+      console.warn('Failed parsing datasetFeatures.json, using generative fallback.');
+    }
+  }
 
   // 1. Generate Training & Validation Data
   const trainCount = 6000;
   const testCount = 1500;
   const allSamples: DatasetSample[] = [];
 
-  for (let i = 0; i < (trainCount + testCount) / 2; i++) {
-    // 50% Positive (Cubes)
-    allSamples.push({ features: generateCubeSample(), label: 1 });
+  const halfTotal = (trainCount + testCount) / 2;
+  for (let i = 0; i < halfTotal; i++) {
+    // 50% Positive (Cubes from Kaggle dataset + augmentation)
+    if (empiricalFeatures.length > 0 && i < empiricalFeatures.length * 6) {
+      const baseFeat = empiricalFeatures[i % empiricalFeatures.length];
+      // Apply slight lighting jitter augmentation
+      const augmented = baseFeat.map((val, idx) => {
+        if (idx === 17) return 0.0; // faceDetectorSignal always 0 for cube
+        const noise = (Math.random() * 2 - 1) * 0.04;
+        return clamp(val + noise, 0, 1);
+      });
+      allSamples.push({ features: augmented, label: 1 });
+    } else {
+      allSamples.push({ features: generateCubeSample(), label: 1 });
+    }
 
     // 50% Negative (25% Faces, 25% Backgrounds)
     if (Math.random() < 0.6) {
