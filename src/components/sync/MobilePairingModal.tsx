@@ -25,6 +25,8 @@ export const MobilePairingModal: React.FC<MobilePairingModalProps> = ({
     sessionId,
     qrDataUrl,
     companionUrl,
+    availableIps,
+    setCustomUrl,
     isCreating,
     mobileConnected,
     error,
@@ -47,7 +49,7 @@ export const MobilePairingModal: React.FC<MobilePairingModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="relative w-full max-w-lg bg-[#111318] border border-neutral-800 rounded-3xl p-6 shadow-2xl flex flex-col gap-6 text-neutral-100 overflow-hidden">
+      <div className="relative w-full max-w-lg bg-[#111318] border border-neutral-800 rounded-3xl p-6 shadow-2xl flex flex-col gap-5 text-neutral-100 overflow-hidden max-h-[90vh] overflow-y-auto">
         {/* Subtle accent glow */}
         <div className="absolute -top-24 -right-24 w-48 h-48 bg-sky-500/10 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
@@ -79,20 +81,20 @@ export const MobilePairingModal: React.FC<MobilePairingModalProps> = ({
         </div>
 
         {/* QR Code & State Card */}
-        <div className="flex flex-col items-center justify-center p-6 rounded-2xl bg-[#0a0b0e] border border-neutral-800/80 gap-4">
+        <div className="flex flex-col items-center justify-center p-5 rounded-2xl bg-[#0a0b0e] border border-neutral-800/80 gap-3">
           {isCreating ? (
             <div className="flex flex-col items-center justify-center py-12 gap-3">
               <RefreshCw className="w-8 h-8 text-sky-400 animate-spin" />
               <span className="text-xs font-mono text-neutral-400">Generating secure pairing session...</span>
             </div>
           ) : qrDataUrl ? (
-            <div className="relative group">
+            <div className="relative group flex flex-col items-center">
               <div className="p-3 bg-white rounded-2xl shadow-xl">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={qrDataUrl}
                   alt="Companion QR Code"
-                  className="w-56 h-56 rounded-lg object-contain"
+                  className="w-52 h-52 rounded-lg object-contain"
                 />
               </div>
 
@@ -117,27 +119,63 @@ export const MobilePairingModal: React.FC<MobilePairingModalProps> = ({
             </div>
           ) : null}
 
-          {/* Session Direct Link (for testing / manual entry) */}
+          {/* Network IP Selector (if multiple interfaces available) */}
+          {availableIps && availableIps.length > 0 && (
+            <div className="flex flex-col gap-1.5 w-full pt-2 border-t border-neutral-800/60">
+              <div className="flex items-center justify-between text-[10px] font-mono text-neutral-400">
+                <span>LOCAL NETWORK IP:</span>
+                <span className="text-neutral-500">Same Wi-Fi required</span>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {availableIps.map((ip) => {
+                  const isSelected = companionUrl?.includes(ip);
+                  return (
+                    <button
+                      key={ip}
+                      type="button"
+                      onClick={() => {
+                        if (!sessionId) return;
+                        const proto = typeof window !== 'undefined' ? window.location.protocol : 'http:';
+                        const port = typeof window !== 'undefined' && window.location.port ? `:${window.location.port}` : ':3000';
+                        setCustomUrl(`${proto}//${ip}${port}/companion?session=${sessionId}`);
+                      }}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-mono border transition-all ${
+                        isSelected
+                          ? 'bg-sky-500/20 text-sky-400 border-sky-500/40 font-bold shadow-sm'
+                          : 'bg-neutral-900/80 text-neutral-400 border-neutral-800 hover:text-white'
+                      }`}
+                    >
+                      {ip}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Session Direct Link */}
           {companionUrl && (
-            <div className="flex items-center gap-2 max-w-full px-3 py-1.5 rounded-lg bg-neutral-900 border border-neutral-800 text-xs text-neutral-400 font-mono">
-              <span className="truncate max-w-[240px]">{companionUrl}</span>
-              <button
-                type="button"
-                onClick={() => navigator.clipboard.writeText(companionUrl)}
-                title="Copy URL"
-                className="p-1 hover:text-white transition-colors"
-              >
-                <Copy className="w-3.5 h-3.5" />
-              </button>
-              <a
-                href={companionUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                title="Open directly in new tab"
-                className="p-1 hover:text-sky-400 transition-colors"
-              >
-                <ExternalLink className="w-3.5 h-3.5" />
-              </a>
+            <div className="flex items-center justify-between gap-2 w-full px-3 py-1.5 rounded-lg bg-neutral-900 border border-neutral-800 text-xs text-neutral-400 font-mono">
+              <span className="truncate max-w-[280px]">{companionUrl}</span>
+              <div className="flex items-center gap-1 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => navigator.clipboard.writeText(companionUrl)}
+                  title="Copy URL"
+                  className="p-1 hover:text-white transition-colors"
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                </button>
+                <a
+                  href={companionUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title="Open directly in new tab"
+                  className="p-1 hover:text-sky-400 transition-colors"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
+              </div>
             </div>
           )}
         </div>

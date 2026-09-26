@@ -17,6 +17,7 @@ export interface CompanionSyncState {
   sessionId: string | null;
   qrDataUrl: string | null;
   companionUrl: string | null;
+  availableIps: string[];
   isCreating: boolean;
   isConnected: boolean;
   mobileConnected: boolean;
@@ -31,6 +32,7 @@ export function useCompanionSync(autoStart: boolean = false) {
     sessionId: null,
     qrDataUrl: null,
     companionUrl: null,
+    availableIps: [],
     isCreating: false,
     isConnected: false,
     mobileConnected: false,
@@ -39,6 +41,22 @@ export function useCompanionSync(autoStart: boolean = false) {
   });
 
   const eventSourceRef = useRef<EventSource | null>(null);
+
+  const setCustomUrl = useCallback(async (customUrl: string) => {
+    try {
+      const qrDataUrl = await QRCode.toDataURL(customUrl, {
+        width: 320,
+        margin: 2,
+        color: {
+          dark: '#0f172a',
+          light: '#ffffff',
+        },
+      });
+      setState((s) => ({ ...s, companionUrl: customUrl, qrDataUrl }));
+    } catch (err) {
+      console.error('Failed to generate QR for custom URL', err);
+    }
+  }, []);
 
   const initSession = useCallback(async () => {
     setState((s) => ({ ...s, isCreating: true, error: null }));
@@ -51,9 +69,10 @@ export function useCompanionSync(autoStart: boolean = false) {
       if (!data.success) throw new Error(data.error || 'Failed to initialize session');
 
       const sessionId: string = data.sessionId;
-      // Build accurate companion URL
-      const currentOrigin = typeof window !== 'undefined' ? window.location.origin : '';
-      const companionUrl = `${currentOrigin}/companion?session=${sessionId}`;
+      const availableIps: string[] = data.availableIps || [];
+
+      // Prefer server-detected LAN companion URL, fallback to window.location.origin
+      const companionUrl: string = data.companionUrl || `${typeof window !== 'undefined' ? window.location.origin : ''}/companion?session=${sessionId}`;
 
       // Generate QR Code data URL
       const qrDataUrl = await QRCode.toDataURL(companionUrl, {
@@ -69,6 +88,7 @@ export function useCompanionSync(autoStart: boolean = false) {
         ...s,
         sessionId,
         companionUrl,
+        availableIps,
         qrDataUrl,
         isCreating: false,
       }));
@@ -154,6 +174,7 @@ export function useCompanionSync(autoStart: boolean = false) {
       sessionId: null,
       qrDataUrl: null,
       companionUrl: null,
+      availableIps: [],
       isCreating: false,
       isConnected: false,
       mobileConnected: false,
@@ -175,5 +196,6 @@ export function useCompanionSync(autoStart: boolean = false) {
     ...state,
     initSession,
     disconnect,
+    setCustomUrl,
   };
 }
