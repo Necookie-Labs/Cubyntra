@@ -69,6 +69,11 @@ const DOCS_TO_GENERATE: DocMapping[] = [
     destPdf: 'docs/pdf/Cubyntra-Roadmap.pdf',
     title: 'Product Roadmap (V1 to V4)',
   },
+  {
+    srcMarkdown: 'docs/AI_MODEL_TRAINING_METHODOLOGY.md',
+    destPdf: 'docs/pdf/Cubyntra-AI-Model-Training.pdf',
+    title: 'AI Model Training Methodology & Empirical Vision Pipeline',
+  },
 ];
 
 function cleanMarkdownLine(line: string): string {
