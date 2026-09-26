@@ -5,7 +5,7 @@
  * Necookie Labs (c) 2026
  */
 
-import React, { useRef, useCallback } from 'react';
+import React, { useRef, useCallback, useState } from 'react';
 import { useCubyntraStore } from '@/stores/useCubyntraStore';
 import { Header } from '@/components/branding/Header';
 import { HexagonBackground } from '@/components/visual/HexagonBackground';
@@ -14,7 +14,8 @@ import { CameraScanner } from '@/components/camera/CameraScanner';
 import { SolveControls } from '@/components/solver/SolveControls';
 import { CVDebugger } from '@/components/scanner/CVDebugger';
 import { ErrorRecoveryModal } from '@/components/scanner/ErrorRecoveryModal';
-import { Camera, Sparkles, Shield, Cpu, Layers } from 'lucide-react';
+import { MobilePairingModal } from '@/components/sync/MobilePairingModal';
+import { Camera, Sparkles, Shield, Cpu, Layers, Smartphone, QrCode } from 'lucide-react';
 
 export default function Home() {
   const {
@@ -27,6 +28,8 @@ export default function Home() {
   } = useCubyntraStore();
 
   const visualizerRef = useRef<CubeVisualizerRef>(null);
+
+  const [isPairingOpen, setIsPairingOpen] = useState(false);
 
   const activeMove =
     solution && currentMoveIndex >= 0 && currentMoveIndex < solution.moves.length
@@ -47,6 +50,16 @@ export default function Home() {
 
   return (
     <div className="relative min-h-screen flex flex-col bg-[#0a0b0d] text-neutral-100 overflow-x-hidden">
+      {/* Mobile Pairing QR Modal */}
+      <MobilePairingModal
+        isOpen={isPairingOpen}
+        onClose={() => setIsPairingOpen(false)}
+        onSwitchToWebcam={() => {
+          setIsPairingOpen(false);
+          startScanning();
+        }}
+      />
+
       {/* Dynamic Procedural Background */}
       <HexagonBackground />
 
@@ -81,11 +94,23 @@ export default function Home() {
               <div className="flex flex-wrap items-center gap-3">
                 <button
                   type="button"
-                  onClick={startScanning}
-                  className="flex items-center gap-2 px-5 py-3 rounded-xl bg-white text-neutral-950 font-bold text-sm hover:bg-neutral-200 transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5"
+                  onClick={() => setIsPairingOpen(true)}
+                  className="flex items-center gap-2 px-5 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-bold text-sm transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5"
                 >
-                  <Camera className="w-4 h-4" />
-                  <span>Scan Physical Cube</span>
+                  <Smartphone className="w-4 h-4" />
+                  <span>Scan with Phone</span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-neutral-950/20 text-neutral-950 font-mono uppercase tracking-wider">
+                    HD
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={startScanning}
+                  className="flex items-center gap-2 px-4 py-3 rounded-xl bg-white/10 hover:bg-white/15 text-white font-semibold text-sm border border-white/15 transition-all"
+                >
+                  <Camera className="w-4 h-4 text-sky-400" />
+                  <span>Webcam Scan</span>
                 </button>
 
                 <button
@@ -94,7 +119,7 @@ export default function Home() {
                   className="flex items-center gap-2 px-4 py-3 rounded-xl bg-neutral-900/90 text-neutral-200 font-semibold text-sm hover:bg-neutral-800 border border-neutral-800 hover:border-neutral-700 transition-all"
                 >
                   <Sparkles className="w-4 h-4 text-amber-400" />
-                  <span>Load Scramble Demo</span>
+                  <span>Load Demo</span>
                 </button>
               </div>
 
