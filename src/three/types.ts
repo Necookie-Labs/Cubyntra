@@ -6,13 +6,14 @@
 import { CubeMove, Face } from '../cube/types';
 
 export interface VisualCubeOptions {
-  cubieSize?: number; // default 0.95
-  spacing?: number; // default 1.02
-  bevelRadius?: number;
-  plasticColor?: string; // default "#111215"
-  stickerInset?: number; // inset for sticker border
+  cubieSize?: number; // default 0.985
+  spacing?: number; // default 1.0
+  bevelRadius?: number; // default 0.11
+  plasticColor?: string; // default "#15161b"
   arrowColor?: string; // default "#38bdf8"
-  animationDurationMs?: number; // default 350
+  animationDurationMs?: number; // default 280
+  enableShadow?: boolean; // default true
+  enableIdleBob?: boolean; // default true
 }
 
 export interface MoveAnimationState {
