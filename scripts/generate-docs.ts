@@ -74,6 +74,11 @@ const DOCS_TO_GENERATE: DocMapping[] = [
     destPdf: 'docs/pdf/Cubyntra-AI-Model-Training.pdf',
     title: 'AI Model Training Methodology & Empirical Vision Pipeline',
   },
+  {
+    srcMarkdown: 'docs/THREE_D_ENGINE.md',
+    destPdf: 'docs/pdf/Cubyntra-Three-D-Engine.pdf',
+    title: '3D Graphics Engine & Digital Twin Specification',
+  },
 ];
 
 function cleanMarkdownLine(line: string): string {
