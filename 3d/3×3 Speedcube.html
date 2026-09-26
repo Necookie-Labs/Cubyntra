@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>3×3 Speedcube</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-a: #eef1f6;
+    --bg-b: #c9d0dc;
+    --text: #1a1d26;
+    --muted: #5d6474;
+    --panel: rgba(255,255,255,0.72);
+    --panel-border: rgba(26,29,38,0.10);
+    --btn: rgba(255,255,255,0.9);
+    --btn-hover: #ffffff;
+    --btn-text: #1a1d26;
+    --primary: #1a1d26;
+    --primary-text: #ffffff;
+    --ring: #2b6cff;
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg-a: #262a38;
+      --bg-b: #0f1118;
+      --text: #eef0f6;
+      --muted: #9aa1b3;
+      --panel: rgba(24,27,38,0.72);
+      --panel-border: rgba(255,255,255,0.08);
+      --btn: rgba(255,255,255,0.06);
+      --btn-hover: rgba(255,255,255,0.12);
+      --btn-text: #eef0f6;
+      --primary: #eef0f6;
+      --primary-text: #12141c;
+      --ring: #7aa2ff;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg-a: #262a38;
+    --bg-b: #0f1118;
+    --text: #eef0f6;
+    --muted: #9aa1b3;
+    --panel: rgba(24,27,38,0.72);
+    --panel-border: rgba(255,255,255,0.08);
+    --btn: rgba(255,255,255,0.06);
+    --btn-hover: rgba(255,255,255,0.12);
+    --btn-text: #eef0f6;
+    --primary: #eef0f6;
+    --primary-text: #12141c;
+    --ring: #7aa2ff;
+  }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); height: 100%; }
+  *, *::before, *::after { box-sizing: border-box; }
+  body {
+    margin: 0; height: 100%; overflow: hidden;
+    font-family: "Bricolage Grotesque", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    color: var(--text);
+    background: var(--bg-b);
+    background-image: radial-gradient(ellipse 80% 70% at 50% 40%, var(--bg-a) 0%, var(--bg-b) 100%);
+    -webkit-font-smoothing: antialiased;
+  }
+  #stage { position: fixed; inset: 0; }
+  #stage canvas { display: block; touch-action: none; cursor: grab; }
+  #stage canvas:active { cursor: grabbing; }
+
+  header {
+    position: fixed; top: env(safe-area-inset-top, 0px); left: 0; right: 0;
+    display: flex; justify-content: space-between; align-items: flex-start;
+    padding: 20px 24px; pointer-events: none;
+  }
+  h1 {
+    margin: 0; font-size: clamp(1.6rem, 3.4vw, 2.4rem); font-weight: 800;
+    letter-spacing: -0.03em; line-height: 1;
+  }
+  .sub { margin: 6px 0 0; color: var(--muted); font-size: 0.95rem; }
+  .stats { display: flex; gap: 22px; text-align: right; }
+  .stat .val { font-size: 1.6rem; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; line-height: 1; }
+  .stat .lab { color: var(--muted); font-size: 0.8rem; margin-top: 4px; }
+  #solvedBadge {
+    position: fixed; left: 50%; top: 22%; transform: translate(-50%, -10px) scale(0.96);
+    background: var(--primary); color: var(--primary-text);
+    padding: 10px 20px; border-radius: 999px; font-weight: 600; font-size: 1rem;
+    opacity: 0; transition: opacity .35s, transform .35s; pointer-events: none;
+  }
+  #solvedBadge.show { opacity: 1; transform: translate(-50%, 0) scale(1); }
+
+  .dock {
+    position: fixed; left: 50%; transform: translateX(-50%);
+    bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+    width: min(720px, calc(100% - 24px));
+    background: var(--panel); border: 1px solid var(--panel-border);
+    backdrop-filter: blur(18px) saturate(1.3); -webkit-backdrop-filter: blur(18px) saturate(1.3);
+    border-radius: 22px; padding: 14px;
+    display: grid; gap: 12px;
+  }
+  .moves { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+  .mv {
+    font: inherit; font-weight: 600; font-size: 1rem;
+    display: flex; align-items: center; justify-content: center; gap: 7px;
+    height: 40px; border-radius: 12px; border: 1px solid var(--panel-border);
+    background: var(--btn); color: var(--btn-text); cursor: pointer;
+    transition: background .15s, transform .08s;
+  }
+  .mv:hover { background: var(--btn-hover); }
+  .mv:active { transform: scale(0.95); }
+  .mv .dot { width: 10px; height: 10px; border-radius: 3px; box-shadow: inset 0 0 0 1px rgba(0,0,0,.18); }
+  .actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .act {
+    font: inherit; font-weight: 600; font-size: 0.95rem;
+    height: 40px; padding: 0 16px; border-radius: 12px; cursor: pointer;
+    border: 1px solid var(--panel-border); background: var(--btn); color: var(--btn-text);
+    transition: background .15s, transform .08s;
+  }
+  .act:hover { background: var(--btn-hover); }
+  .act:active { transform: scale(0.96); }
+  .act.primary { background: var(--primary); color: var(--primary-text); border-color: transparent; }
+  .speed { margin-left: auto; display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 0.85rem; }
+  .speed input { width: 110px; accent-color: var(--primary); }
+  button:focus-visible, input:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+  .keys { color: var(--muted); font-size: 0.8rem; text-align: center; margin: -2px 0 0; }
+  kbd { font: inherit; font-weight: 600; color: var(--text); }
+
+  @media (max-width: 560px) {
+    header { padding: 16px; }
+    .stats { gap: 14px; }
+    .stat .val { font-size: 1.25rem; }
+    .moves { grid-template-columns: repeat(4, 1fr); }
+    .speed { margin-left: 0; width: 100%; }
+    .speed input { flex: 1; }
+    .keys { display: none; }
+  }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+
+<header>
+  <div>
+    <h1>3×3 Speedcube</h1>
+    <p class="sub">Drag to look around. Turn faces with the buttons or keys.</p>
+  </div>
+  <div class="stats" aria-live="polite">
+    <div class="stat"><div class="val" id="moveCount">0</div><div class="lab">moves</div></div>
+    <div class="stat"><div class="val" id="timer">0.00</div><div class="lab">seconds</div></div>
+  </div>
+</header>
+
+<div id="solvedBadge" role="status">Solved</div>
+
+<div class="dock">
+  <div class="moves" id="moves"></div>
+  <div class="actions">
+    <button class="act primary" id="btnScramble">Scramble</button>
+    <button class="act" id="btnSolve">Solve</button>
+    <button class="act" id="btnReset">Reset</button>
+    <label class="speed">Turn speed <input type="range" id="speed" min="80" max="600" value="220" step="10" aria-label="Turn duration"></label>
+  </div>
+  <p class="keys"><kbd>U D L R F B</kbd> turn clockwise, hold <kbd>Shift</kbd> for counter-clockwise, <kbd>Space</kbd> scrambles</p>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+(() => {
+  // ---------- Renderer / scene ----------
+  const stage = document.getElementById('stage');
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.outputEncoding = THREE.sRGBEncoding;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.05;
+  renderer.setClearColor(0x000000, 0);
+  stage.appendChild(renderer.domElement);
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.1, 100);
+  camera.position.set(6.2, 5.2, 7.6);
+
+  const controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.08;
+  controls.enablePan = false;
+  controls.minDistance = 6;
+  controls.maxDistance = 18;
+  controls.rotateSpeed = 0.8;
+  controls.target.set(0, 0.2, 0);
+
+  // ---------- Studio environment for reflections ----------
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  const env = new THREE.Scene();
+  const room = new THREE.Mesh(new THREE.BoxGeometry(20, 20, 20),
+    new THREE.MeshBasicMaterial({ color: 0x3a3f4c, side: THREE.BackSide }));
+  env.add(room);
+  const panel = (w, h, x, y, z, intensity) => {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h),
+      new THREE.MeshBasicMaterial({ color: new THREE.Color(intensity, intensity, intensity), side: THREE.DoubleSide }));
+    m.position.set(x, y, z); m.lookAt(0, 0, 0); env.add(m);
+  };
+  panel(8, 4, 0, 9, 2, 5);     // big softbox overhead
+  panel(3, 6, -9, 2, 4, 3);    // left strip
+  panel(3, 6, 9, 1, -3, 2.2);  // right strip
+  panel(6, 2, 0, -2, 9, 1.2);  // front fill
+  scene.environment = pmrem.fromScene(env, 0.04).texture;
+
+  const key = new THREE.DirectionalLight(0xffffff, 0.9);
+  key.position.set(4, 8, 5);
+  scene.add(key);
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x445066, 0.35));
+
+  // ---------- Geometry helpers ----------
+  function roundedBox(size, radius, smooth) {
+    const shape = new THREE.Shape();
+    const eps = 0.00001, r = radius - eps, s = size;
+    shape.absarc(eps, eps, eps, -Math.PI / 2, -Math.PI, true);
+    shape.absarc(eps, s - r * 2, eps, Math.PI, Math.PI / 2, true);
+    shape.absarc(s - r * 2, s - r * 2, eps, Math.PI / 2, 0, true);
+    shape.absarc(s - r * 2, eps, eps, 0, -Math.PI / 2, true);
+    const g = new THREE.ExtrudeGeometry(shape, {
+      depth: s - radius * 2, bevelEnabled: true, bevelSegments: smooth * 2, steps: 1,
+      bevelSize: r, bevelThickness: radius, curveSegments: smooth
+    });
+    g.center(); g.computeVertexNormals();
+    return g;
+  }
+  function roundedTile(size, radius, depth) {
+    const h = size / 2, r = radius, sh = new THREE.Shape();
+    sh.moveTo(-h + r, -h);
+    sh.lineTo(h - r, -h); sh.quadraticCurveTo(h, -h, h, -h + r);
+    sh.lineTo(h, h - r);  sh.quadraticCurveTo(h, h, h - r, h);
+    sh.lineTo(-h + r, h); sh.quadraticCurveTo(-h, h, -h, h - r);
+    sh.lineTo(-h, -h + r); sh.quadraticCurveTo(-h, -h, -h + r, -h);
+    const g = new THREE.ExtrudeGeometry(sh, {
+      depth, bevelEnabled: true, bevelThickness: 0.012, bevelSize: 0.012, bevelSegments: 3, curveSegments: 10
+    });
+    g.computeVertexNormals();
+    return g;
+  }
+
+  // ---------- Materials ----------
+  const FACE_COLORS = {
+    U: '#f4f5f0', // white
+    D: '#ffd500', // yellow
+    F: '#00b35c', // green
+    B: '#0a5cff', // blue
+    R: '#e8132e', // red
+    L: '#ff7a00'  // orange
+  };
+  const tileMat = {};
+  for (const k in FACE_COLORS) {
+    tileMat[k] = new THREE.MeshPhysicalMaterial({
+      color: new THREE.Color(FACE_COLORS[k]).convertSRGBToLinear(),
+      roughness: 0.32, metalness: 0, clearcoat: 0.7, clearcoatRoughness: 0.18,
+      envMapIntensity: 0.9
+    });
+  }
+  const bodyMat = new THREE.MeshPhysicalMaterial({
+    color: new THREE.Color('#15161b').convertSRGBToLinear(),
+    roughness: 0.55, metalness: 0, clearcoat: 0.25, clearcoatRoughness: 0.5
+  });
+
+  const CUBIE = 0.985, GAP = 1.0;
+  const bodyGeo = roundedBox(CUBIE, 0.11, 5);
+  const tileGeo = roundedTile(0.84, 0.13, 0.018);
+
+  // face: normal direction, which axis/sign it sits on
+  const FACES = [
+    { k: 'R', axis: 'x', s: 1,  rot: [0,  Math.PI / 2, 0] },
+    { k: 'L', axis: 'x', s: -1, rot: [0, -Math.PI / 2, 0] },
+    { k: 'U', axis: 'y', s: 1,  rot: [-Math.PI / 2, 0, 0] },
+    { k: 'D', axis: 'y', s: -1, rot: [ Math.PI / 2, 0, 0] },
+    { k: 'F', axis: 'z', s: 1,  rot: [0, 0, 0] },
+    { k: 'B', axis: 'z', s: -1, rot: [0, Math.PI, 0] }
+  ];
+
+  // ---------- Build cube ----------
+  const root = new THREE.Group();
+  scene.add(root);
+  const cubeGroup = new THREE.Group();
+  root.add(cubeGroup);
+  const pivot = new THREE.Group();
+  cubeGroup.add(pivot);
+
+  const cubies = [];
+  for (let x = -1; x <= 1; x++) for (let y = -1; y <= 1; y++) for (let z = -1; z <= 1; z++) {
+    if (x === 0 && y === 0 && z === 0) continue;
+    const c = new THREE.Group();
+    c.add(new THREE.Mesh(bodyGeo, bodyMat));
+    const p = { x, y, z };
+    for (const f of FACES) {
+      if (p[f.axis] !== f.s) continue;
+      const t = new THREE.Mesh(tileGeo, tileMat[f.k]);
+      t.rotation.set(...f.rot);
+      const off = CUBIE / 2 - 0.004;
+      t.position[f.axis] = f.s * off;
+      c.add(t);
+    }
+    c.position.set(x * GAP, y * GAP, z * GAP);
+    c.userData.home = new THREE.Vector3(x, y, z);
+    cubeGroup.add(c);
+    cubies.push(c);
+  }
+
+  // ---------- Soft contact shadow ----------
+  const sc = document.createElement('canvas');
+  sc.width = sc.height = 256;
+  const sctx = sc.getContext('2d');
+  const grd = sctx.createRadialGradient(128, 128, 0, 128, 128, 128);
+  grd.addColorStop(0, 'rgba(0,0,0,0.55)');
+  grd.addColorStop(0.45, 'rgba(0,0,0,0.22)');
+  grd.addColorStop(1, 'rgba(0,0,0,0)');
+  sctx.fillStyle = grd; sctx.fillRect(0, 0, 256, 256);
+  const shadow = new THREE.Mesh(new THREE.PlaneGeometry(6.5, 6.5),
+    new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(sc), transparent: true, depthWrite: false }));
+  shadow.rotation.x = -Math.PI / 2;
+  shadow.position.y = -2.35;
+  scene.add(shadow);
+
+  // ---------- Move engine ----------
+  const MOVES = {
+    U: ['y', 1, -1], D: ['y', -1, 1],
+    R: ['x', 1, -1], L: ['x', -1, 1],
+    F: ['z', 1, -1], B: ['z', -1, 1]
+  };
+  const queue = [];
+  let current = null;
+  let history = [];
+  let moveCount = 0;
+  let duration = 220;
+
+  const inverse = m => m.endsWith("'") ? m[0] : (m.endsWith('2') ? m : m + "'");
+  const ease = t => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+
+  function enqueue(m, opts = {}) { queue.push({ m, ...opts }); }
+
+  function startMove(item) {
+    const m = item.m;
+    const [axis, layer, dir] = MOVES[m[0]];
+    const mult = m.endsWith("'") ? -1 : (m.endsWith('2') ? 2 : 1);
+    const angle = dir * mult * Math.PI / 2;
+    pivot.rotation.set(0, 0, 0);
+    pivot.updateMatrixWorld();
+    const sel = cubies.filter(c => Math.round(c.position[axis]) === layer);
+    sel.forEach(c => pivot.attach(c));
+    current = { axis, angle, sel, start: performance.now(),
+      dur: (item.fast ? duration * 0.45 : duration) * (Math.abs(mult) === 2 ? 1.4 : 1), item };
+  }
+
+  function finishMove() {
+    const { axis, angle, sel, item } = current;
+    pivot.rotation[axis] = angle;
+    pivot.updateMatrixWorld();
+    sel.forEach(c => {
+      cubeGroup.attach(c);
+      c.updateMatrix();
+      const e = c.matrix.elements;
+      for (let i = 0; i < 16; i++) e[i] = Math.round(e[i]);
+      c.matrix.decompose(c.position, c.quaternion, c.scale);
+    });
+    pivot.rotation.set(0, 0, 0);
+    current = null;
+    if (!item.silent) {
+      history.push(item.m);
+    }
+    if (item.count) { moveCount++; updateMoves(); }
+    if (item.user) onUserMove();
+  }
+
+  // ---------- State: timer & solved check ----------
+  const $moves = document.getElementById('moveCount');
+  const $timer = document.getElementById('timer');
+  const $badge = document.getElementById('solvedBadge');
+  let scrambled = false, timerStart = 0, timerRunning = false, badgeTimeout;
+
+  const updateMoves = () => { $moves.textContent = moveCount; };
+  const isSolved = () => cubies.every(c =>
+    c.position.distanceToSquared(c.userData.home) < 1e-6 &&
+    Math.abs(Math.abs(c.quaternion.w) - 1) < 1e-6);
+
+  function showBadge(text) {
+    $badge.textContent = text;
+    $badge.classList.add('show');
+    clearTimeout(badgeTimeout);
+    badgeTimeout = setTimeout(() => $badge.classList.remove('show'), 2400);
+  }
+
+  function onUserMove() {
+    if (scrambled && !timerRunning) { timerRunning = true; timerStart = performance.now(); }
+    if (scrambled && isSolved()) {
+      timerRunning = false; scrambled = false;
+      showBadge(`Solved in ${$timer.textContent}s`);
+      history = [];
+    }
+  }
+
+  // ---------- Actions ----------
+  function userMove(m) {
+    if (queue.length > 6) return;
+    enqueue(m, { user: true, count: true });
+  }
+
+  function scramble() {
+    if (current || queue.length) return;
+    const faces = Object.keys(MOVES);
+    const axisOf = f => MOVES[f][0];
+    let last = '', lastAxis = '', prevAxis = '';
+    for (let i = 0; i < 22; i++) {
+      let f;
+      do { f = faces[Math.floor(Math.random() * 6)]; }
+      while (f === last || (axisOf(f) === lastAxis && axisOf(f) === prevAxis));
+      const suf = ['', "'", '2'][Math.floor(Math.random() * 3)];
+      enqueue(f + suf, { fast: true });
+      prevAxis = lastAxis; lastAxis = axisOf(f); last = f;
+    }
+    moveCount = 0; updateMoves();
+    timerRunning = false; $timer.textContent = '0.00';
+    scrambled = true;
+    $badge.classList.remove('show');
+  }
+
+  function solve() {
+    if (current || queue.length || !history.length) return;
+    const seq = history.slice().reverse().map(inverse);
+    history = [];
+    seq.forEach(m => enqueue(m, { silent: true, fast: true }));
+    scrambled = false; timerRunning = false;
+    enqueue('__done');
+  }
+
+  function reset() {
+    queue.length = 0;
+    if (current) { current.sel.forEach(c => cubeGroup.attach(c)); pivot.rotation.set(0, 0, 0); current = null; }
+    cubies.forEach(c => { c.position.copy(c.userData.home); c.quaternion.identity(); });
+    history = []; moveCount = 0; updateMoves();
+    scrambled = false; timerRunning = false; $timer.textContent = '0.00';
+    $badge.classList.remove('show');
+  }
+
+  // ---------- UI wiring ----------
+  const movesEl = document.getElementById('moves');
+  ['U', 'D', 'L', 'R', 'F', 'B'].forEach(f => {
+    ['', "'"].forEach(suf => {
+      const b = document.createElement('button');
+      b.className = 'mv';
+      b.setAttribute('aria-label', `Turn ${f}${suf ? ' counter-clockwise' : ' clockwise'}`);
+      b.innerHTML = `<span class="dot" style="background:${FACE_COLORS[f]}"></span>${f}${suf}`;
+      b.addEventListener('click', () => userMove(f + suf));
+      movesEl.appendChild(b);
+    });
+  });
+  // reorder: pair clockwise buttons on first row, primes on second
+  const btns = [...movesEl.children];
+  movesEl.innerHTML = '';
+  btns.filter((_, i) => i % 2 === 0).forEach(b => movesEl.appendChild(b));
+  btns.filter((_, i) => i % 2 === 1).forEach(b => movesEl.appendChild(b));
+
+  document.getElementById('btnScramble').addEventListener('click', scramble);
+  document.getElementById('btnSolve').addEventListener('click', solve);
+  document.getElementById('btnReset').addEventListener('click', reset);
+  const speed = document.getElementById('speed');
+  // slider left = slow, right = fast
+  const syncSpeed = () => { duration = 680 - Number(speed.value); };
+  speed.addEventListener('input', syncSpeed); syncSpeed();
+
+  window.addEventListener('keydown', e => {
+    if (e.target.tagName === 'INPUT') return;
+    const k = e.key.toUpperCase();
+    if (MOVES[k] && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      e.preventDefault();
+      userMove(k + (e.shiftKey ? "'" : ''));
+    } else if (e.code === 'Space') {
+      e.preventDefault(); scramble();
+    }
+  });
+
+  window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    fitCamera();
+  });
+  function fitCamera() {
+    // pull back a little on narrow screens so the whole cube stays in view
+    const a = camera.aspect;
+    const dist = a < 0.8 ? 13.5 : (a < 1.2 ? 11.5 : 10.8);
+    const dir = camera.position.clone().sub(controls.target).normalize();
+    camera.position.copy(controls.target).addScaledVector(dir, dist);
+    controls.target.y = a < 0.8 ? 0.8 : 0.2;
+  }
+  fitCamera();
+
+  // ---------- Loop ----------
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const clock = new THREE.Clock();
+  function tick(now) {
+    const t = clock.getElapsedTime();
+
+    if (!current && queue.length) {
+      const next = queue.shift();
+      if (next.m === '__done') { moveCount = 0; updateMoves(); showBadge('Solved'); }
+      else startMove(next);
+    }
+    if (current) {
+      const p = Math.min((now - current.start) / current.dur, 1);
+      pivot.rotation[current.axis] = current.angle * ease(p);
+      if (p >= 1) finishMove();
+    }
+
+    if (timerRunning) $timer.textContent = ((now - timerStart) / 1000).toFixed(2);
+
+    if (!reduceMotion) {
+      const bob = Math.sin(t * 1.2) * 0.06;
+      root.position.y = bob;
+      shadow.material.opacity = 0.9 - bob * 2;
+      shadow.scale.setScalar(1 - bob * 0.6);
+    }
+
+    controls.update();
+    renderer.render(scene, camera);
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>
