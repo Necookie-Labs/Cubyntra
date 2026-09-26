@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { rgbToHsv, rgbToLab, classifyColor } from '../src/vision/color';
+import { rgbToHsv, rgbToLab, classifyColor, isAuthenticRubikColor } from '../src/vision/color';
 import { aggregateTrimmedMean, calculateROIBounds } from '../src/vision/sampling';
 import { TemporalStabilityBuffer } from '../src/vision/stability';
 import { getSolvedMockScan, getScrambledMockScan } from '../src/vision/mock';
@@ -88,6 +88,49 @@ describe('Color Space Conversions & Robust Classification', () => {
     const coolBlue: RGBColor = { r: 10, g: 60, b: 180 };
     expect(classifyColor(coolBlue).color).toBe('blue');
   });
+
+  it('strictly rejects human skin tones across Fitzpatrick phototypes from cube classification', () => {
+    const skinSamples: Array<{ name: string; rgb: RGBColor }> = [
+      { name: 'Fitzpatrick I (Pale)', rgb: { r: 242, g: 198, b: 178 } },
+      { name: 'Fitzpatrick II (Fair)', rgb: { r: 228, g: 178, b: 148 } },
+      { name: 'Fitzpatrick III (Medium)', rgb: { r: 208, g: 158, b: 122 } },
+      { name: 'Fitzpatrick IV (Olive/Tan)', rgb: { r: 188, g: 138, b: 98 } },
+      { name: 'Fitzpatrick V (Brown)', rgb: { r: 148, g: 98, b: 68 } },
+      { name: 'Fitzpatrick VI (Dark)', rgb: { r: 98, g: 62, b: 44 } },
+    ];
+
+    for (const skin of skinSamples) {
+      const result = classifyColor(skin.rgb);
+      expect(result.isCubeColor, `Failed rejection on ${skin.name}`).toBe(false);
+      expect(result.confidence, `Confidence not 0 on ${skin.name}`).toBe(0);
+      expect(result.rejectionReason?.toLowerCase()).toContain('skin');
+
+      const auth = isAuthenticRubikColor(skin.rgb);
+      expect(auth.isCubeColor).toBe(false);
+    }
+  });
+
+  it('rejects desaturated background walls, dark shadows, and clothing', () => {
+    // Gray painted wall
+    const grayWall = classifyColor({ r: 140, g: 140, b: 140 });
+    expect(grayWall.isCubeColor).toBe(false);
+    expect(grayWall.confidence).toBe(0);
+
+    // Deep shadow / dark boundary gap
+    const darkShadow = classifyColor({ r: 20, g: 20, b: 20 });
+    expect(darkShadow.isCubeColor).toBe(false);
+    expect(darkShadow.confidence).toBe(0);
+
+    // Muted khaki / beige desk wood
+    const woodDesk = classifyColor({ r: 160, g: 145, b: 120 });
+    expect(woodDesk.isCubeColor).toBe(false);
+    expect(woodDesk.confidence).toBe(0);
+
+    // Denim cloth
+    const denimBlue = classifyColor({ r: 70, g: 85, b: 110 });
+    expect(denimBlue.isCubeColor).toBe(false);
+    expect(denimBlue.confidence).toBe(0);
+  });
 });
 
 describe('Sampling & Trimmed Pixel Aggregation', () => {
@@ -163,6 +206,24 @@ describe('Temporal Stability Buffer', () => {
     const disrupted = buffer.processFrame(yellowStickers, 'U');
     expect(disrupted.isStable).toBe(false);
     expect(disrupted.stabilityProgress).toBeLessThan(0.5);
+  });
+
+  it('blocks stability progress when any cell fails isCubeColor check', () => {
+    const buffer = new TemporalStabilityBuffer({ requiredStableFrames: 5 });
+    const mockStickers = makeMockStickers('white');
+
+    // Contaminate one cell with non-cube color (e.g. human skin or wall)
+    mockStickers[4].isCubeColor = false;
+    mockStickers[4].confidence = 0;
+
+    let result;
+    for (let i = 0; i < 6; i++) {
+      result = buffer.processFrame(mockStickers, 'U');
+    }
+
+    expect(result?.isStable).toBe(false);
+    expect(result?.stabilityProgress).toBe(0);
+    expect(result?.stableFramesCount).toBe(0);
   });
 });
 

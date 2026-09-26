@@ -137,7 +137,7 @@ export function extractCubeFeatures(
   let nonCubeCount = 0;
   for (const s of samples) {
     const bestScore = s.colorScores[s.predictedColor];
-    if (bestScore < 45 || s.confidence < 0.40) {
+    if (s.isCubeColor === false || bestScore < 45 || s.confidence < 0.40) {
       nonCubeCount++;
     }
   }

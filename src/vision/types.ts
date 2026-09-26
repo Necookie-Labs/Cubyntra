@@ -33,6 +33,8 @@ export interface StickerSample {
   predictedColor: CubeColor;
   confidence: number; // 0.0 - 1.0
   colorScores: Record<CubeColor, number>;
+  isCubeColor?: boolean;
+  rejectionReason?: string;
 }
 
 import { CubeDetectionResult } from './ml/types';
