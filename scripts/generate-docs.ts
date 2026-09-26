@@ -77,12 +77,30 @@ const DOCS_TO_GENERATE: DocMapping[] = [
 ];
 
 function cleanMarkdownLine(line: string): string {
-  // Strip bold/italic markdown characters for cleaner plain PDF rendering
+  // Strip bold/italic markdown and format LaTeX characters for clean plain PDF rendering
   return line
     .replace(/\*\*(.*?)\*\*/g, '$1')
     .replace(/\*(.*?)\*/g, '$1')
     .replace(/`([^`]+)`/g, '$1')
-    .replace(/\[(.*?)\]\(.*?\)/g, '$1');
+    .replace(/\[(.*?)\]\(.*?\)/g, '$1')
+    .replace(/\\Delta E/g, 'Delta-E')
+    .replace(/\\to/g, '->')
+    .replace(/\\le/g, '<=')
+    .replace(/\\ge/g, '>=')
+    .replace(/\\approx/g, '~')
+    .replace(/\\times/g, 'x')
+    .replace(/\\in/g, 'in')
+    .replace(/\\pm/g, '+/-')
+    .replace(/\\mu/g, 'u')
+    .replace(/\\sigma/g, 'sigma')
+    .replace(/\\alpha/g, 'alpha')
+    .replace(/\\beta/g, 'beta')
+    .replace(/\\lambda/g, 'lambda')
+    .replace(/\\epsilon/g, 'epsilon')
+    .replace(/\\text\{([^}]+)\}/g, '$1')
+    .replace(/\\mathbf\{([^}]+)\}/g, '$1')
+    .replace(/\\circ/g, '°')
+    .replace(/\$+/g, '');
 }
 
 async function generatePdfForMarkdown(docMapping: DocMapping): Promise<void> {
@@ -261,18 +279,29 @@ async function generatePdfForMarkdown(docMapping: DocMapping): Promise<void> {
           .slice(1, -1)
           .map((c) => cleanMarkdownLine(c.trim()));
         
-        doc.font('Helvetica').fontSize(8).fillColor('#1E293B');
-        const colWidth = 490 / Math.max(cells.length, 1);
-        const rowY = doc.y;
+        if (doc.y > 710) {
+          doc.addPage();
+        }
+
+        const startY = doc.y;
+        doc.font('Helvetica').fontSize(7.5).fillColor('#1E293B');
+        const colWidth = 485 / Math.max(cells.length, 1);
+        let maxHeight = 10;
 
         cells.forEach((cell, idx) => {
-          doc.text(cell, 55 + idx * colWidth, rowY, {
-            width: colWidth - 5,
-            lineBreak: false,
-            ellipsis: true,
+          const cellX = 55 + idx * colWidth;
+          const textHeight = doc.heightOfString(cell, { width: colWidth - 4 });
+          if (textHeight > maxHeight) {
+            maxHeight = textHeight;
+          }
+          doc.text(cell, cellX, startY, {
+            width: colWidth - 4,
+            lineBreak: true,
           });
         });
-        doc.moveDown(0.5);
+
+        doc.y = startY + maxHeight + 3;
+        doc.x = 50;
         continue;
       }
 
@@ -290,17 +319,25 @@ async function generatePdfForMarkdown(docMapping: DocMapping): Promise<void> {
     const range = doc.bufferedPageRange();
     for (let p = 0; p < range.count; p++) {
       doc.switchToPage(p);
-      doc.strokeColor('#E2E8F0').lineWidth(0.5).moveTo(50, 790).lineTo(545, 790).stroke();
+      doc.strokeColor('#E2E8F0').lineWidth(0.5).moveTo(50, 770).lineTo(545, 770).stroke();
       doc
         .fillColor('#94A3B8')
         .fontSize(8)
         .font('Helvetica')
-        .text('Cubyntra  •  Necookie Labs  •  See it. Solve it.', 50, 798, { align: 'left' });
+        .text('Cubyntra  •  Necookie Labs  •  See it. Solve it.', 50, 775, {
+          lineBreak: false,
+          width: 250,
+          align: 'left',
+        });
       doc
         .fillColor('#94A3B8')
         .fontSize(8)
         .font('Helvetica')
-        .text(`Page ${p + 1} of ${range.count}`, 50, 798, { align: 'right' });
+        .text(`Page ${p + 1} of ${range.count}`, 295, 775, {
+          lineBreak: false,
+          width: 250,
+          align: 'right',
+        });
     }
 
     doc.end();
