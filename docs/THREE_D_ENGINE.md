@@ -37,11 +37,13 @@ Layers along axes:
 - **Centers** (6 pieces): $|x| + |y| + |z| = 1$. Have 1 colored face, 5 internal faces.
 - **Core** (1 piece): $|x| + |y| + |z| = 0$. Hidden internal pivot mechanism.
 
-### Multi-Material Cubie Mesh Construction
-Each cubie mesh is assigned a multi-material array of 6 materials corresponding to standard Three.js `BoxGeometry` face order:
-`[+X (Right), -X (Left), +Y (Up), -Y (Down), +Z (Front), -Z (Back)]`
-
-Internal faces that are hidden from view receive a matte dark charcoal plastic material (`#111827`), while exposed external facelets receive the assigned sticker color with subtle specular roughness.
+### Speedcube PBR Mesh Construction & Shared Buffer Geometries
+Rather than rudimentary BoxGeometry cubes, Cubyntra constructs cubies using precision-extruded competition speedcube components:
+1. **Chamfered ABS Body**: Extruded rounded shape with bevel (`createRoundedBoxGeometry(0.985, 0.11, 5)`) creating smooth aerodynamic edges. Shaded with matte black ABS plastic `MeshPhysicalMaterial` (`#15161b`, roughness 0.55, clearcoat 0.25).
+2. **3D Beveled Facelet Tiles**: Tactile 3D tiles (`createRoundedTileGeometry(0.84, 0.13, 0.018)`) with quadratic corner fillets and bevel. Mounted onto external faces with slight normal offset, eliminating z-fighting and mimicking physical speedcube tiles.
+3. **PBR Clearcoat Materials**: High-gloss specular coating with `MeshPhysicalMaterial` (roughness 0.32, clearcoat 0.70, clearcoatRoughness 0.18, envMapIntensity 0.90) and authentic competition speedcube color palette:
+   - White (`#f4f5f0`), Yellow (`#ffd500`), Green (`#00b35c`), Blue (`#0a5cff`), Red (`#e8132e`), Orange (`#ff7a00`).
+4. **Buffer Geometry Sharing**: Shared module-level geometry singletons (`getSharedBodyGeometry` and `getSharedTileGeometry`) reuse vertex and index buffers across all 27 cubies, guaranteeing minimal GPU memory overhead and zero garbage collection spikes.
 
 ---
 
@@ -91,6 +93,11 @@ To guide users through solving moves physically, Cubyntra renders animated 3D di
   - Zoom bounds: Minimum distance $3.5$, maximum distance $12.0$.
   - Pan disabled to ensure the cube remains strictly centered in the viewport.
 - **Responsive Resize**: Automatically recalculates aspect ratio and projection matrix on window/container resize without distortion.
+
+### 5.1 Studio Environment & Contact Shadow
+- **PMREM Studio Reflections**: Real-time environment reflections generated via `THREE.PMREMGenerator` using synthetic studio light panels (overhead softbox, left/right rim strips, and front fill), casting natural glossy highlights across beveled tile edges.
+- **Contact Shadow Plane**: Projected radial gradient texture positioned at $y = -2.35$ with dynamic scale and opacity breathing in sync with subtle floating idle bobbing.
+- **Color Science & Tone Mapping**: Configured with `THREE.SRGBColorSpace` and `THREE.ACESFilmicToneMapping` (exposure 1.05) for realistic physical rendering.
 
 ---
 
