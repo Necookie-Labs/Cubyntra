@@ -84,6 +84,31 @@ export async function initializeCameraStream(
 }
 
 /**
+ * Toggles the hardware camera torch/flashlight if supported.
+ */
+export async function toggleCameraTorch(
+  stream: MediaStream | null,
+  enabled: boolean
+): Promise<boolean> {
+  if (!stream) return false;
+  const track = stream.getVideoTracks()[0];
+  if (!track) return false;
+
+  try {
+    const capabilities = (track.getCapabilities ? track.getCapabilities() : {}) as Record<string, unknown>;
+    if (capabilities.torch) {
+      await (track as any).applyConstraints({
+        advanced: [{ torch: enabled }],
+      });
+      return true;
+    }
+  } catch {
+    return false;
+  }
+  return false;
+}
+
+/**
  * Completely releases all camera hardware resources and tracks.
  */
 export function terminateCameraStream(stream: MediaStream | null): void {
