@@ -55,8 +55,19 @@ export async function GET(
         }
       });
 
-      // Periodic ping every 15s to keep connection alive across proxies
+      // Periodic ping every 15s keeps the connection alive across proxies and marks the
+      // session as in use, so a connected pairing never expires while idle.
       pingInterval = setInterval(() => {
+        if (!sessionManager.touch(id)) {
+          // The session is gone (expired or deleted): end the stream so the client notices.
+          if (pingInterval) clearInterval(pingInterval);
+          try {
+            controller.close();
+          } catch {
+            // Already closed
+          }
+          return;
+        }
         try {
           const pingEvent: SessionEvent = {
             type: 'PING',

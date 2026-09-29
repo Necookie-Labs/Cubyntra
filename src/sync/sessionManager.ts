@@ -34,18 +34,35 @@ class SessionManager {
 
   private startCleanupTimer() {
     if (typeof setInterval !== 'undefined') {
-      this.cleanupInterval = setInterval(() => {
-        const now = Date.now();
-        for (const [id, session] of this.sessions.entries()) {
-          if (now - session.lastActiveAt > this.SESSION_TTL_MS) {
-            this.deleteSession(id);
-          }
-        }
-      }, 60 * 1000);
+      this.cleanupInterval = setInterval(() => this.purgeExpired(Date.now()), 60 * 1000);
       if (this.cleanupInterval.unref) {
         this.cleanupInterval.unref();
       }
     }
+  }
+
+  /** Deletes sessions idle for longer than the TTL. Returns the ids removed. */
+  public purgeExpired(now: number): string[] {
+    const removed: string[] = [];
+    for (const [id, session] of this.sessions.entries()) {
+      if (now - session.lastActiveAt > this.SESSION_TTL_MS) {
+        this.deleteSession(id);
+        removed.push(id);
+      }
+    }
+    return removed;
+  }
+
+  /**
+   * Marks a session as in use. Called by every open event stream's keep-alive ping, so a
+   * pairing with a connected client never expires just because nobody is scanning yet.
+   * Returns false if the session no longer exists.
+   */
+  public touch(sessionId: string, now = Date.now()): boolean {
+    const session = this.sessions.get(sessionId);
+    if (!session) return false;
+    session.lastActiveAt = now;
+    return true;
   }
 
   /**

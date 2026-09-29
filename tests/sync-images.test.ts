@@ -96,3 +96,32 @@ describe('SessionManager face photo relay', () => {
     expect(events[0]).toMatchObject({ type: 'RESCAN_REQUEST', payload: { face: 'L' } });
   });
 });
+
+describe('SessionManager expiry', () => {
+  beforeEach(() => {
+    sessionManager.clearAll();
+  });
+
+  it('expires a session left idle past the TTL', () => {
+    const s = sessionManager.createSession('exp-idle');
+    const later = s.lastActiveAt + 31 * 60 * 1000;
+    expect(sessionManager.purgeExpired(later)).toEqual(['exp-idle']);
+    expect(sessionManager.getSession('exp-idle')).toBeNull();
+  });
+
+  it('keeps a session alive while a client stream keeps touching it', () => {
+    const s = sessionManager.createSession('exp-live');
+    // A connected stream pings every 15 s; simulate 40 minutes of pings with no scanning.
+    let now = s.lastActiveAt;
+    for (let i = 0; i < 160; i++) {
+      now += 15_000;
+      expect(sessionManager.touch('exp-live', now)).toBe(true);
+      sessionManager.purgeExpired(now);
+    }
+    expect(sessionManager.getSession('exp-live')).not.toBeNull();
+  });
+
+  it('reports a session that no longer exists', () => {
+    expect(sessionManager.touch('never-created')).toBe(false);
+  });
+});
