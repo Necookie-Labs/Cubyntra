@@ -28,6 +28,8 @@ export interface MobileSession {
   rescanRequest: { face: Face; at: number } | null;
   sendPhoto: (face: Face, imageDataUrl: string, quality?: CaptureQualitySummary) => Promise<void>;
   reset: () => void;
+  /** Scan another cube on the same pairing: clears this phone and tells the computer. */
+  startOver: () => Promise<void>;
 }
 
 export function useMobileSession(sessionId: string | null): MobileSession {
@@ -63,6 +65,17 @@ export function useMobileSession(sessionId: string | null): MobileSession {
     setConfirmed(false);
     setRescanRequest(null);
   }, []);
+
+  const startOver = useCallback(async () => {
+    reset();
+    if (!sessionId) return;
+    try {
+      // The computer answers with SESSION_RESET and starts a fresh phone scan.
+      await fetch(`/api/session/${sessionId}/reset`, { method: 'POST' });
+    } catch {
+      // If the computer cannot be reached, the next photo reports it.
+    }
+  }, [reset, sessionId]);
 
   useEffect(() => {
     if (!sessionId) return;
@@ -145,5 +158,5 @@ export function useMobileSession(sessionId: string | null): MobileSession {
     [sessionId, settle]
   );
 
-  return { connected, status, reasons, previews, confirmed, rescanRequest, sendPhoto, reset };
+  return { connected, status, reasons, previews, confirmed, rescanRequest, sendPhoto, reset, startOver };
 }

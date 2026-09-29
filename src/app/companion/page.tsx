@@ -297,7 +297,7 @@ function CompanionScannerContent() {
   }, [hasTorch, torchActive]);
 
   const handleReset = useCallback(() => {
-    session.reset();
+    void session.startOver();
     setAdvancedFor(null);
     setStepIndex(0);
   }, [session]);

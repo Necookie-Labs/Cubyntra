@@ -288,9 +288,9 @@ class SessionManager {
   }
 
   /**
-   * Resets all faces for the session
+   * Clears every face and photo so the same pairing can scan another cube.
    */
-  public resetSession(sessionId: string): SessionState | null {
+  public resetSession(sessionId: string, sender: 'desktop' | 'mobile' = 'desktop'): SessionState | null {
     const session = this.sessions.get(sessionId);
     if (!session) return null;
 
@@ -303,7 +303,7 @@ class SessionManager {
     this.publish({
       type: 'SESSION_RESET',
       sessionId,
-      sender: 'desktop',
+      sender,
       timestamp: Date.now(),
     });
 

@@ -14,6 +14,8 @@ import {
 import { POST as postFace, GET as getFace } from '../src/app/api/session/[id]/face/route';
 import { POST as postVerdict } from '../src/app/api/session/[id]/verdict/route';
 import { POST as postConfirm } from '../src/app/api/session/[id]/confirm/route';
+import { POST as postReset } from '../src/app/api/session/[id]/reset/route';
+import { SessionEvent } from '../src/sync/types';
 
 const JPEG = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/';
 
@@ -134,5 +136,30 @@ describe('face photo routes', () => {
     const confirm = await postConfirm(new NextRequest('http://x', { method: 'POST' }), ctx('route-1'));
     expect(confirm.status).toBe(200);
     expect(sessionManager.getFaceImage('route-1', 'D')).toBeNull();
+  });
+});
+
+describe('phone "scan another cube"', () => {
+  beforeEach(() => {
+    sessionManager.clearAll();
+    sessionManager.createSession('reset-1');
+  });
+
+  it('clears photos and tells the computer the phone started over', async () => {
+    const events: SessionEvent[] = [];
+    sessionManager.subscribe('reset-1', (e) => events.push(e));
+    await postFace(jsonRequest('http://x/api/session/reset-1/face', { face: 'U', imageDataUrl: JPEG }), ctx('reset-1'));
+
+    const res = await postReset(new NextRequest('http://x', { method: 'POST' }), ctx('reset-1'));
+
+    expect(res.status).toBe(200);
+    expect(events.at(-1)).toMatchObject({ type: 'SESSION_RESET', sender: 'mobile' });
+    expect(sessionManager.getFaceImage('reset-1', 'U')).toBeNull();
+    expect(sessionManager.getSession('reset-1')?.imageFaces).toEqual([]);
+  });
+
+  it('returns 404 once the pairing has ended', async () => {
+    const res = await postReset(new NextRequest('http://x', { method: 'POST' }), ctx('gone'));
+    expect(res.status).toBe(404);
   });
 });

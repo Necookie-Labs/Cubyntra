@@ -192,10 +192,14 @@ export function useCompanionSync() {
           void useCubyntraStore.getState().captureFace(scanned);
           break;
         }
-        case 'SESSION_RESET':
+        case 'SESSION_RESET': {
           latestCaptureRef.current = {};
           setState((s) => ({ ...s, faceStatus: {}, faceReasons: {}, lastPhotos: {} }));
+          // "Scan another cube" on the phone: start a fresh phone scan on the same pairing.
+          const store = useCubyntraStore.getState();
+          if (event.sender === 'mobile' && store.scanSource === 'companion') store.startCompanionScan();
           break;
+        }
       }
     },
     [enqueueFace]
