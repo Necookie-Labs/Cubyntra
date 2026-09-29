@@ -8,12 +8,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Light theme, with a header switch for Light, Dark and System (follows the OS) and no flash of the wrong theme on load. The phone companion stays dark.
+- A way out of every screen: the logo returns home; Back on the webcam scan; Cancel on the phone scan; Try again on camera and pairing errors; "Scan another cube" after solving.
+- Error, root-error and 404 pages with Try again and Back to home.
+- Desktop shows "Reconnecting…" when the phone link drops and "Pairing ended" with a New QR code button when the session is gone. The QR dialog warns when its link is plain http:// and the phone camera will not open.
 - Phone scanning sends a photo of each face and the computer reads it. Colors are resolved across all 54 tiles at once: the centers calibrate the palette, an assignment enforces nine tiles per color, and a face photographed a quarter turn off is turned back automatically ([ADR-010](docs/ADR/010-desktop-side-analysis-and-global-color-resolution.md)).
 - Review screen before solving: an unfolded net with hard-to-read tiles marked, each tile comparable with the user's own photo and correctable, and solving enabled only for a valid cube. The webcam scanner uses it too.
 - Phone coaching: a first-run guide, a mini cube showing the grip for every face, live checks for framing, wrong face, light, glare and motion with one instruction at a time, and a shutter that takes the photo by itself once the frame holds steady.
 - The phone opens its own event stream, so the computer can accept a photo, ask for a retake, request a specific face again, and confirm the scan.
 
 ### Fixed
+- Header buttons (Scan Cube, Scramble Demo, reset) left the phone session running.
+- The phone's "Scan another cube" sent photos to a desktop that was no longer listening.
+- A pairing expired after 30 minutes even while connected.
+- The error panel could be blank, guessed which face to rescan, and always restarted with the webcam.
+- An unexpected solver error left the solving spinner running forever.
+- Fullscreen hid the controls, and its icon went out of sync after Esc.
+- Several buttons used a non-existent color class and had no background.
 - 3D twin: the turning layer detached from the cube whenever the view was orbited; colors were repainted onto the wrong tiles after every turn; autoplay dropped moves at higher speeds and recolored the cube before the turn played; Next and Previous did not animate; orientation snapping was invalid near gimbal lock; orbit damping depended on the display refresh rate; the camera clipped the cube in tall containers.
 - The phone cropped a fixed region of the camera frame rather than the reticle the user aligned the cube in.
 - The pairing QR code could point at a VPN address (such as Tailscale) that a phone on ordinary Wi-Fi cannot reach.

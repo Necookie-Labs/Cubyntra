@@ -179,6 +179,7 @@ interface CubyntraStore {
   cubeState: CubeState;
   originalScrambleState: CubeState;
   validationResult: ValidationResult | null;
+  errorMessage: string | null;                            // unexpected failure, shown on the error screen
   solution: SolveResult | null;
   currentMoveIndex: number;                               // -1 = before the first move
   isPlaying: boolean;
@@ -229,5 +230,8 @@ interface CubyntraStore {
 | `POST /api/session/[id]/verdict` | desktop | `{ face, accepted, reason?, previewColors? }` | Broadcasts `FACE_VERDICT` to the phone. |
 | `POST /api/session/[id]/rescan` | desktop | `{ face }` | Broadcasts `RESCAN_REQUEST`. |
 | `POST /api/session/[id]/confirm` | desktop | – | Deletes every held photo; broadcasts `SCAN_CONFIRMED`. |
+| `POST /api/session/[id]/reset` | phone | – | "Scan another cube": clears faces and photos and broadcasts `SESSION_RESET` from `mobile`. The desktop then starts a fresh phone scan on the same pairing. |
+
+Each open event stream's 15 s keep-alive also refreshes the session (`touch`), so a connected pairing never expires while idle; sessions idle for 30 minutes are removed by `purgeExpired`. When a session no longer exists its stream is closed, and the desktop shows "Pairing ended" with a New QR code button.
 
 Photos are kept in a map separate from `SessionState`, so session snapshots and `STATE_SYNC` never contain pixels. Request bodies are parsed by the pure functions in `src/sync/validation.ts`.

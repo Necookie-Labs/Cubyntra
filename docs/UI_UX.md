@@ -149,3 +149,33 @@ One meaning per accent, everywhere in the flow:
 
 ### 6.4 Motion
 Entrances take 150–320 ms with an ease-out curve (`cb-rise`, `cb-turn-in`, `cb-flash` in `globals.css`), and only one thing moves at a time. All of them, and the spinners, stop under `prefers-reduced-motion`.
+
+---
+
+## 7. Themes: Light, Dark, System
+
+- **Switch.** The header's Sun/Moon/Monitor button cycles Light → Dark → System. System follows the OS setting, including live changes. The choice is stored per device (`localStorage["cubyntra.theme"]`) and synced across tabs.
+- **No flash.** A script in `<head>` (`THEME_BOOT_SCRIPT` in `src/lib/theme.ts`) sets `<html data-theme>` before first paint.
+- **How colors switch.** Tailwind compiles every color class to a CSS variable. `globals.css` remaps the palette under `:root[data-theme="light"]`:
+  - neutrals are inverted;
+  - `white` and `black` swap;
+  - accent tints become pale, and light accent text (300–400) becomes 700–800;
+  - solid 500–600 fills are unchanged.
+  - Components mostly need no theme-specific classes.
+- **Surface tokens.** `bg-page`, `bg-raised`, `bg-overlay`, `bg-inset` and the `--stage-*` gradient replace hard-coded hex colors. Text on emerald and sky fills uses `text-on-accent`, which stays dark in both themes. The logo (`CubeGlyph`) and the QR card use fixed colors.
+- **Phone companion.** Always dark: a viewfinder reads best dark, and its overlays sit on live video.
+- **Contrast.** Measured on light surfaces: body text 16.6:1, muted text 7.8:1, dim text 4.7:1, accent labels 5.4–7.9:1. All pass WCAG AA.
+
+## 8. Navigation & Recovery
+
+Every screen has a labeled way forward, and the logo always returns to the start screen.
+
+| Screen | Exits |
+|---|---|
+| Webcam scan | Back; on camera error: Try again, Use demo cube, Back |
+| Phone scan progress | Show QR, Use webcam, Cancel; New QR code when the pairing ended |
+| Pairing dialog | Close, Switch to webcam; Try again if the pairing could not be created |
+| Review | Rescan a face, Start over, Confirm & solve |
+| Solution | Reset to scramble, Scan another cube |
+| Error panel | Back to review (when a scan exists), Rescan a named face, Start over, Try the demo cube |
+| Crash / 404 | Try again, Back to home |
