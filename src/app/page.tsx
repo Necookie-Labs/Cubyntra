@@ -157,7 +157,7 @@ function Workspace() {
                 <button
                   type="button"
                   onClick={scanWithPhone}
-                  className="flex items-center gap-2 px-5 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-on-accent font-bold text-sm transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5"
+                  className="flex items-center gap-2 px-5 py-3 rounded-xl bg-emerald-500 hover:brightness-110 text-on-accent font-bold text-sm transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5"
                 >
                   <Smartphone className="w-4 h-4" />
                   <span>Scan with Phone</span>

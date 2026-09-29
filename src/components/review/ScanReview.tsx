@@ -349,7 +349,7 @@ export const ScanReview: React.FC<ScanReviewProps> = ({ onRescanFace, onConfirme
           type="button"
           onClick={handleConfirm}
           disabled={!isValid}
-          className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-emerald-500 text-on-accent font-bold text-sm shadow-lg transition-[background-color,transform] duration-150 hover:bg-emerald-400 hover:-translate-y-0.5 motion-reduce:hover:translate-y-0 disabled:bg-neutral-800 disabled:text-neutral-500 disabled:shadow-none disabled:translate-y-0 disabled:cursor-not-allowed focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-300"
+          className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-emerald-500 text-on-accent font-bold text-sm shadow-lg transition-[background-color,transform] duration-150 hover:brightness-110 hover:-translate-y-0.5 motion-reduce:hover:translate-y-0 disabled:bg-neutral-800 disabled:text-neutral-500 disabled:shadow-none disabled:translate-y-0 disabled:cursor-not-allowed focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-300"
         >
           <Sparkles className="w-4 h-4" />
           Confirm &amp; solve

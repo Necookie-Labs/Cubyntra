@@ -120,7 +120,7 @@ export const MobilePairingModal: React.FC<MobilePairingModalProps> = ({
             </div>
           ) : qrDataUrl ? (
             <div className="relative group flex flex-col items-center">
-              <div className="p-3 bg-white rounded-2xl shadow-xl">
+              <div className="p-3 bg-[#ffffff] rounded-2xl shadow-xl">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={qrDataUrl}
