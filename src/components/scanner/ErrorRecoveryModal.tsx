@@ -61,7 +61,7 @@ export const ErrorRecoveryModal: React.FC = () => {
           <button
             type="button"
             onClick={startScanning}
-            className="px-3 py-2 rounded-lg bg-neutral-850 hover:bg-neutral-800 text-neutral-300 text-xs font-medium border border-neutral-700 transition-colors"
+            className="px-3 py-2 rounded-lg bg-neutral-900 hover:bg-neutral-800 text-neutral-300 text-xs font-medium border border-neutral-700 transition-colors"
           >
             Restart Scan
           </button>

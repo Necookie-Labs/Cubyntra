@@ -208,7 +208,7 @@ export const SolveControls: React.FC<SolveControlsProps> = ({ onAnimateMove }) =
           <button
             type="button"
             onClick={resetToScramble}
-            className="p-2 rounded-lg bg-neutral-850 hover:bg-neutral-800 text-neutral-300 border border-neutral-800 transition-colors"
+            className="p-2 rounded-lg bg-neutral-900 hover:bg-neutral-800 text-neutral-300 border border-neutral-800 transition-colors"
             title="Reset to Scramble (R)"
             aria-label="Reset to Scramble"
           >
@@ -219,7 +219,7 @@ export const SolveControls: React.FC<SolveControlsProps> = ({ onAnimateMove }) =
             type="button"
             onClick={() => void goPrevious()}
             disabled={currentMoveIndex < 0}
-            className="p-2 rounded-lg bg-neutral-850 hover:bg-neutral-800 text-neutral-300 border border-neutral-800 disabled:opacity-40 transition-colors"
+            className="p-2 rounded-lg bg-neutral-900 hover:bg-neutral-800 text-neutral-300 border border-neutral-800 disabled:opacity-40 transition-colors"
             title="Previous Move (Left Arrow)"
             aria-label="Previous Move"
           >
@@ -241,7 +241,7 @@ export const SolveControls: React.FC<SolveControlsProps> = ({ onAnimateMove }) =
             type="button"
             onClick={() => void goNext()}
             disabled={isPlaying || currentMoveIndex >= moves.length - 1}
-            className="p-2 rounded-lg bg-neutral-850 hover:bg-neutral-800 text-neutral-300 border border-neutral-800 disabled:opacity-40 transition-colors"
+            className="p-2 rounded-lg bg-neutral-900 hover:bg-neutral-800 text-neutral-300 border border-neutral-800 disabled:opacity-40 transition-colors"
             title="Next Move (Right Arrow)"
             aria-label="Next Move"
           >
