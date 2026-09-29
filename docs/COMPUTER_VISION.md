@@ -238,3 +238,36 @@ When the ML detector flags `isCube: false` (due to human face or empty backgroun
 - ML Cube & Face Detector Unit Tests: **PASSED (10/10 tests)**
 - Overall Computer Vision Tests: **PASSED (21/21 tests)**
 
+---
+
+## 11. Phone Photo Pipeline & Global Color Resolution ([ADR-010](ADR/010-desktop-side-analysis-and-global-color-resolution.md))
+
+### 11.1 Reticle-Exact Crop
+The camera preview uses `object-fit: cover`, so which part of the frame is visible depends on the screen and stream aspect ratios. `mapElementRectToVideo` inverts the cover transform. With $s = \max(w_{box}/w_{video},\ h_{box}/h_{video})$ and the centering offset $o$, a screen point $p$ maps to $(p - o)/s$ in video pixels. The photo is cropped to exactly the square the user saw. The old fixed crop (65% of the short side) was about 1.76x too wide on a portrait phone with a landscape stream.
+
+### 11.2 Live Capture Checks (`captureQuality.ts`)
+Evaluated every 150 ms on the same region, in priority order. The first failure is the one instruction shown.
+
+| Check | Signal | Threshold |
+|---|---|---|
+| Framing | ML cube detector | `isCube` |
+| Right face | center tile's color vs the step's center | other color with confidence ≥ 0.6 |
+| Light | mean Lab $L^*$ of the nine tiles | ≥ 28 |
+| Glare | share of clipped pixels (all channels ≥ 252) per tile | ≤ 8% |
+| Steady | mean $\Delta E$ per tile vs the previous frame | ≤ 6 |
+
+When every check holds for 600 ms the photo takes itself. After a photo the shutter stays disarmed until a check fails once, so a rejected photo is never retaken in a loop. White balance is locked (`whiteBalanceMode: 'manual'`) 1.5 s after the camera opens, where supported.
+
+### 11.3 Per-Face Analysis (`faceImageAnalyzer.ts`)
+Samples the nine tiles and runs the ML detector. A photo is rejected only if it is not a cube, or its center is more than 15 $\Delta E$ closer to another face's color than to its own. That margin is deliberately high: a false rejection blocks the user, while subtler mix-ups are caught by §11.4.
+
+### 11.4 Global Resolution (`resolveCubeColors.ts`)
+1. **Calibrate.** The six observed centers replace the reference palette (`buildDynamicPalette`).
+2. **Assign.** Cost $C_{t,c} = \Delta E(\text{tile}_t, \text{palette}_c)$. Minimize $\sum C$ over the 48 non-center tiles subject to eight tiles per color (Hungarian algorithm, `resolve54StickerInvariant`). Centers are fixed.
+3. **Repair orientation.** If `validateCubeState` fails, try quarter-turn rotations of the face photos, fewest rotated first, top and bottom preferred, and keep the first valid state.
+4. **Flag.** `lowMargin` when the best two colors are within 8 $\Delta E$. `overridden` when the assignment differs from the tile's nearest color. Two centers within 7 $\Delta E$ are reported as the same face shot twice.
+
+On synthetic photos of a 14-move scramble with different lighting per face, the state is recovered exactly. A tile placed at the calibrated red/orange midpoint is resolved by the nine-per-color constraint and flagged.
+
+### 11.5 Human Review
+The desktop always shows the resolved net before solving. Flagged tiles are ringed. Each tile can be compared with its crop from the user's own photo (rotation-aware) and corrected. Solving is offered only for a valid cube. This last step is what makes the result verifiably the user's cube rather than a statistically likely one.

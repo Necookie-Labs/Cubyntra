@@ -99,3 +99,35 @@ The centralized Zustand store (`src/stores/useCubyntraStore.ts`) broadcasts stat
   - The 3D engine subscribes to `currentStepIndex`.
   - When the index increments, the engine isolates the target slice, attaches cubies to the pivot group, interpolates rotation by $90^\circ$ or $180^\circ$, reparents to scene, and snaps transforms to exact integer coordinates.
   - Directional 3D arrows update position and rotation sense immediately.
+
+---
+
+## 5. Phone-to-Desktop Scan Flow ([ADR-010](ADR/010-desktop-side-analysis-and-global-color-resolution.md))
+
+```mermaid
+sequenceDiagram
+    participant P as Phone (/companion)
+    participant S as Session relay (server memory)
+    participant D as Desktop (browser)
+
+    D->>S: POST /api/session (QR shows LAN address)
+    P->>S: GET /events?role=mobile (phone connected)
+    loop each of 6 faces
+        P->>P: live checks: framing, right face, light, glare, steady
+        P->>S: POST /face { 512 px JPEG crop of the reticle }
+        S-->>D: FACE_IMAGE notice (no pixels)
+        D->>S: GET /face?face=X
+        D->>D: analyze: sample 9 tiles, ML cube check, center check
+        D->>S: POST /verdict { accepted | reason, preview colors }
+        S-->>P: FACE_VERDICT, advance or ask for a retake
+    end
+    D->>D: resolve 54 tiles: center calibration, 9-per-color assignment, orientation repair
+    D->>D: review net: user checks flagged tiles against own photos
+    D->>S: POST /confirm (server drops all photos)
+    S-->>P: SCAN_CONFIRMED, "Solving on your computer"
+    D->>D: Kociemba solve, animated playback on the 3D twin
+```
+
+- Photos live only in server memory, in a map separate from `SessionState`, from upload until confirm, reset, delete or expiry.
+- Faces may arrive in any order; progress is keyed by face. A newer photo of a face supersedes an older one still being read.
+- The review screen can send `RESCAN_REQUEST` to return the phone to a specific face.

@@ -35,3 +35,11 @@ We decided on **100% Client-Side Processing**. Video streams and pixel data will
 - **Negative / Trade-offs**:
   - Compute performance is constrained by client device hardware (older mobile devices).
   - Heavy computer vision models (e.g. YOLO/PyTorch) cannot be easily run without significant bundle size bloat; requires lightweight, efficient algorithms.
+
+---
+
+## Amendment (2026-09-29, [ADR-010](010-desktop-side-analysis-and-global-color-resolution.md))
+The phone companion now sends each face as a small JPEG crop of the cube to the desktop, through the Cubyntra server process, instead of classifying on the phone. The guarantee is therefore narrowed for that path:
+
+- **Webcam scanning:** unchanged. Frames never leave the browser.
+- **Phone scanning:** photos pass through the server in memory only, capped at 1.5 MB, are never written to disk, and are deleted once the user confirms the scan. Color reading still happens entirely in the user's desktop browser; no vision runs on the server.

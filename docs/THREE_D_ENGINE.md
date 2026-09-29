@@ -56,14 +56,22 @@ Directly rotating individual cubies along world axes creates non-affine shearing
    - For `U`: all cubies where $\text{round}(y) = +1$.
    - For `R`: all cubies where $\text{round}(x) = +1$.
    - For `F`: all cubies where $\text{round}(z) = +1$.
-2. **Parenting**: An ephemeral `THREE.Group` is instantiated at $(0, 0, 0)$. Each of the 9 cubies is reparented to this pivot group using `pivotGroup.attach(cubieMesh)`. Three.js preserves their global world transforms.
-3. **Interpolated Turn**: The pivot group's local Euler angle or quaternion is animated over duration $T$ using easing curves:
+2. **Parenting**: A pivot `THREE.Group` is a child of the cube group, reset to identity before each turn. Each of the 9 cubies is moved into it with `pivotGroup.attach(cubie)`. Because the pivot shares the cube group's frame, the turning layer keeps the cube's orbit rotation and idle bob. (A pivot parented to the scene made the layer detach and turn about a world axis whenever the view was orbited.)
+3. **Interpolated Turn**: The pivot's rotation is advanced inside the single render loop, never a separate `requestAnimationFrame` chain, using the frame's clamped delta (at most 100 ms) and a cubic ease-in-out:
    $$\theta(t) = \theta_{\text{target}} \cdot \text{ease}(t / T)$$
-4. **Detaching**: Upon reaching $\theta_{\text{target}}$, each cubie is reparented back to the primary root scene using `scene.attach(cubieMesh)`.
+   Half turns take 1.5x as long as quarter turns.
+4. **Detaching**: At $\theta_{\text{target}}$ each cubie is moved back with `rootCubeGroup.attach(cubie)`.
 5. **Orthonormal Snapping**:
-   - The world position $(x, y, z)$ is rounded to the nearest integer grid point:
-     $$x_{\text{clean}} = \text{round}(x), \quad y_{\text{clean}} = \text{round}(y), \quad z_{\text{clean}} = \text{round}(z)$$
-   - The orientation quaternion $q$ is decomposed into principal orthogonal axes and clamped to exact multiples of $\pi / 2$ radians ($90^\circ$).
+   - Position is rounded to the integer grid.
+   - Orientation is snapped by rounding the rotation matrix's first two basis vectors to the nearest signed axes and deriving the third by cross product (`snapQuaternionToCubeGroup`). The result is always one of the 24 exact cube orientations with determinant $+1$. Rounding Euler angles per component, the previous method, is not a valid snap near gimbal lock.
+6. **Repaint by facing**: After each turn, `syncWithCubeState` repaints tiles from the logical state, choosing each tile by the direction it points now (`CubieMesh.setColorFacing`), not by the side it was built on.
+
+### 3.2 Move Queue & Playback
+- `animateMove(move, targetState, durationMs)` queues the turn and resolves when that turn has been snapped. Turns are never dropped, however fast they are requested.
+- `requestSync(state)` repaints immediately when idle. While turns are queued it stores the state and applies it once the queue drains, so colors never jump to a post-move state mid-turn.
+- `SolveControls` plays a solution as an async loop: advance the store, await the turn, rest, repeat. At 1x a turn takes 300 ms plus a 250 ms rest, and both scale with speed. Next and Previous animate too; Previous plays the inverse turn.
+
+Verified in `tests/three-motion.test.ts` by driving the real engine frame by frame and reading the state back from cubie geometry and from material colors.
 
 ---
 
@@ -85,14 +93,14 @@ To guide users through solving moves physically, Cubyntra renders animated 3D di
 
 ---
 
-## 5. Camera & OrbitControls
+## 5. Camera & Orbit
 
-- **Perspective Camera**: $45^\circ$ Field of View (FOV) positioned at $(3.6, 3.2, 5.0)$ looking at $(0, 0, 0)$ providing an isometric three-face perspective (U, F, R).
-- **OrbitControls Constraints**:
-  - Damping factor: $0.05$ for smooth tactile inertial rotation.
-  - Zoom bounds: Minimum distance $3.5$, maximum distance $12.0$.
-  - Pan disabled to ensure the cube remains strictly centered in the viewport.
-- **Responsive Resize**: Automatically recalculates aspect ratio and projection matrix on window/container resize without distortion.
+- **Perspective camera**: 40° vertical field of view, looking at the origin. Dragging rotates the cube group (pitch clamped to ±π/2.2); the scroll wheel zooms.
+- **Fitted distance**: By default the camera sits where the cube's bounding sphere (radius $1.5\sqrt{3}$) fits inside the narrower of the vertical and horizontal view angles:
+  $$d = \frac{1.5\sqrt{3}}{\sin(\min(\theta_v, \theta_h)/2)}$$
+  The cube is therefore never clipped, from any angle or mid-turn, in wide, square or tall containers. The distance follows container resizes until the user zooms; Reset View restores it.
+- **Damping**: Orbit and zoom ease with $k = 1 - e^{-7.67\,\Delta t}$, which matches the original 0.12 per frame at 60 Hz and behaves the same at any refresh rate.
+- **Clock**: `THREE.Timer`, deliberately not tied to the Page Visibility API, so turns still complete where frames keep firing while `document.hidden` is true. The per-frame delta clamp prevents fast-forwarding when a tab returns.
 
 ### 5.1 Studio Environment & Contact Shadow
 - **PMREM Studio Reflections**: Real-time environment reflections generated via `THREE.PMREMGenerator` using synthetic studio light panels (overhead softbox, left/right rim strips, and front fill), casting natural glossy highlights across beveled tile edges.
@@ -104,4 +112,4 @@ To guide users through solving moves physically, Cubyntra renders animated 3D di
 ## 6. Rendering Performance & Resource Lifecycle
 
 - **Disposal**: Thorough resource cleanup hooks disposing geometries, materials, and textures when the component unmounts to prevent memory leaks in Single Page Applications.
-- **Frame Rate Throttling**: Renders only when dirty (during active animation or user interaction) to minimize battery consumption on mobile devices.
+- **Render Loop**: Renders every animation frame; the browser pauses it in background tabs.

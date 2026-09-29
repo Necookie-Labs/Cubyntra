@@ -41,6 +41,8 @@ npm run start -p 3000
 
 ## 3. Deployment Targets
 
+> **Phone pairing needs one long-running server.** Scan sessions live in a single process's memory and use long-lived Server-Sent Events. Phone pairing works with `next dev`, `next start` or the container below. It does not work on multi-instance serverless hosting, where requests can land on different instances. See [ADR-010](ADR/010-desktop-side-analysis-and-global-color-resolution.md).
+
 ### 3.1 Vercel (Recommended)
 Because Cubyntra is built on Next.js 15+ App Router, deployment to Vercel provides automatic HTTPS, edge CDN caching for Three.js assets, and zero-configuration routing:
 

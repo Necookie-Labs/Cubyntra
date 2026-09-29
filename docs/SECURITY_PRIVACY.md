@@ -12,8 +12,8 @@
 Cubyntra is designed with a strict **Zero-Knowledge, Client-Side Privacy Model**. Users pointing their mobile or desktop camera at a physical object must have unconditional assurance that their video feed, environment, and physical likeness never leave their device.
 
 ### Core Privacy Commitments:
-1. **Zero Video Uploads**: Video streams, canvas image buffers, and raw pixel data never leave local memory.
-2. **Zero Cloud Vision Processing**: Computer vision, sticker extraction, and color space classification occur 100% on the local CPU/GPU.
+1. **Zero Video Uploads**: Video streams never leave the device that captures them. Webcam frames never leave the browser. The phone companion sends one small JPEG crop per face to the paired computer through the Cubyntra server, held in memory only (capped at 1.5 MB), never written to disk, and deleted once the user confirms the scan ([ADR-010](ADR/010-desktop-side-analysis-and-global-color-resolution.md)).
+2. **Zero Server-Side Vision Processing**: Computer vision, sticker extraction, and color classification run in the user's browser. The server only relays photos; it never analyzes them.
 3. **Hardware Stream Teardown**: Camera tracks are explicitly terminated (`track.stop()`) immediately upon unmounting or when the user navigates away, guaranteeing the webcam hardware indicator turns off.
 4. **No Third-Party Analytics Trackers**: No third-party tracking scripts, cookies, or telemetry libraries are bundled.
 

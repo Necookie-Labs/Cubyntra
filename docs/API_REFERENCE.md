@@ -164,29 +164,70 @@ export interface SolverConfig {
 ## 4. Application Store API (`src/stores/useCubyntraStore.ts`)
 
 ```typescript
-export interface CubyntraStore {
-  // State
-  cubeState: CubeState;
-  scanStep: number; // 0 to 5
-  scannedFaces: Partial<Record<FaceName, StickerGrid>>;
-  validation: ValidationResult | null;
-  solveResult: SolveResult | null;
-  currentStepIndex: number;
-  isPlaying: boolean;
-  playbackSpeed: number; // 0.5, 1, 2, 4
-  isCameraActive: boolean;
+type AppState = 'ready' | 'scanning' | 'processing' | 'reviewing'
+              | 'solution_ready' | 'solving' | 'solved' | 'error';
+type ScanSource = 'webcam' | 'companion';
 
-  // Actions
-  setCubeState: (state: CubeState) => void;
-  startScanning: () => void;
-  captureFace: (face: FaceName, grid: StickerGrid) => void;
-  resetScanning: () => void;
-  scrambleCube: () => void;
-  solveCurrentState: () => Promise<void>;
-  nextStep: () => void;
-  prevStep: () => void;
-  togglePlay: () => void;
-  setPlaybackSpeed: (speed: number) => void;
-  resetPlayback: () => void;
+interface CubyntraStore {
+  appState: AppState;
+  scanSource: ScanSource | null;
+  currentStepIndex: number;                               // next SCAN_SEQUENCE step still missing
+  scannedFaces: Partial<Record<Face, ScannedFace>>;       // provisional colors per face
+  faceSamples: Partial<Record<Face, StickerSample[]>>;    // raw tile measurements for resolution
+  faceImages: Partial<Record<Face, string>>;              // desktop-local photos for review
+  resolution: ResolvedCube | null;                        // flags, rotated faces, duplicates
+  cubeState: CubeState;
+  originalScrambleState: CubeState;
+  validationResult: ValidationResult | null;
+  solution: SolveResult | null;
+  currentMoveIndex: number;                               // -1 = before the first move
+  isPlaying: boolean;
+  playbackSpeed: number;                                  // 0.5, 1, 2, 4
+
+  startScanning(): void;                                  // webcam
+  startCompanionScan(): void;                             // phone
+  ingestFaceSamples(face: Face, samples: StickerSample[], imageDataUrl?: string): void;
+  setReviewSticker(face: Face, index: number, color: CubeColor): void; // centers locked
+  confirmReview(): Promise<void>;                         // solves only a valid cube
+  rescanFace(face: Face): void;
+  captureFace(face: ScannedFace): Promise<void>;          // legacy nine-color path
+  validateAndSolve(): Promise<void>;
+  stepNext(): CubeMove | null;
+  stepPrevious(): CubeMove | null;
+  togglePlay(): void;
+  setPlaybackSpeed(speed: number): void;
+  resetToScramble(): void;
+  resetAll(): void;
 }
 ```
+
+`ingestFaceSamples` is keyed by face, so faces may arrive in any order. When all six are present it calls `resolveCubeColors` and enters `reviewing`.
+
+---
+
+## 5. Photo Pipeline API (`src/vision/`)
+
+| Function | Module | Purpose |
+|---|---|---|
+| `mapElementRectToVideo(target, videoBox, videoW, videoH): ROIBounds` | `sampling.ts` | Maps the on-screen reticle into camera-frame pixels under `object-fit: cover`. |
+| `assessCaptureQuality(input): CaptureQuality` | `captureQuality.ts` | Framing, right face, light, glare, steady; `topHint` is the one fix to show. |
+| `measureGlare(ctx, roi): number[]` | `captureQuality.ts` | Share of clipped pixels per tile. |
+| `analyzeFaceContext(ctx, w, h, face, knownCenters?): FaceAnalysis` | `faceImageAnalyzer.ts` | Per-face samples, ML verdict, wrong-face check, provisional colors. |
+| `analyzeFaceImage(dataUrl, face, knownCenters?): Promise<FaceAnalysis>` | `faceImageAnalyzer.ts` | Browser wrapper: decodes a JPEG data URL, then `analyzeFaceContext`. |
+| `resolveCubeColors(samplesByFace): ResolvedCube` | `resolveCubeColors.ts` | Calibrate, nine-per-color assignment, orientation repair, review flags. |
+
+---
+
+## 6. Session Relay API (`src/app/api/session/`)
+
+| Method & path | Caller | Body / query | Effect |
+|---|---|---|---|
+| `POST /api/session` | desktop | – | Creates a session; returns `sessionId`, `companionUrl` (best LAN address first) and `availableIps`. |
+| `GET /api/session/[id]/events?role=desktop\|mobile` | both | – | Server-Sent Events. Initial `STATE_SYNC`, then session events. |
+| `POST /api/session/[id]/face` | phone | `{ face, imageDataUrl, capturedAt, quality? }` | Holds the JPEG in memory and broadcasts `FACE_IMAGE`. `413` over 1.5 MB. The legacy `{ face, stickers[9] }` body is still accepted. |
+| `GET /api/session/[id]/face?face=X` | desktop | – | Returns the held photo (`Cache-Control: no-store`), or `404`. |
+| `POST /api/session/[id]/verdict` | desktop | `{ face, accepted, reason?, previewColors? }` | Broadcasts `FACE_VERDICT` to the phone. |
+| `POST /api/session/[id]/rescan` | desktop | `{ face }` | Broadcasts `RESCAN_REQUEST`. |
+| `POST /api/session/[id]/confirm` | desktop | – | Deletes every held photo; broadcasts `SCAN_CONFIRMED`. |
+
+Photos are kept in a map separate from `SessionState`, so session snapshots and `STATE_SYNC` never contain pixels. Request bodies are parsed by the pure functions in `src/sync/validation.ts`.

@@ -58,3 +58,10 @@ We adopted **Alternative 3**:
 
 ### Negative / Trade-Offs:
 - Requires both devices to have network access to communicate with the session relay (or local Wi-Fi connectivity).
+
+---
+
+## Amendment (2026-09-29, [ADR-010](010-desktop-side-analysis-and-global-color-resolution.md))
+- The phone now sends a photo of each face and the desktop reads it, instead of the phone sending nine color labels.
+- Correction to the Decision Outcome above: `buildDynamicPalette` and `resolve54StickerInvariant` were implemented and unit-tested but not called from any scan path. ADR-010 wires them in.
+- "Zero photos are permanently stored" still holds; photos are now held in server memory until the user confirms. See ADR-010 for the privacy trade-off.

@@ -105,3 +105,47 @@ Cubyntra's user interface is conceived as a high-precision optical laboratory in
   - All interactive buttons include descriptive `aria-label` attributes.
   - High contrast ratio exceeding WCAG AA standards (minimum 4.5:1 for normal text, 7:1 for large display metrics).
   - Keyboard navigation fully supported across all critical playback actions.
+
+---
+
+## 6. Phone Scanning & Review ([ADR-010](ADR/010-desktop-side-analysis-and-global-color-resolution.md))
+
+```
+[ Desktop: Scan with Phone ] ── QR ──► [ Phone: first-run coach (once) ]
+          │                                        │
+          ▼                                        ▼
+[ Desktop: live 6-face progress ] ◄── photos ── [ Phone: guided capture, auto shutter ]
+          │ (all six read)
+          ▼
+[ Desktop: review net ] ── Rescan face ──► [ Phone jumps to that face ]
+          │ (Confirm & solve, valid cube only)
+          ▼
+[ Solve & animated playback ]        [ Phone: "Solving on your computer" ]
+```
+
+### 6.1 State Colors
+One meaning per accent, everywhere in the flow:
+
+| Color | Meaning |
+|---|---|
+| Sky | Active, in progress, holding steady |
+| Emerald | Verified: face read, cube valid |
+| Amber | Needs attention: something to fix or check |
+| Rose | Error: the cube cannot exist as entered |
+
+### 6.2 Phone Capture (`/companion`)
+- **First-run coach** (`CaptureCoach.tsx`): three cards (hold, light, order). Shown once per device, reopenable from the help button.
+- **Step card**: an isometric mini cube (`FaceGuide.tsx`) showing which center faces the camera, which is on top and which is on the right, plus a one-move instruction and an end-position check.
+- **Reticle**: white idle, amber when something needs fixing, sky while holding steady, emerald once read. Live dots show that the phone sees each tile.
+- **Hint line**: exactly one instruction, naming the fix rather than the fault ("Glare on the bottom row. Tilt the cube slightly.").
+- **Shutter**: always usable by hand. A ring fills while every check holds; at 600 ms the photo takes itself. Auto-capture can be turned off.
+- **Layout**: a column of header, guidance, reticle, hint and controls. The reticle is sized to the remaining height so nothing overlaps on short screens. Safe-area insets are respected and touch targets are at least 44 px.
+
+### 6.3 Review (`ScanReview.tsx`)
+- An unfolded net in the layout of a real cube, with amber rings on tiles that were hard to read.
+- Selecting a tile opens an editor with that tile cropped from the user's own photo, six swatches (keys 1–6), and "Rescan this face".
+- A live count of each color, and one sentence describing what to fix when the cube cannot exist.
+- The screen says so when a photo was turned to fit, or when two photos show the same face.
+
+### 6.4 Motion
+Entrances take 150–320 ms with an ease-out curve (`cb-rise`, `cb-turn-in`, `cb-flash` in `globals.css`), and only one thing moves at a time. All of them, and the spinners, stop under `prefers-reduced-motion`.
