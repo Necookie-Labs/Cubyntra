@@ -44,6 +44,15 @@ const ORBIT_DAMPING_PER_S = -60 * Math.log(1 - 0.12);
 
 const AXES = [new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, 1)];
 
+const FACE_DIRECTION = {
+  U: new THREE.Vector3(0, 1, 0),
+  D: new THREE.Vector3(0, -1, 0),
+  F: new THREE.Vector3(0, 0, 1),
+  B: new THREE.Vector3(0, 0, -1),
+  R: new THREE.Vector3(1, 0, 0),
+  L: new THREE.Vector3(-1, 0, 0),
+} as const;
+
 /** Rounds a direction to the nearest signed coordinate axis. */
 function nearestAxis(v: THREE.Vector3): THREE.Vector3 {
   let best = 0;
@@ -313,47 +322,42 @@ export class CubeEngine {
       const y = Math.round(pos.y);
       const z = Math.round(pos.z);
 
+      // Tiles are painted by the direction they face now, since turns rotate cubies.
       // U Face (+Y, y = 1)
       if (y === 1) {
         const col = x + 1;
         const row = z + 1;
-        const index = row * 3 + col;
-        cubie.setStickerColor('U', state.U[index]);
+        cubie.setColorFacing(FACE_DIRECTION.U, state.U[row * 3 + col]);
       }
       // D Face (-Y, y = -1)
       if (y === -1) {
         const col = x + 1;
         const row = 1 - z;
-        const index = row * 3 + col;
-        cubie.setStickerColor('D', state.D[index]);
+        cubie.setColorFacing(FACE_DIRECTION.D, state.D[row * 3 + col]);
       }
       // F Face (+Z, z = 1)
       if (z === 1) {
         const col = x + 1;
         const row = 1 - y;
-        const index = row * 3 + col;
-        cubie.setStickerColor('F', state.F[index]);
+        cubie.setColorFacing(FACE_DIRECTION.F, state.F[row * 3 + col]);
       }
       // B Face (-Z, z = -1)
       if (z === -1) {
         const col = 1 - x;
         const row = 1 - y;
-        const index = row * 3 + col;
-        cubie.setStickerColor('B', state.B[index]);
+        cubie.setColorFacing(FACE_DIRECTION.B, state.B[row * 3 + col]);
       }
       // R Face (+X, x = 1)
       if (x === 1) {
         const col = 1 - z;
         const row = 1 - y;
-        const index = row * 3 + col;
-        cubie.setStickerColor('R', state.R[index]);
+        cubie.setColorFacing(FACE_DIRECTION.R, state.R[row * 3 + col]);
       }
       // L Face (-X, x = -1)
       if (x === -1) {
         const col = z + 1;
         const row = 1 - y;
-        const index = row * 3 + col;
-        cubie.setStickerColor('L', state.L[index]);
+        cubie.setColorFacing(FACE_DIRECTION.L, state.L[row * 3 + col]);
       }
     }
   }

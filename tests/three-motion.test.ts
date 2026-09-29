@@ -10,7 +10,7 @@ import * as THREE from 'three';
 import { CubeColor, CubeMove, CubeState, Face } from '../src/cube/types';
 import { CANONICAL_CENTER_COLORS, createSolvedCubeState } from '../src/cube/constants';
 import { applyMoves, parseAlgorithm } from '../src/cube/transforms';
-import type { CubieMesh } from '../src/three/cubie';
+import { SPEEDCUBE_COLORS, type CubieMesh } from '../src/three/cubie';
 
 vi.mock('three', async (importOriginal) => {
   const actual = await importOriginal<typeof import('three')>();
@@ -132,6 +132,41 @@ function readStateFromGeometry(engine: Engine): CubeState {
   return state;
 }
 
+const COLOR_BY_HEX = Object.fromEntries(
+  (Object.entries(SPEEDCUBE_COLORS) as [CubeColor, string][]).map(([color, hex]) => [hex.slice(1).toLowerCase(), color])
+) as Record<string, CubeColor>;
+
+/** Reads what the viewer actually sees: each tile's material color, placed by where it faces now. */
+function readStateFromMaterials(engine: Engine): CubeState {
+  const state = createSolvedCubeState();
+  const cubies = (engine as unknown as { cubies: CubieMesh[] }).cubies;
+
+  for (const cubie of cubies) {
+    const g = cubie.group;
+    const x = Math.round(g.position.x);
+    const y = Math.round(g.position.y);
+    const z = Math.round(g.position.z);
+    for (const child of g.children) {
+      if (child.position.lengthSq() < 1e-6) continue;
+      const facing = FACE_BY_NORMAL[axisKey(child.position.clone().normalize().applyQuaternion(g.quaternion))];
+      const material = (child as THREE.Mesh).material as THREE.MeshPhysicalMaterial;
+      const color = COLOR_BY_HEX[material.color.getHexString()];
+
+      let index = 0;
+      switch (facing) {
+        case 'U': index = (z + 1) * 3 + (x + 1); break;
+        case 'D': index = (1 - z) * 3 + (x + 1); break;
+        case 'F': index = (1 - y) * 3 + (x + 1); break;
+        case 'B': index = (1 - y) * 3 + (1 - x); break;
+        case 'R': index = (1 - y) * 3 + (1 - z); break;
+        case 'L': index = (1 - y) * 3 + (z + 1); break;
+      }
+      state[facing][index] = color;
+    }
+  }
+  return state;
+}
+
 function allTransformsExact(engine: Engine): boolean {
   const cubies = (engine as unknown as { cubies: CubieMesh[] }).cubies;
   return cubies.every(({ group: g }) => {
@@ -197,6 +232,27 @@ describe('CubeEngine layer turns', () => {
     expect(finished).toEqual(moves.map((_, i) => i));
     expect(readStateFromGeometry(engine)).toEqual(applyMoves(createSolvedCubeState(), moves));
     expect(allTransformsExact(engine)).toBe(true);
+    engine.dispose();
+  });
+
+  it('paints each face the color the logical state says, after turns have rotated cubies', async () => {
+    // Repainting must follow where each tile points now, not the face it was built on:
+    // after a turn the tile built as "U" on a corner may be facing Front.
+    const engine = makeEngine();
+    const moves = parseAlgorithm("R U R' U' F2 D L' B R2 U2 F' L D' B2");
+    let state = createSolvedCubeState();
+    for (const move of moves) {
+      state = applyMoves(state, [move]);
+      void engine.animateMove(move, state, 60);
+    }
+    await runUntilIdle(engine);
+
+    expect(readStateFromMaterials(engine)).toEqual(state);
+
+    // A fresh repaint of a different state must land on the right tiles too.
+    const other = applyMoves(state, parseAlgorithm("U F' R2"));
+    engine.syncWithCubeState(other);
+    expect(readStateFromMaterials(engine)).toEqual(other);
     engine.dispose();
   });
 

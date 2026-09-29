@@ -210,7 +210,25 @@ export class CubieMesh {
   }
 
   /**
-   * Updates sticker color dynamically from logical cube state.
+   * Colors whichever tile currently points along `direction` (a unit axis in the parent
+   * cube group's frame). Once a cubie has been turned, the tile built on its "U" side may
+   * face Front, so repainting must follow where tiles point now, not how they were built.
+   */
+  public setColorFacing(direction: THREE.Vector3, color: CubeColor): void {
+    const outward = new THREE.Vector3();
+    for (const face of Object.keys(this.stickerMeshes) as Face[]) {
+      const mesh = this.stickerMeshes[face]!;
+      outward.copy(mesh.position).normalize().applyQuaternion(this.group.quaternion);
+      if (outward.dot(direction) > 0.9) {
+        this.stickerMaterials[face]!.color.set(SPEEDCUBE_COLORS[color] || COLOR_HEX[color]);
+        return;
+      }
+    }
+  }
+
+  /**
+   * Updates the tile built on `face`. Only meaningful before any turn has rotated the
+   * cubie; use setColorFacing to paint by current orientation.
    */
   public setStickerColor(face: Face, color: CubeColor): void {
     const mat = this.stickerMaterials[face];
