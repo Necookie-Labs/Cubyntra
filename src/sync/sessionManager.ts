@@ -6,7 +6,14 @@
  * Follows ADR-001: Zero persistent database storage. All session data is ephemeral in-memory.
  */
 
-import { SessionState, SessionEvent, CapturedFacePayload } from './types';
+import {
+  SessionState,
+  SessionEvent,
+  CapturedFacePayload,
+  CapturedFaceImagePayload,
+  FaceImageNotice,
+  FaceVerdictPayload,
+} from './types';
 import { Face } from '../cube/types';
 import { FACES } from '../cube/constants';
 
@@ -15,6 +22,9 @@ type EventListener = (event: SessionEvent) => void;
 class SessionManager {
   private sessions: Map<string, SessionState> = new Map();
   private listeners: Map<string, Set<EventListener>> = new Map();
+  // Photos are kept apart from SessionState so they can never leak into a JSON snapshot
+  // or be replayed to reconnecting clients. Cleared on confirm, reset, delete, and expiry.
+  private images: Map<string, Partial<Record<Face, CapturedFaceImagePayload>>> = new Map();
   private cleanupInterval: NodeJS.Timeout | null = null;
   private readonly SESSION_TTL_MS = 30 * 60 * 1000; // 30 minutes
 
@@ -65,6 +75,8 @@ class SessionManager {
       desktopConnected: true,
       mobileConnected: false,
       scannedFaces: {},
+      imageFaces: [],
+      verdicts: {},
       isComplete: false,
     };
 
@@ -155,6 +167,103 @@ class SessionManager {
   }
 
   /**
+   * Stores a face photo in memory and notifies subscribers that it can be fetched.
+   * A new photo of a face supersedes any earlier photo and verdict for it.
+   */
+  public recordFaceImage(sessionId: string, payload: CapturedFaceImagePayload): SessionState | null {
+    const session = this.sessions.get(sessionId);
+    if (!session) return null;
+
+    session.lastActiveAt = Date.now();
+    const stored = this.images.get(sessionId) ?? {};
+    stored[payload.face] = payload;
+    this.images.set(sessionId, stored);
+
+    if (!session.imageFaces.includes(payload.face)) session.imageFaces.push(payload.face);
+    delete session.verdicts[payload.face];
+    session.isComplete = false;
+
+    const notice: FaceImageNotice = {
+      face: payload.face,
+      capturedAt: payload.capturedAt,
+      quality: payload.quality,
+    };
+    this.publish({
+      type: 'FACE_IMAGE',
+      sessionId,
+      sender: 'mobile',
+      payload: notice,
+      timestamp: Date.now(),
+    });
+
+    return session;
+  }
+
+  public getFaceImage(sessionId: string, face: Face): CapturedFaceImagePayload | null {
+    return this.images.get(sessionId)?.[face] ?? null;
+  }
+
+  /**
+   * Records the desktop's accept/retake decision for a face and relays it to the phone.
+   */
+  public recordVerdict(sessionId: string, verdict: FaceVerdictPayload): SessionState | null {
+    const session = this.sessions.get(sessionId);
+    if (!session) return null;
+
+    session.lastActiveAt = Date.now();
+    session.verdicts[verdict.face] = verdict;
+    session.isComplete = FACES.every((f) => session.verdicts[f]?.accepted === true);
+
+    this.publish({
+      type: 'FACE_VERDICT',
+      sessionId,
+      sender: 'desktop',
+      payload: verdict,
+      timestamp: Date.now(),
+    });
+
+    return session;
+  }
+
+  /** Asks the phone to return to a face so the user can shoot it again. */
+  public requestRescan(sessionId: string, face: Face): SessionState | null {
+    const session = this.sessions.get(sessionId);
+    if (!session) return null;
+
+    session.lastActiveAt = Date.now();
+    this.publish({
+      type: 'RESCAN_REQUEST',
+      sessionId,
+      sender: 'desktop',
+      payload: { face },
+      timestamp: Date.now(),
+    });
+    return session;
+  }
+
+  /** The user confirmed the reviewed cube: photos are no longer needed and are dropped. */
+  public confirmScan(sessionId: string): SessionState | null {
+    const session = this.sessions.get(sessionId);
+    if (!session) return null;
+
+    session.lastActiveAt = Date.now();
+    this.clearImages(sessionId);
+    this.publish({
+      type: 'SCAN_CONFIRMED',
+      sessionId,
+      sender: 'desktop',
+      timestamp: Date.now(),
+    });
+    return session;
+  }
+
+  public clearImages(sessionId: string): void {
+    this.images.delete(sessionId);
+    const session = this.sessions.get(sessionId);
+    if (session) session.imageFaces = [];
+  }
+
+  /**
    * Removes or resets a specific face
    */
   public removeFace(sessionId: string, face: Face): SessionState | null {
@@ -185,7 +294,9 @@ class SessionManager {
 
     session.lastActiveAt = Date.now();
     session.scannedFaces = {};
+    session.verdicts = {};
     session.isComplete = false;
+    this.clearImages(sessionId);
 
     this.publish({
       type: 'SESSION_RESET',
@@ -203,6 +314,7 @@ class SessionManager {
   public deleteSession(id: string): void {
     this.sessions.delete(id);
     this.listeners.delete(id);
+    this.images.delete(id);
   }
 
   /**
@@ -211,6 +323,7 @@ class SessionManager {
   public clearAll(): void {
     this.sessions.clear();
     this.listeners.clear();
+    this.images.clear();
   }
 }
 

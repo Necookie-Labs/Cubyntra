@@ -11,7 +11,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import QRCode from 'qrcode';
 import { useCubyntraStore } from '@/stores/useCubyntraStore';
 import { Face, CubeColor, FaceStickers, ScannedFace } from '@/cube/types';
-import { SessionEvent, CapturedFacePayload } from './types';
+import { SessionEvent, SessionState, CapturedFacePayload } from './types';
 
 export interface CompanionSyncState {
   sessionId: string | null;
@@ -133,7 +133,7 @@ export function useCompanionSync(autoStart: boolean = false) {
       } else if (event.type === 'CLIENT_DISCONNECTED' && event.sender === 'mobile') {
         setState((s) => ({ ...s, mobileConnected: false }));
       } else if (event.type === 'STATE_SYNC' && event.payload) {
-        const session = event.payload;
+        const session = event.payload as SessionState;
         setState((s) => ({
           ...s,
           mobileConnected: session.mobileConnected,
