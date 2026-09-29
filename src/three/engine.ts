@@ -38,6 +38,42 @@ interface ActiveTween {
 // A backgrounded tab or a long GC pause must not fast-forward a turn in one frame.
 const MAX_FRAME_DELTA_S = 0.1;
 
+// Exponential damping rate for orbit/zoom, chosen to match the original fixed
+// 0.12-per-frame smoothing at 60 Hz while behaving identically at any refresh rate.
+const ORBIT_DAMPING_PER_S = -60 * Math.log(1 - 0.12);
+
+const AXES = [new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, 1)];
+
+/** Rounds a direction to the nearest signed coordinate axis. */
+function nearestAxis(v: THREE.Vector3): THREE.Vector3 {
+  let best = 0;
+  if (Math.abs(v.y) > Math.abs(v.getComponent(best))) best = 1;
+  if (Math.abs(v.z) > Math.abs(v.getComponent(best))) best = 2;
+  return AXES[best].clone().multiplyScalar(Math.sign(v.getComponent(best)) || 1);
+}
+
+/**
+ * Snaps a rotation to the nearest of the 24 cube orientations by rounding its basis
+ * vectors, with the third derived by cross product so the result is always a proper
+ * right-handed rotation. Unlike rounding Euler angles per component, this is exact
+ * everywhere, including near gimbal lock.
+ */
+export function snapQuaternionToCubeGroup(q: THREE.Quaternion): THREE.Quaternion {
+  const m = new THREE.Matrix4().makeRotationFromQuaternion(q);
+  const bx = new THREE.Vector3();
+  const by = new THREE.Vector3();
+  const bz = new THREE.Vector3();
+  m.extractBasis(bx, by, bz);
+
+  const x = nearestAxis(bx);
+  let y = nearestAxis(by);
+  // If rounding collapsed both vectors onto one axis, fall back to the next-best axis for y.
+  if (Math.abs(x.dot(y)) > 0.5) y = nearestAxis(by.clone().sub(x.clone().multiplyScalar(by.dot(x))));
+  const z = new THREE.Vector3().crossVectors(x, y);
+
+  return new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(x, y, z));
+}
+
 function easeInOutCubic(t: number): number {
   return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 }
@@ -431,11 +467,7 @@ export class CubeEngine {
     const g = cubie.group;
     g.position.set(Math.round(g.position.x), Math.round(g.position.y), Math.round(g.position.z));
 
-    const euler = new THREE.Euler().setFromQuaternion(g.quaternion);
-    euler.x = Math.round(euler.x / (Math.PI / 2)) * (Math.PI / 2);
-    euler.y = Math.round(euler.y / (Math.PI / 2)) * (Math.PI / 2);
-    euler.z = Math.round(euler.z / (Math.PI / 2)) * (Math.PI / 2);
-    g.quaternion.setFromEuler(euler);
+    g.quaternion.copy(snapQuaternionToCubeGroup(g.quaternion));
     g.updateMatrix();
   }
 
@@ -528,10 +560,11 @@ export class CubeEngine {
 
     this.advanceTween(dt * 1000);
 
-    // Smooth damping for orbit and zoom
-    this.currentRotation.x += (this.targetRotation.x - this.currentRotation.x) * 0.12;
-    this.currentRotation.y += (this.targetRotation.y - this.currentRotation.y) * 0.12;
-    this.currentDistance += (this.targetDistance - this.currentDistance) * 0.12;
+    // Smooth damping for orbit and zoom, independent of display refresh rate
+    const k = 1 - Math.exp(-ORBIT_DAMPING_PER_S * dt);
+    this.currentRotation.x += (this.targetRotation.x - this.currentRotation.x) * k;
+    this.currentRotation.y += (this.targetRotation.y - this.currentRotation.y) * k;
+    this.currentDistance += (this.targetDistance - this.currentDistance) * k;
 
     this.rootCubeGroup.rotation.copy(this.currentRotation);
 
@@ -560,6 +593,8 @@ export class CubeEngine {
     if (width && height) {
       this.camera.aspect = width / height;
       this.camera.updateProjectionMatrix();
+      // Moving the window to a monitor with a different DPI changes devicePixelRatio.
+      this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
       this.renderer.setSize(width, height);
     }
   }
