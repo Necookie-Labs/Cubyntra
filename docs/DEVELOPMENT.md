@@ -20,9 +20,11 @@ npm install
 # 3. Start development server (with Turbopack)
 npm run dev
 
-# 4. Access application in browser
-open http://localhost:3000
+# 4. Access application in browser (accept the one-time certificate warning)
+open https://localhost:3000
 ```
+
+> **Why HTTPS?** Phones only allow camera access on `https://` pages (`localhost` on the same device is the only exception). `npm run dev` creates a self-signed certificate for `localhost` and this computer's network addresses in `.certs/` (git-ignored), without installing anything into the system trust store. The first visit on each device shows a "connection is not private" warning: tap **Advanced → Proceed**. Use `npm run dev:http` for plain HTTP; phone scanning will not work with it.
 
 ---
 
@@ -30,7 +32,8 @@ open http://localhost:3000
 
 | Command | Purpose |
 |:---|:---|
-| `npm run dev` | Starts local Next.js dev server with fast Turbopack HMR |
+| `npm run dev` | Starts the dev server over HTTPS (needed for the phone camera) with Turbopack HMR |
+| `npm run dev:http` | Starts the dev server over plain HTTP (computer only; phone camera will not open) |
 | `npm run build` | Builds optimized production bundle |
 | `npm run start` | Serves compiled production bundle locally |
 | `npm run lint` | Runs ESLint over all TypeScript and React files |
