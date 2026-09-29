@@ -6,9 +6,9 @@
  */
 
 import React, { useEffect } from 'react';
-import { useCompanionSync } from '@/sync/useCompanionSync';
-import { FACES, COLOR_HEX, CANONICAL_CENTER_COLORS, FACE_NAMES } from '@/cube/constants';
-import { Smartphone, QrCode, CheckCircle2, Copy, ExternalLink, X, RefreshCw, Sparkles } from 'lucide-react';
+import { useCompanion } from '@/sync/CompanionSyncProvider';
+import { FACES, COLOR_HEX, CANONICAL_CENTER_COLORS } from '@/cube/constants';
+import { Smartphone, CheckCircle2, Copy, ExternalLink, X, RefreshCw, Loader2, RotateCcw } from 'lucide-react';
 
 interface MobilePairingModalProps {
   isOpen: boolean;
@@ -30,22 +30,19 @@ export const MobilePairingModal: React.FC<MobilePairingModalProps> = ({
     isCreating,
     mobileConnected,
     error,
-    capturedFaces,
+    faceStatus,
     initSession,
-    disconnect,
-  } = useCompanionSync(false);
+  } = useCompanion();
 
+  // The session outlives this dialog: closing it must not disconnect the phone, which
+  // keeps shooting while the desktop shows progress and, later, the review screen.
   useEffect(() => {
-    if (isOpen) {
-      initSession();
-    } else {
-      disconnect();
-    }
-  }, [isOpen, initSession, disconnect]);
+    if (isOpen && !sessionId && !isCreating) void initSession();
+  }, [isOpen, sessionId, isCreating, initSession]);
 
   if (!isOpen) return null;
 
-  const capturedCount = Object.keys(capturedFaces).length;
+  const capturedCount = FACES.filter((f) => faceStatus[f] === 'accepted').length;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
@@ -103,7 +100,7 @@ export const MobilePairingModal: React.FC<MobilePairingModalProps> = ({
                 {mobileConnected ? (
                   <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-950/80 border border-emerald-500/40 text-emerald-400 text-xs font-medium">
                     <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                    Phone Connected! Scanning in progress...
+                    Phone connected. Keep shooting on your phone.
                   </div>
                 ) : (
                   <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-neutral-900 border border-neutral-700 text-neutral-300 text-xs font-mono">
@@ -189,16 +186,19 @@ export const MobilePairingModal: React.FC<MobilePairingModalProps> = ({
 
           <div className="grid grid-cols-6 gap-2">
             {FACES.map((face) => {
-              const isCaptured = capturedFaces[face] !== undefined;
-              const color = CANONICAL_CENTER_COLORS[face];
-              const hex = COLOR_HEX[color];
+              const status = faceStatus[face];
+              const hex = COLOR_HEX[CANONICAL_CENTER_COLORS[face]];
 
               return (
                 <div
                   key={face}
-                  className={`p-2 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all ${
-                    isCaptured
+                  className={`p-2 rounded-xl border flex flex-col items-center justify-center gap-1 transition-colors duration-200 ${
+                    status === 'accepted'
                       ? 'bg-emerald-950/40 border-emerald-500/50 text-emerald-400'
+                      : status === 'rejected'
+                      ? 'bg-amber-950/30 border-amber-500/40 text-amber-300'
+                      : status === 'analyzing'
+                      ? 'bg-sky-950/30 border-sky-500/40 text-sky-300'
                       : 'bg-neutral-900/60 border-neutral-800 text-neutral-500'
                   }`}
                 >
@@ -207,8 +207,12 @@ export const MobilePairingModal: React.FC<MobilePairingModalProps> = ({
                     style={{ backgroundColor: hex }}
                   />
                   <span className="text-[11px] font-mono font-bold">{face}</span>
-                  {isCaptured ? (
-                    <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                  {status === 'accepted' ? (
+                    <CheckCircle2 className="w-3 h-3" aria-label="Read" />
+                  ) : status === 'analyzing' ? (
+                    <Loader2 className="w-3 h-3 animate-spin motion-reduce:animate-none" aria-label="Reading" />
+                  ) : status === 'rejected' ? (
+                    <RotateCcw className="w-3 h-3" aria-label="Retake" />
                   ) : (
                     <span className="text-[9px] text-neutral-600 font-mono">WAIT</span>
                   )}

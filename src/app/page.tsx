@@ -16,21 +16,58 @@ import { SolveControls } from '@/components/solver/SolveControls';
 import { CVDebugger } from '@/components/scanner/CVDebugger';
 import { ErrorRecoveryModal } from '@/components/scanner/ErrorRecoveryModal';
 import { MobilePairingModal } from '@/components/sync/MobilePairingModal';
+import { CompanionScanPanel } from '@/components/sync/CompanionScanPanel';
+import { CompanionSyncProvider, useCompanion } from '@/sync/CompanionSyncProvider';
 import { Camera, Sparkles, Shield, Cpu, Layers, Smartphone, QrCode } from 'lucide-react';
 
+/**
+ * 'auto': opened by "Scan with Phone"; steps aside once the phone connects.
+ * 'manual': reopened from the progress panel; stays until the user closes it.
+ */
+type PairingMode = 'closed' | 'auto' | 'manual';
+
 export default function Home() {
+  return (
+    <CompanionSyncProvider>
+      <Workspace />
+    </CompanionSyncProvider>
+  );
+}
+
+function Workspace() {
   const {
     appState,
+    scanSource,
     cubeState,
     solution,
     currentMoveIndex,
     startScanning,
+    startCompanionScan,
     loadMockScramble,
   } = useCubyntraStore();
+  const companion = useCompanion();
+  const { disconnect: disconnectPhone } = companion;
 
   const visualizerRef = useRef<CubeVisualizerRef>(null);
 
-  const [isPairingOpen, setIsPairingOpen] = useState(false);
+  const [pairingMode, setPairingMode] = useState<PairingMode>('closed');
+  const isPairingOpen = pairingMode === 'manual' || (pairingMode === 'auto' && !companion.mobileConnected);
+
+  const scanWithPhone = useCallback(() => {
+    startCompanionScan();
+    setPairingMode('auto');
+  }, [startCompanionScan]);
+
+  const scanWithWebcam = useCallback(() => {
+    disconnectPhone();
+    setPairingMode('closed');
+    startScanning();
+  }, [disconnectPhone, startScanning]);
+
+  const loadDemo = useCallback(() => {
+    disconnectPhone();
+    void loadMockScramble();
+  }, [disconnectPhone, loadMockScramble]);
 
   const activeMove =
     solution && currentMoveIndex >= 0 && currentMoveIndex < solution.moves.length
@@ -49,11 +86,8 @@ export default function Home() {
       {/* Mobile Pairing QR Modal */}
       <MobilePairingModal
         isOpen={isPairingOpen}
-        onClose={() => setIsPairingOpen(false)}
-        onSwitchToWebcam={() => {
-          setIsPairingOpen(false);
-          startScanning();
-        }}
+        onClose={() => setPairingMode('closed')}
+        onSwitchToWebcam={scanWithWebcam}
       />
 
       {/* Dynamic Procedural Background */}
@@ -90,7 +124,7 @@ export default function Home() {
               <div className="flex flex-wrap items-center gap-3">
                 <button
                   type="button"
-                  onClick={() => setIsPairingOpen(true)}
+                  onClick={scanWithPhone}
                   className="flex items-center gap-2 px-5 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-bold text-sm transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5"
                 >
                   <Smartphone className="w-4 h-4" />
@@ -102,7 +136,7 @@ export default function Home() {
 
                 <button
                   type="button"
-                  onClick={startScanning}
+                  onClick={scanWithWebcam}
                   className="flex items-center gap-2 px-4 py-3 rounded-xl bg-white/10 hover:bg-white/15 text-white font-semibold text-sm border border-white/15 transition-all"
                 >
                   <Camera className="w-4 h-4 text-sky-400" />
@@ -111,7 +145,7 @@ export default function Home() {
 
                 <button
                   type="button"
-                  onClick={() => loadMockScramble()}
+                  onClick={loadDemo}
                   className="flex items-center gap-2 px-4 py-3 rounded-xl bg-neutral-900/90 text-neutral-200 font-semibold text-sm hover:bg-neutral-800 border border-neutral-800 hover:border-neutral-700 transition-all"
                 >
                   <Sparkles className="w-4 h-4 text-amber-400" />
@@ -143,7 +177,12 @@ export default function Home() {
           )}
 
           {/* 2. Camera Scanning Workflow */}
-          {appState === 'scanning' && <CameraScanner />}
+          {appState === 'scanning' &&
+            (scanSource === 'companion' ? (
+              <CompanionScanPanel onShowQr={() => setPairingMode('manual')} onUseWebcam={scanWithWebcam} />
+            ) : (
+              <CameraScanner />
+            ))}
 
           {/* 3. Processing State */}
           {appState === 'processing' && (
