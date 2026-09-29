@@ -38,7 +38,9 @@ export async function POST(req: NextRequest) {
 
     // Determine host URL for QR code generation
     const hostHeader = req.headers.get('x-forwarded-host') || req.headers.get('host') || 'localhost:3000';
-    const proto = req.headers.get('x-forwarded-proto') || 'http';
+    // Match how this server is being reached. Phones only allow the camera on https://,
+    // so an HTTPS dev server must hand out an https:// companion link.
+    const proto = req.headers.get('x-forwarded-proto') || req.nextUrl.protocol.replace(':', '') || 'http';
     const port = hostHeader.includes(':') ? hostHeader.split(':')[1] : '3000';
 
     // If accessed via localhost/127.0.0.1 on desktop, use the actual LAN IP for the QR code!

@@ -24,6 +24,12 @@ export async function initializeCameraStream(
   videoElement: HTMLVideoElement,
   options: CameraOptions = {}
 ): Promise<CameraResult> {
+  // Browsers only expose the camera on secure pages: https://, or localhost on the same device.
+  if (typeof window !== 'undefined' && !window.isSecureContext) {
+    throw new Error(
+      'The camera only works on a secure page. Open this page with an https:// address (scan the QR code again).'
+    );
+  }
   if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
     throw new Error('Camera access is not supported by your current browser.');
   }
