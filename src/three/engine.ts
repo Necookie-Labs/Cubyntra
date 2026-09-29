@@ -42,6 +42,12 @@ const MAX_FRAME_DELTA_S = 0.1;
 // 0.12-per-frame smoothing at 60 Hz while behaving identically at any refresh rate.
 const ORBIT_DAMPING_PER_S = -60 * Math.log(1 - 0.12);
 
+/**
+ * Radius of the sphere around a 3x3x3 cube of unit cubies (1.5 * sqrt 3). Every tile lies
+ * inside it in any orientation, including mid-turn, so fitting it in view never clips.
+ */
+const CUBE_BOUNDING_RADIUS = 1.5 * Math.sqrt(3);
+
 const AXES = [new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, 1)];
 
 const FACE_DIRECTION = {
@@ -125,6 +131,8 @@ export class CubeEngine {
   private currentRotation = new THREE.Euler(0.45, -0.65, 0, 'YXZ');
   private targetDistance = 6.2;
   private currentDistance = 6.2;
+  // Until the user scroll-zooms, the camera distance tracks the container's shape.
+  private userZoomed = false;
 
 
 
@@ -149,6 +157,7 @@ export class CubeEngine {
     const width = container.clientWidth || 400;
     const height = container.clientHeight || 400;
     this.camera = new THREE.PerspectiveCamera(40, width / height, 0.1, 100);
+    this.currentDistance = this.targetDistance = this.fitDistance();
     this.camera.position.set(0, 0, this.currentDistance);
     this.camera.lookAt(0, 0, 0);
 
@@ -501,7 +510,19 @@ export class CubeEngine {
    */
   public resetCamera(): void {
     this.targetRotation.set(0.45, -0.65, 0);
-    this.targetDistance = 6.2;
+    this.userZoomed = false;
+    this.targetDistance = this.fitDistance();
+  }
+
+  /**
+   * Camera distance at which the whole cube fits the view. Three.js fixes the vertical
+   * field of view, so in a container taller than it is wide the horizontal angle is the
+   * tighter one; a fixed distance would push the cube past the sides.
+   */
+  private fitDistance(): number {
+    const halfV = THREE.MathUtils.degToRad(this.camera.fov / 2);
+    const halfH = Math.atan(Math.tan(halfV) * this.camera.aspect);
+    return CUBE_BOUNDING_RADIUS / Math.sin(Math.min(halfV, halfH));
   }
 
   private onMouseDown = (e: MouseEvent): void => {
@@ -529,9 +550,10 @@ export class CubeEngine {
 
   private onWheel = (e: WheelEvent): void => {
     e.preventDefault();
+    this.userZoomed = true;
     this.targetDistance = Math.max(
       3.8,
-      Math.min(9.5, this.targetDistance + e.deltaY * 0.005)
+      Math.min(Math.max(9.5, this.fitDistance() * 1.4), this.targetDistance + e.deltaY * 0.005)
     );
   };
 
@@ -618,6 +640,7 @@ export class CubeEngine {
     if (width && height) {
       this.camera.aspect = width / height;
       this.camera.updateProjectionMatrix();
+      if (!this.userZoomed) this.targetDistance = this.fitDistance();
       // Moving the window to a monitor with a different DPI changes devicePixelRatio.
       this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
       this.renderer.setSize(width, height);

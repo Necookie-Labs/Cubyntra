@@ -200,6 +200,39 @@ describe('snapQuaternionToCubeGroup', () => {
   });
 });
 
+describe('CubeEngine framing', () => {
+  it.each([
+    ['wide', 900, 500],
+    ['square', 600, 600],
+    ['tall review panel', 594, 676],
+    ['phone portrait', 360, 740],
+  ])('keeps the whole cube in view in a %s container, from any angle', (_label, w, h) => {
+    const container = { clientWidth: w, clientHeight: h, appendChild() {} };
+    const engine = new CubeEngine(container as unknown as HTMLElement);
+    pumpFrames(2);
+
+    const corners: THREE.Vector3[] = [];
+    for (const x of [-1.5, 1.5]) for (const y of [-1.5, 1.5]) for (const z of [-1.5, 1.5]) corners.push(new THREE.Vector3(x, y, z));
+
+    const camera = engine.camera;
+    camera.position.set(0, 0, (engine as unknown as { currentDistance: number }).currentDistance);
+    camera.lookAt(0, 0, 0);
+    camera.updateMatrixWorld(true);
+
+    const rand = (() => { let s = 99; return () => ((s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 2 ** 32); })();
+    let worst = 0;
+    for (let i = 0; i < 300; i++) {
+      const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(rand() * 6.3, rand() * 6.3, rand() * 6.3));
+      for (const c of corners) {
+        const ndc = c.clone().applyQuaternion(q).project(camera);
+        worst = Math.max(worst, Math.abs(ndc.x), Math.abs(ndc.y));
+      }
+    }
+    expect(worst).toBeLessThanOrEqual(1);
+    engine.dispose();
+  });
+});
+
 describe('CubeEngine layer turns', () => {
   it('turns every face in the direction the logical model defines', async () => {
     for (const notation of ['U', "U'", 'U2', 'D', "D'", 'R', "R'", 'L', 'F', "F'", 'B', "B'", 'L2']) {
