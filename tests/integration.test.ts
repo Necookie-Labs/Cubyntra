@@ -43,7 +43,9 @@ describe('Cubyntra End-to-End Application Workflow', () => {
     expect(finalState.solution).not.toBeNull();
     expect(finalState.solution?.success).toBe(true);
     expect(finalState.solution?.moves.length).toBeGreaterThan(0);
-  });
+    // The first solve in a worker builds the Kociemba pruning tables (~2 s alone, 4-6 s
+    // while other suites compete for CPU), which overruns vitest's 5 s default.
+  }, 20_000);
 
   it('executes full step-by-step playback from scramble to solved', async () => {
     const store = useCubyntraStore.getState();
