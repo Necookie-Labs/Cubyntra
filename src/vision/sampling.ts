@@ -30,6 +30,39 @@ export function calculateROIBounds(
   return { x, y, size };
 }
 
+export interface ScreenRect {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
+/**
+ * Maps an on-screen square (the reticle) into the pixel space of a video rendered with
+ * `object-fit: cover` and centered `object-position`. The crop taken from the camera frame
+ * is then exactly the region the user saw inside the reticle, rather than a fixed fraction
+ * of the frame that drifts with screen aspect ratio. Clamped to the frame.
+ */
+export function mapElementRectToVideo(
+  target: ScreenRect,
+  videoBox: ScreenRect,
+  videoWidth: number,
+  videoHeight: number
+): ROIBounds {
+  const scale = Math.max(videoBox.width / videoWidth, videoBox.height / videoHeight);
+  const offsetX = videoBox.left + (videoBox.width - videoWidth * scale) / 2;
+  const offsetY = videoBox.top + (videoBox.height - videoHeight * scale) / 2;
+
+  const cx = (target.left + target.width / 2 - offsetX) / scale;
+  const cy = (target.top + target.height / 2 - offsetY) / scale;
+  let size = Math.min(target.width, target.height) / scale;
+  size = Math.min(size, videoWidth, videoHeight);
+
+  const x = Math.min(Math.max(cx - size / 2, 0), videoWidth - size);
+  const y = Math.min(Math.max(cy - size / 2, 0), videoHeight - size);
+  return { x: Math.round(x), y: Math.round(y), size: Math.round(size) };
+}
+
 /**
  * Aggregates an array of pixel RGB values using a trimmed mean to eliminate glare/shadow spikes.
  */
