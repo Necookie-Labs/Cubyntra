@@ -7,7 +7,7 @@
 
 import React, { useRef, useCallback, useState } from 'react';
 import { useCubyntraStore } from '@/stores/useCubyntraStore';
-import { CubeMove, CubeState } from '@/cube/types';
+import { CubeMove, CubeState, Face } from '@/cube/types';
 import { Header } from '@/components/branding/Header';
 import { HexagonBackground } from '@/components/visual/HexagonBackground';
 import { CubeVisualizer, CubeVisualizerRef } from '@/components/cube/CubeVisualizer';
@@ -17,6 +17,7 @@ import { CVDebugger } from '@/components/scanner/CVDebugger';
 import { ErrorRecoveryModal } from '@/components/scanner/ErrorRecoveryModal';
 import { MobilePairingModal } from '@/components/sync/MobilePairingModal';
 import { CompanionScanPanel } from '@/components/sync/CompanionScanPanel';
+import { ScanReview } from '@/components/review/ScanReview';
 import { CompanionSyncProvider, useCompanion } from '@/sync/CompanionSyncProvider';
 import { Camera, Sparkles, Shield, Cpu, Layers, Smartphone, QrCode } from 'lucide-react';
 
@@ -44,9 +45,11 @@ function Workspace() {
     startScanning,
     startCompanionScan,
     loadMockScramble,
+    rescanFace,
+    resetAll,
   } = useCubyntraStore();
   const companion = useCompanion();
-  const { disconnect: disconnectPhone } = companion;
+  const { disconnect: disconnectPhone, requestRescan, confirmScan } = companion;
 
   const visualizerRef = useRef<CubeVisualizerRef>(null);
 
@@ -63,6 +66,26 @@ function Workspace() {
     setPairingMode('closed');
     startScanning();
   }, [disconnectPhone, startScanning]);
+
+  const rescanFromReview = useCallback(
+    (face: Face) => {
+      rescanFace(face);
+      if (scanSource === 'companion') void requestRescan(face);
+    },
+    [rescanFace, requestRescan, scanSource]
+  );
+
+  // Tell the phone right away so it shows its done screen and the server drops the photos,
+  // without waiting for the solve to finish.
+  const onReviewConfirmed = useCallback(() => {
+    if (scanSource === 'companion') void confirmScan();
+  }, [confirmScan, scanSource]);
+
+  const startOver = useCallback(() => {
+    disconnectPhone();
+    setPairingMode('closed');
+    resetAll();
+  }, [disconnectPhone, resetAll]);
 
   const loadDemo = useCallback(() => {
     disconnectPhone();
@@ -183,6 +206,11 @@ function Workspace() {
             ) : (
               <CameraScanner />
             ))}
+
+          {/* 2b. Review the scan before solving */}
+          {appState === 'reviewing' && (
+            <ScanReview onRescanFace={rescanFromReview} onConfirmed={onReviewConfirmed} onStartOver={startOver} />
+          )}
 
           {/* 3. Processing State */}
           {appState === 'processing' && (

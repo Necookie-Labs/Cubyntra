@@ -8,7 +8,8 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useCubyntraStore } from '@/stores/useCubyntraStore';
 import { SCAN_SEQUENCE, COLOR_HEX } from '@/cube/constants';
-import { CubeColor, FaceStickers, ScannedFace } from '@/cube/types';
+import { CubeColor } from '@/cube/types';
+import { StickerSample } from '@/vision/types';
 import { initializeCameraStream, terminateCameraStream } from '@/vision/camera';
 import { calculateROIBounds, sampleGridFromContext } from '@/vision/sampling';
 import { TemporalStabilityBuffer } from '@/vision/stability';
@@ -30,7 +31,7 @@ export const CameraScanner: React.FC = () => {
   const {
     currentStepIndex,
     scannedFaces,
-    captureFace,
+    ingestFaceSamples,
     rescanFace,
     setClassification,
     loadMockScramble,
@@ -42,6 +43,8 @@ export const CameraScanner: React.FC = () => {
   const stabilityBufferRef = useRef<TemporalStabilityBuffer>(new TemporalStabilityBuffer({ requiredStableFrames: 8 }));
   const animationFrameIdRef = useRef<number | null>(null);
   const nativeFaceSignalRef = useRef(0.0);
+  // Full measurements of the latest confirmed-cube frame; the resolver needs raw RGB, not labels.
+  const liveSamplesRef = useRef<StickerSample[]>([]);
 
   const [cameraStatus, setCameraStatus] = useState<'loading' | 'streaming' | 'error'>('loading');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -75,23 +78,13 @@ export const CameraScanner: React.FC = () => {
     // Strictly prevent capture if ML model did not verify a cube or detected a human face
     if (!cubeDetectionRef.current || !cubeDetectionRef.current.isCube) return;
 
-    const stickersSnapshot = liveStickersRef.current;
-    if (stickersSnapshot.length !== 9) return;
+    const samples = liveSamplesRef.current;
+    if (samples.length !== 9) return;
 
-    const stickers = stickersSnapshot.map((s) => s.predictedColor) as FaceStickers;
-    const confidences = stickersSnapshot.map((s) => s.confidence);
-
-    const faceData: ScannedFace = {
-      face: currentStepRef.current.face,
-      centerColor: stickers[4],
-      stickers,
-      confidences,
-      capturedAt: Date.now(),
-    };
-
-    captureFace(faceData);
+    // Colors are resolved across all six faces once the last one is in, then reviewed.
+    ingestFaceSamples(currentStepRef.current.face, samples);
     stabilityBufferRef.current.reset();
-  }, [captureFace]);
+  }, [ingestFaceSamples]);
 
   // Initialize Camera
   useEffect(() => {
@@ -230,6 +223,7 @@ export const CameraScanner: React.FC = () => {
 
           // Only display live colors when ML confirms a genuine Rubik's Cube
           if (detection.isCube) {
+            liveSamplesRef.current = samples;
             setLiveStickers(
               samples.map((s) => ({
                 predictedColor: s.predictedColor,
@@ -239,6 +233,7 @@ export const CameraScanner: React.FC = () => {
             );
           } else {
             // Clear live stickers so human face is NEVER classified or displayed as cube colors
+            liveSamplesRef.current = [];
             setLiveStickers([]);
           }
 
