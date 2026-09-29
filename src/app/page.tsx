@@ -245,7 +245,9 @@ function Workspace() {
           )}
 
           {/* 5. Error & Diagnostic Recovery State */}
-          {appState === 'error' && <ErrorRecoveryModal />}
+          {appState === 'error' && (
+            <ErrorRecoveryModal onStartOver={goHome} onRescanFace={rescanFromReview} onDemo={loadDemo} />
+          )}
         </section>
 
         {/* Right 3D Digital Twin Panel */}
