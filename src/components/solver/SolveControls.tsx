@@ -23,6 +23,8 @@ import {
 export interface SolveControlsProps {
   /** Animates one layer turn to targetState; resolves when the turn has finished. */
   onAnimateMove?: (move: CubeMove, targetState: CubeState, durationMs: number) => Promise<void>;
+  /** Return to the start screen to scan another cube. */
+  onNewScan: () => void;
 }
 
 // At 1x a turn takes 300 ms followed by a 250 ms rest, the same 550 ms cadence as before.
@@ -33,7 +35,7 @@ function turnDurationMs(speed: number): number {
   return Math.min(600, Math.max(90, BASE_TURN_MS / speed));
 }
 
-export const SolveControls: React.FC<SolveControlsProps> = ({ onAnimateMove }) => {
+export const SolveControls: React.FC<SolveControlsProps> = ({ onAnimateMove, onNewScan }) => {
   const {
     solution,
     currentMoveIndex,
@@ -45,7 +47,6 @@ export const SolveControls: React.FC<SolveControlsProps> = ({ onAnimateMove }) =
     togglePlay,
     setPlaybackSpeed,
     resetToScramble,
-    startScanning,
   } = useCubyntraStore();
 
   // The store is advanced first and the turn is queued in the same tick, before React
@@ -271,10 +272,10 @@ export const SolveControls: React.FC<SolveControlsProps> = ({ onAnimateMove }) =
 
           <button
             type="button"
-            onClick={startScanning}
-            className="text-xs font-mono text-neutral-400 hover:text-white px-2.5 py-1.5 rounded-lg border border-neutral-800 hover:bg-neutral-800 transition-colors"
+            onClick={onNewScan}
+            className="text-xs text-neutral-400 hover:text-white px-2.5 py-1.5 rounded-lg border border-neutral-800 hover:bg-neutral-800 transition-colors"
           >
-            New Scan
+            Scan another cube
           </button>
         </div>
       </div>

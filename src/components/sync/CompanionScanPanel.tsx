@@ -27,9 +27,11 @@ const FACE_LABEL: Record<Face, string> = {
 interface CompanionScanPanelProps {
   onShowQr: () => void;
   onUseWebcam: () => void;
+  /** End the phone scan and return to the start screen. */
+  onCancel: () => void;
 }
 
-export const CompanionScanPanel: React.FC<CompanionScanPanelProps> = ({ onShowQr, onUseWebcam }) => {
+export const CompanionScanPanel: React.FC<CompanionScanPanelProps> = ({ onShowQr, onUseWebcam, onCancel }) => {
   const { mobileConnected, faceStatus, faceReasons, lastPhotos } = useCompanion();
   const scannedFaces = useCubyntraStore((s) => s.scannedFaces);
 
@@ -171,14 +173,23 @@ export const CompanionScanPanel: React.FC<CompanionScanPanelProps> = ({ onShowQr
             )}
           </span>
         </p>
-        <button
-          type="button"
-          onClick={onUseWebcam}
-          className="shrink-0 inline-flex items-center gap-1.5 text-xs text-neutral-400 hover:text-white transition-colors underline-offset-4 hover:underline"
-        >
-          <Camera className="w-3.5 h-3.5" />
-          Use webcam instead
-        </button>
+        <div className="shrink-0 flex items-center gap-3">
+          <button
+            type="button"
+            onClick={onUseWebcam}
+            className="inline-flex items-center gap-1.5 text-xs text-neutral-400 hover:text-white transition-colors underline-offset-4 hover:underline"
+          >
+            <Camera className="w-3.5 h-3.5" />
+            Use webcam
+          </button>
+          <button
+            type="button"
+            onClick={onCancel}
+            className="px-2.5 py-1.5 rounded-lg text-xs text-neutral-300 border border-neutral-800 hover:bg-neutral-800 hover:text-white transition-colors"
+          >
+            Cancel
+          </button>
+        </div>
       </footer>
     </div>
   );

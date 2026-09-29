@@ -204,9 +204,13 @@ function Workspace() {
           {/* 2. Camera Scanning Workflow */}
           {appState === 'scanning' &&
             (scanSource === 'companion' ? (
-              <CompanionScanPanel onShowQr={() => setPairingMode('manual')} onUseWebcam={scanWithWebcam} />
+              <CompanionScanPanel
+                onShowQr={() => setPairingMode('manual')}
+                onUseWebcam={scanWithWebcam}
+                onCancel={goHome}
+              />
             ) : (
-              <CameraScanner />
+              <CameraScanner onBack={goHome} />
             ))}
 
           {/* 2b. Review the scan before solving */}
@@ -229,7 +233,7 @@ function Workspace() {
 
           {/* 4. Solution & Solve Controls */}
           {(appState === 'solution_ready' || appState === 'solving' || appState === 'solved') && (
-            <SolveControls onAnimateMove={handleAnimateMove} />
+            <SolveControls onAnimateMove={handleAnimateMove} onNewScan={goHome} />
           )}
 
           {/* 5. Error & Diagnostic Recovery State */}

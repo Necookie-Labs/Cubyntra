@@ -25,9 +25,15 @@ import {
   Zap,
   UserX,
   Box,
+  ArrowLeft,
 } from 'lucide-react';
 
-export const CameraScanner: React.FC = () => {
+interface CameraScannerProps {
+  /** Leave the scan and return to the start screen. */
+  onBack: () => void;
+}
+
+export const CameraScanner: React.FC<CameraScannerProps> = ({ onBack }) => {
   const {
     currentStepIndex,
     scannedFaces,
@@ -47,6 +53,8 @@ export const CameraScanner: React.FC = () => {
   const liveSamplesRef = useRef<StickerSample[]>([]);
 
   const [cameraStatus, setCameraStatus] = useState<'loading' | 'streaming' | 'error'>('loading');
+  // Bumped by "Try again" to re-run camera setup.
+  const [cameraAttempt, setCameraAttempt] = useState(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isStable, setIsStable] = useState(false);
   const [stabilityProgress, setStabilityProgress] = useState(0);
@@ -125,7 +133,7 @@ export const CameraScanner: React.FC = () => {
       terminateCameraStream(streamRef.current);
       streamRef.current = null;
     };
-  }, []);
+  }, [cameraAttempt]);
 
   // Native FaceDetector background polling (every 250ms)
   useEffect(() => {
@@ -277,6 +285,15 @@ export const CameraScanner: React.FC = () => {
 
   return (
     <div className="flex flex-col h-full w-full max-w-xl mx-auto p-4 select-none">
+      <button
+        type="button"
+        onClick={onBack}
+        className="self-start mb-3 inline-flex items-center gap-1.5 px-2.5 py-1.5 -ml-2.5 rounded-lg text-xs text-neutral-400 hover:text-white hover:bg-white/5 transition-colors"
+      >
+        <ArrowLeft className="w-3.5 h-3.5" />
+        Back
+      </button>
+
       {/* Viewfinder Container */}
       <div className="relative w-full aspect-square rounded-2xl overflow-hidden bg-neutral-950 border border-neutral-800 shadow-2xl flex items-center justify-center">
         {/* Hidden processing canvas */}
@@ -311,14 +328,31 @@ export const CameraScanner: React.FC = () => {
               <h3 className="text-sm font-semibold text-white">Camera Unavailable</h3>
               <p className="text-xs text-neutral-400 mt-1 max-w-xs">{errorMessage}</p>
             </div>
-            <button
-              type="button"
-              onClick={() => loadMockScramble()}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-medium shadow-md transition-colors"
-            >
-              <Sparkles className="w-4 h-4" />
-              <span>Use Simulated Scramble Demo</span>
-            </button>
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <button
+                type="button"
+                onClick={() => setCameraAttempt((n) => n + 1)}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white text-neutral-950 text-xs font-semibold shadow-md hover:bg-neutral-200 transition-colors"
+              >
+                <RefreshCw className="w-4 h-4" />
+                <span>Try again</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => loadMockScramble()}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-medium shadow-md transition-colors"
+              >
+                <Sparkles className="w-4 h-4" />
+                <span>Use demo cube</span>
+              </button>
+              <button
+                type="button"
+                onClick={onBack}
+                className="px-4 py-2 rounded-lg text-xs text-neutral-400 hover:text-white hover:bg-white/5 transition-colors"
+              >
+                Back
+              </button>
+            </div>
           </div>
         )}
 
