@@ -77,19 +77,27 @@ export const CubeVisualizer = forwardRef<CubeVisualizerRef, CubeVisualizerProps>
       },
     }));
 
+    // Follow the browser's fullscreen state, so leaving with Esc also updates the icon.
+    const panelRef = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+      const onChange = () => setIsFullscreen(document.fullscreenElement === panelRef.current);
+      document.addEventListener('fullscreenchange', onChange);
+      return () => document.removeEventListener('fullscreenchange', onChange);
+    }, []);
+
+    // The whole panel goes fullscreen, controls included, so there is a visible way back.
     const toggleFullscreen = () => {
-      if (!containerRef.current) return;
+      if (!panelRef.current) return;
       if (!document.fullscreenElement) {
-        containerRef.current.requestFullscreen().catch(() => {});
-        setIsFullscreen(true);
+        panelRef.current.requestFullscreen?.().catch(() => {});
       } else {
         document.exitFullscreen().catch(() => {});
-        setIsFullscreen(false);
       }
     };
 
     return (
       <div
+        ref={panelRef}
         className={`relative w-full h-full min-h-[320px] rounded-xl overflow-hidden bg-[radial-gradient(ellipse_80%_70%_at_50%_40%,#1e2330_0%,#0c0e14_100%)] border border-neutral-800/80 shadow-2xl flex items-center justify-center select-none ${className}`}
       >
         {/* Three.js canvas container */}
