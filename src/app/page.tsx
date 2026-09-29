@@ -139,7 +139,7 @@ function Workspace() {
                 </h2>
                 <p className="mt-3 text-sm sm:text-base text-neutral-400 leading-relaxed">
                   Real-time browser-based computer vision scanning and deterministic Kociemba two-phase solving.
-                  Zero video uploads, zero floating-point drift, and 100% on-device execution.
+                  Colors are read in your browser, nothing is stored, and the 3D twin never drifts.
                 </p>
               </div>
 
@@ -180,8 +180,8 @@ function Workspace() {
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-4 border-t border-neutral-800/80">
                 <div className="p-3 rounded-xl bg-neutral-900/40 border border-neutral-800/60 flex flex-col gap-1.5">
                   <Shield className="w-4 h-4 text-emerald-400" />
-                  <div className="text-xs font-bold text-white">Client-Side Privacy</div>
-                  <div className="text-[11px] text-neutral-400">Frames never leave your local browser sandbox.</div>
+                  <div className="text-xs font-bold text-white">Private by Design</div>
+                  <div className="text-[11px] text-neutral-400">Webcam frames never leave your browser. Phone photos are held in memory only until you confirm.</div>
                 </div>
 
                 <div className="p-3 rounded-xl bg-neutral-900/40 border border-neutral-800/60 flex flex-col gap-1.5">

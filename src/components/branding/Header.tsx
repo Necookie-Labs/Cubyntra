@@ -48,7 +48,7 @@ export const Header: React.FC = () => {
       {/* Privacy Guarantee Badge */}
       <div className="hidden md:flex items-center gap-2 text-xs font-mono text-emerald-400/90 bg-emerald-950/40 border border-emerald-800/40 px-2.5 py-1 rounded-full">
         <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-        <span>100% Client-Side • Zero Video Uploads</span>
+        <span>Read on your device • Nothing stored</span>
       </div>
 
       {/* Actions */}
