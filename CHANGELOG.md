@@ -5,6 +5,24 @@ All notable changes to **Cubyntra** will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- Phone scanning sends a photo of each face and the computer reads it. Colors are resolved across all 54 tiles at once: the centers calibrate the palette, an assignment enforces nine tiles per color, and a face photographed a quarter turn off is turned back automatically ([ADR-010](docs/ADR/010-desktop-side-analysis-and-global-color-resolution.md)).
+- Review screen before solving: an unfolded net with hard-to-read tiles marked, each tile comparable with the user's own photo and correctable, and solving enabled only for a valid cube. The webcam scanner uses it too.
+- Phone coaching: a first-run guide, a mini cube showing the grip for every face, live checks for framing, wrong face, light, glare and motion with one instruction at a time, and a shutter that takes the photo by itself once the frame holds steady.
+- The phone opens its own event stream, so the computer can accept a photo, ask for a retake, request a specific face again, and confirm the scan.
+
+### Fixed
+- 3D twin: the turning layer detached from the cube whenever the view was orbited; colors were repainted onto the wrong tiles after every turn; autoplay dropped moves at higher speeds and recolored the cube before the turn played; Next and Previous did not animate; orientation snapping was invalid near gimbal lock; orbit damping depended on the display refresh rate; the camera clipped the cube in tall containers.
+- The phone cropped a fixed region of the camera frame rather than the reticle the user aligned the cube in.
+- The pairing QR code could point at a VPN address (such as Tailscale) that a phone on ordinary Wi-Fi cannot reach.
+- Under `next dev` the phone page did not hydrate when opened by the computer's LAN address.
+- The bottom-face scan instruction produced a photo a quarter turn off when followed from the previous step.
+
+### Changed
+- Phone photos, small JPEG crops of the cube, pass through the server in memory only and are deleted once the scan is confirmed. Webcam frames still never leave the browser. Phone pairing needs a single long-running server.
+
 ## [1.0.0] - 2026-09-26
 
 ### Added
