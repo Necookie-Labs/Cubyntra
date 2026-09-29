@@ -18,6 +18,30 @@ import { CubeMove, CubeState } from '../cube/types';
 import { CubieMesh } from './cubie';
 import { MoveArrow } from './arrows';
 
+interface QueuedMove {
+  move: CubeMove;
+  targetState: CubeState;
+  durationMs: number;
+  resolve: () => void;
+}
+
+interface ActiveTween {
+  axis: THREE.Vector3;
+  totalAngle: number;
+  elapsedMs: number;
+  durationMs: number;
+  cubies: CubieMesh[];
+  targetState: CubeState;
+  resolve: () => void;
+}
+
+// A backgrounded tab or a long GC pause must not fast-forward a turn in one frame.
+const MAX_FRAME_DELTA_S = 0.1;
+
+function easeInOutCubic(t: number): number {
+  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
+
 export class CubeEngine {
   public container: HTMLElement;
   public scene: THREE.Scene;
@@ -36,11 +60,15 @@ export class CubeEngine {
   private shadowMaterial: THREE.MeshBasicMaterial | null = null;
   private shadowTexture: THREE.CanvasTexture | null = null;
 
-  private clock = new THREE.Clock();
+  private timer = new THREE.Timer();
+  private elapsedS = 0;
   private prefersReducedMotion = false;
   private isDisposed = false;
   private animationFrameId: number | null = null;
-  private isAnimating = false;
+
+  // Layer turns are serialized through a queue and advanced by the single render loop.
+  private moveQueue: QueuedMove[] = [];
+  private activeTween: ActiveTween | null = null;
 
   // Interaction & camera rotation state
   private isDragging = false;
@@ -112,6 +140,7 @@ export class CubeEngine {
     this.attachEventListeners();
 
     // 10. Start Render Loop
+    if (typeof document !== 'undefined') this.timer.connect(document);
     this.renderLoop = this.renderLoop.bind(this);
     this.renderLoop();
   }
@@ -296,138 +325,118 @@ export class CubeEngine {
   }
 
   /**
-   * Animates a layer rotation smoothly, then orthogonally snaps cubie matrices.
+   * Queues a layer turn. Resolves once this specific move has finished and been
+   * snapped. Moves are never dropped: calls made while a turn is in flight wait
+   * their turn instead of being ignored.
    */
-  public async animateMove(
+  public animateMove(
     move: CubeMove,
     targetState: CubeState,
     durationMs = 280
   ): Promise<void> {
-    if (this.isAnimating) return;
-    this.isAnimating = true;
+    if (this.isDisposed) return Promise.resolve();
+    return new Promise<void>((resolve) => {
+      this.moveQueue.push({ move, targetState, durationMs, resolve });
+    });
+  }
 
-    // 1. Identify affected layer cubies
-    const { face, quarterTurns } = move;
-    const affectedCubies = this.cubies.filter((c) => {
+  /** True while a turn is animating or waiting in the queue. */
+  public isBusy(): boolean {
+    return this.activeTween !== null || this.moveQueue.length > 0;
+  }
+
+  private beginNextMove(): void {
+    const next = this.moveQueue.shift();
+    if (!next) return;
+
+    const { face, quarterTurns } = next.move;
+    const cubies = this.cubies.filter((c) => {
       const pos = c.group.position;
-      const x = Math.round(pos.x);
-      const y = Math.round(pos.y);
-      const z = Math.round(pos.z);
-
       switch (face) {
-        case 'U': return y === 1;
-        case 'D': return y === -1;
-        case 'R': return x === 1;
-        case 'L': return x === -1;
-        case 'F': return z === 1;
-        case 'B': return z === -1;
+        case 'U': return Math.round(pos.y) === 1;
+        case 'D': return Math.round(pos.y) === -1;
+        case 'R': return Math.round(pos.x) === 1;
+        case 'L': return Math.round(pos.x) === -1;
+        case 'F': return Math.round(pos.z) === 1;
+        case 'B': return Math.round(pos.z) === -1;
       }
     });
 
-    // 2. Attach affected cubies to temporary pivot group
-    this.pivotGroup.rotation.set(0, 0, 0);
+    // Pivot shares the cube group's frame, so an identity pivot makes attach() lossless.
+    this.pivotGroup.quaternion.identity();
     this.pivotGroup.position.set(0, 0, 0);
     this.pivotGroup.updateMatrixWorld(true);
-
-    for (const cubie of affectedCubies) {
+    for (const cubie of cubies) {
       this.pivotGroup.attach(cubie.group);
     }
 
-    // 3. Determine rotation axis and total target angle
-    const rotationAxis = new THREE.Vector3();
+    // Clockwise as seen looking at the face: negative about +axis faces, positive about -axis faces.
+    const axis = new THREE.Vector3();
     let angleSign = 1;
-
     switch (face) {
-      case 'U':
-        rotationAxis.set(0, 1, 0);
-        angleSign = -1; // CW around +Y
-        break;
-      case 'D':
-        rotationAxis.set(0, 1, 0);
-        angleSign = 1; // CW looking at D
-        break;
-      case 'R':
-        rotationAxis.set(1, 0, 0);
-        angleSign = -1; // CW around +X
-        break;
-      case 'L':
-        rotationAxis.set(1, 0, 0);
-        angleSign = 1; // CW looking at L
-        break;
-      case 'F':
-        rotationAxis.set(0, 0, 1);
-        angleSign = -1; // CW around +Z
-        break;
-      case 'B':
-        rotationAxis.set(0, 0, 1);
-        angleSign = 1; // CW looking at B
-        break;
+      case 'U': axis.set(0, 1, 0); angleSign = -1; break;
+      case 'D': axis.set(0, 1, 0); angleSign = 1; break;
+      case 'R': axis.set(1, 0, 0); angleSign = -1; break;
+      case 'L': axis.set(1, 0, 0); angleSign = 1; break;
+      case 'F': axis.set(0, 0, 1); angleSign = -1; break;
+      case 'B': axis.set(0, 0, 1); angleSign = 1; break;
     }
 
     let turnAngle = Math.PI / 2;
     if (quarterTurns === -1) turnAngle = -(Math.PI / 2);
     if (quarterTurns === 2) turnAngle = Math.PI;
 
-    const totalAngle = turnAngle * angleSign;
+    this.activeTween = {
+      axis,
+      totalAngle: turnAngle * angleSign,
+      elapsedMs: 0,
+      // Half turns travel twice as far; give them proportionally more time.
+      durationMs: quarterTurns === 2 ? next.durationMs * 1.5 : next.durationMs,
+      cubies,
+      targetState: next.targetState,
+      resolve: next.resolve,
+    };
+  }
 
-    // 4. Smooth easing interpolation
-    const startTime = performance.now();
+  private advanceTween(dtMs: number): void {
+    if (!this.activeTween) this.beginNextMove();
+    const tween = this.activeTween;
+    if (!tween) return;
 
-    await new Promise<void>((resolve) => {
-      const step = (now: number) => {
-        if (this.isDisposed) {
-          resolve();
-          return;
-        }
+    tween.elapsedMs += dtMs;
+    const progress = Math.min(1, tween.elapsedMs / tween.durationMs);
+    this.pivotGroup.setRotationFromAxisAngle(tween.axis, tween.totalAngle * easeInOutCubic(progress));
 
-        const elapsed = now - startTime;
-        const progress = Math.min(1.0, elapsed / durationMs);
-        const eased =
-          progress < 0.5
-            ? 4 * progress * progress * progress
-            : 1 - Math.pow(-2 * progress + 2, 3) / 2;
+    if (progress >= 1) this.finishTween(tween);
+  }
 
-        const currentAngle = totalAngle * eased;
-        this.pivotGroup.setRotationFromAxisAngle(rotationAxis, currentAngle);
+  private finishTween(tween: ActiveTween): void {
+    this.pivotGroup.setRotationFromAxisAngle(tween.axis, tween.totalAngle);
+    this.pivotGroup.updateMatrixWorld(true);
 
-        if (progress < 1.0) {
-          requestAnimationFrame(step);
-        } else {
-          this.pivotGroup.setRotationFromAxisAngle(rotationAxis, totalAngle);
-          this.pivotGroup.updateMatrixWorld(true);
-          resolve();
-        }
-      };
-
-      requestAnimationFrame(step);
-    });
-
-    // 5. Re-attach cubies back to root cube group and snap transforms to integer grid
-    for (const cubie of affectedCubies) {
+    for (const cubie of tween.cubies) {
       this.rootCubeGroup.attach(cubie.group);
-
-      // Snap position to exact integer values (-1, 0, 1)
-      cubie.group.position.x = Math.round(cubie.group.position.x);
-      cubie.group.position.y = Math.round(cubie.group.position.y);
-      cubie.group.position.z = Math.round(cubie.group.position.z);
-
-      // Snap rotation quaternion to exact orthogonal grid
-      const euler = new THREE.Euler().setFromQuaternion(cubie.group.quaternion);
-      euler.x = Math.round(euler.x / (Math.PI / 2)) * (Math.PI / 2);
-      euler.y = Math.round(euler.y / (Math.PI / 2)) * (Math.PI / 2);
-      euler.z = Math.round(euler.z / (Math.PI / 2)) * (Math.PI / 2);
-      cubie.group.quaternion.setFromEuler(euler);
-
-      cubie.group.updateMatrix();
+      this.snapCubieToGrid(cubie);
     }
 
-    // Reset pivot
-    this.pivotGroup.rotation.set(0, 0, 0);
+    this.pivotGroup.quaternion.identity();
+    this.activeTween = null;
 
-    // 6. Resynchronize exact sticker colors with the target logical state (Zero Drift)
-    this.syncWithCubeState(targetState);
+    // Resynchronize exact sticker colors with the logical state (zero drift).
+    this.syncWithCubeState(tween.targetState);
+    tween.resolve();
+  }
 
-    this.isAnimating = false;
+  private snapCubieToGrid(cubie: CubieMesh): void {
+    const g = cubie.group;
+    g.position.set(Math.round(g.position.x), Math.round(g.position.y), Math.round(g.position.z));
+
+    const euler = new THREE.Euler().setFromQuaternion(g.quaternion);
+    euler.x = Math.round(euler.x / (Math.PI / 2)) * (Math.PI / 2);
+    euler.y = Math.round(euler.y / (Math.PI / 2)) * (Math.PI / 2);
+    euler.z = Math.round(euler.z / (Math.PI / 2)) * (Math.PI / 2);
+    g.quaternion.setFromEuler(euler);
+    g.updateMatrix();
   }
 
   /**
@@ -510,8 +519,14 @@ export class CubeEngine {
     window.addEventListener('resize', this.onWindowResize);
   }
 
-  private renderLoop(): void {
+  private renderLoop(timestamp?: number): void {
     if (this.isDisposed) return;
+
+    this.timer.update(timestamp);
+    const dt = Math.min(this.timer.getDelta(), MAX_FRAME_DELTA_S);
+    this.elapsedS += dt;
+
+    this.advanceTween(dt * 1000);
 
     // Smooth damping for orbit and zoom
     this.currentRotation.x += (this.targetRotation.x - this.currentRotation.x) * 0.12;
@@ -522,7 +537,7 @@ export class CubeEngine {
 
     // Subtle physical floating bob and breathing shadow
     if (!this.prefersReducedMotion) {
-      const t = this.clock.getElapsedTime();
+      const t = this.elapsedS;
       const bob = Math.sin(t * 1.2) * 0.06;
       this.rootCubeGroup.position.y = bob;
       if (this.shadowMaterial && this.shadowMesh) {
@@ -554,6 +569,13 @@ export class CubeEngine {
     if (this.animationFrameId) {
       cancelAnimationFrame(this.animationFrameId);
     }
+
+    // Never leave a caller awaiting a turn that will not render.
+    this.activeTween?.resolve();
+    this.activeTween = null;
+    for (const queued of this.moveQueue) queued.resolve();
+    this.moveQueue = [];
+    this.timer.dispose();
 
     // Detach events
     const el = this.renderer.domElement;
