@@ -44,3 +44,7 @@ next-env.d.ts
 # local datasets & archives
 /data/
 *.zip
+
+# Local HTTPS certificates for the dev server
+/.certs/
+/certificates/
