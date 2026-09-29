@@ -137,7 +137,7 @@ export const SolveControls: React.FC<SolveControlsProps> = ({ onAnimateMove, onN
   if (!solution) return null;
 
   return (
-    <div className="flex flex-col gap-3 w-full bg-[#0d0f12]/95 backdrop-blur-md border border-neutral-800 p-4 rounded-xl shadow-2xl">
+    <div className="flex flex-col gap-3 w-full bg-raised/95 backdrop-blur-md border border-neutral-800 p-4 rounded-xl shadow-2xl">
       {/* Top Banner: Metrics & Status */}
       <div className="flex items-center justify-between border-b border-neutral-800 pb-3">
         <div className="flex items-center gap-2">
@@ -172,7 +172,7 @@ export const SolveControls: React.FC<SolveControlsProps> = ({ onAnimateMove, onN
               key={index}
               className={`shrink-0 px-2.5 py-1 rounded text-xs font-mono font-bold transition-all ${
                 isActive
-                  ? 'bg-sky-500 text-neutral-950 scale-105 shadow-md shadow-sky-500/20'
+                  ? 'bg-sky-500 text-on-accent scale-105 shadow-md shadow-sky-500/20'
                   : isPast
                   ? 'bg-neutral-800 text-neutral-400'
                   : 'bg-neutral-900/60 text-neutral-400 border border-neutral-800'

@@ -98,7 +98,7 @@ export const CubeVisualizer = forwardRef<CubeVisualizerRef, CubeVisualizerProps>
     return (
       <div
         ref={panelRef}
-        className={`relative w-full h-full min-h-[320px] rounded-xl overflow-hidden bg-[radial-gradient(ellipse_80%_70%_at_50%_40%,#1e2330_0%,#0c0e14_100%)] border border-neutral-800/80 shadow-2xl flex items-center justify-center select-none ${className}`}
+        className={`relative w-full h-full min-h-[320px] rounded-xl overflow-hidden bg-[radial-gradient(ellipse_80%_70%_at_50%_40%,var(--stage-from)_0%,var(--stage-to)_100%)] border border-neutral-800/80 shadow-2xl flex items-center justify-center select-none ${className}`}
       >
         {/* Three.js canvas container */}
         <div ref={containerRef} className="w-full h-full absolute inset-0 cursor-grab active:cursor-grabbing" />

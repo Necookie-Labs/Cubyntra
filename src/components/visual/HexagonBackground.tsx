@@ -36,6 +36,21 @@ export const HexagonBackground: React.FC = () => {
 
     let time = 0;
 
+    // Line and vignette colors come from the theme (R G B triplets in CSS variables) and are
+    // re-read whenever the theme attribute on <html> changes.
+    const palette = { line: '255, 255, 255', accent: '56, 189, 248', vignette: '10, 11, 13' };
+    const readPalette = () => {
+      const css = getComputedStyle(document.documentElement);
+      const rgb = (name: string, fallback: string) =>
+        css.getPropertyValue(name).trim().split(/\s+/).join(', ') || fallback;
+      palette.line = rgb('--hex-line', palette.line);
+      palette.accent = rgb('--hex-accent', palette.accent);
+      palette.vignette = rgb('--hex-vignette', palette.vignette);
+    };
+    readPalette();
+    const themeObserver = new MutationObserver(readPalette);
+    themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
     const drawHexagon = (x: number, y: number, r: number) => {
       ctx.beginPath();
       for (let i = 0; i < 6; i++) {
@@ -59,7 +74,7 @@ export const HexagonBackground: React.FC = () => {
         time += 0.015;
       }
 
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.035)';
+      ctx.strokeStyle = `rgba(${palette.line}, 0.035)`;
       ctx.lineWidth = 1;
 
       const cols = Math.ceil(width / hexWidth) + 2;
@@ -79,11 +94,11 @@ export const HexagonBackground: React.FC = () => {
           // Subtle interactive mouse reaction
           if (dist < 220) {
             const influence = (1 - dist / 220);
-            ctx.strokeStyle = `rgba(56, 189, 248, ${0.035 + influence * 0.12})`;
+            ctx.strokeStyle = `rgba(${palette.accent}, ${0.035 + influence * 0.12})`;
           } else {
             // Very slow ambient wave
             const wave = Math.sin(time + (x + y) * 0.003) * 0.015;
-            ctx.strokeStyle = `rgba(255, 255, 255, ${0.025 + wave})`;
+            ctx.strokeStyle = `rgba(${palette.line}, ${0.025 + wave})`;
           }
 
           drawHexagon(x, y, hexRadius);
@@ -100,8 +115,8 @@ export const HexagonBackground: React.FC = () => {
         height / 2,
         width * 0.8
       );
-      gradient.addColorStop(0, 'rgba(10, 11, 13, 0)');
-      gradient.addColorStop(1, 'rgba(10, 11, 13, 0.85)');
+      gradient.addColorStop(0, `rgba(${palette.vignette}, 0)`);
+      gradient.addColorStop(1, `rgba(${palette.vignette}, 0.85)`);
       ctx.fillStyle = gradient;
       ctx.fillRect(0, 0, width, height);
 
@@ -124,6 +139,7 @@ export const HexagonBackground: React.FC = () => {
     render();
 
     return () => {
+      themeObserver.disconnect();
       cancelAnimationFrame(animationFrameId);
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('resize', handleResize);

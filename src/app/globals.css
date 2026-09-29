@@ -1,13 +1,43 @@
 @import "tailwindcss";
 
+/*
+ * Surface tokens. Components use bg-page, bg-raised, bg-overlay and bg-inset instead of
+ * hard-coded colors, so a theme only has to redefine these variables.
+ */
 :root {
   --background: #0a0b0d;
   --foreground: #f8fafc;
+
+  --surface-page: #0a0b0d;
+  --surface-raised: #0d0f12;
+  --surface-overlay: #111318;
+  --surface-inset: #0a0b0e;
+  /* 3D stage radial gradient */
+  --stage-from: #1e2330;
+  --stage-to: #0c0e14;
+  /* Text on saturated fills (emerald and sky buttons) stays dark in every theme. */
+  --on-accent: #0a0b0d;
+
+  /* Procedural background, as R G B triplets for use with alpha */
+  --hex-line: 255 255 255;
+  --hex-accent: 56 189 248;
+  --hex-vignette: 10 11 13;
+
+  --scrollbar-track: rgba(15, 17, 21, 0.6);
+  --scrollbar-thumb: rgba(255, 255, 255, 0.15);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.3);
+
+  color-scheme: dark;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-page: var(--surface-page);
+  --color-raised: var(--surface-raised);
+  --color-overlay: var(--surface-overlay);
+  --color-inset: var(--surface-inset);
+  --color-on-accent: var(--on-accent);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
@@ -25,16 +55,16 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-  background: rgba(15, 17, 21, 0.6);
+  background: var(--scrollbar-track);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.15);
+  background: var(--scrollbar-thumb);
   border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.3);
+  background: var(--scrollbar-thumb-hover);
 }
 
 /* Motion: a few short, purposeful entrances. Everything stops under reduced motion. */

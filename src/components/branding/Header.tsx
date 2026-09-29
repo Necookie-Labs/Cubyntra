@@ -8,6 +8,7 @@
 import React from 'react';
 import { useCubyntraStore } from '@/stores/useCubyntraStore';
 import { ShieldCheck, Terminal, Sparkles, RefreshCw } from 'lucide-react';
+import { CubeGlyph } from './CubeGlyph';
 
 interface HeaderProps {
   /** Return to the start screen, ending any scan and phone session. */
@@ -20,7 +21,7 @@ export const Header: React.FC<HeaderProps> = ({ onHome, onScanWebcam, onDemo }) 
   const { isDebugMode, toggleDebugMode, appState } = useCubyntraStore();
 
   return (
-    <header className="relative z-20 w-full border-b border-neutral-800/80 bg-[#0d0f12]/90 backdrop-blur-md px-4 sm:px-8 py-3.5 flex flex-wrap items-center justify-between gap-4">
+    <header className="relative z-20 w-full border-b border-neutral-800/80 bg-raised/90 backdrop-blur-md px-4 sm:px-8 py-3.5 flex flex-wrap items-center justify-between gap-4">
       {/* Brand Identity: returns to the start screen */}
       <button
         type="button"
@@ -29,18 +30,7 @@ export const Header: React.FC<HeaderProps> = ({ onHome, onScanWebcam, onDemo }) 
         title="Back to the start screen"
         className="flex items-center gap-3 rounded-lg -m-1 p-1 text-left hover:bg-white/5 transition-colors focus-visible:outline-2 focus-visible:outline-sky-400"
       >
-        {/* Minimalist 3x3 Cube Logo Glyph */}
-        <div className="w-8 h-8 rounded-lg bg-neutral-900 border border-neutral-700 p-1 grid grid-cols-3 gap-0.5 shadow-inner">
-          <div className="rounded-[1px] bg-red-600" />
-          <div className="rounded-[1px] bg-sky-500" />
-          <div className="rounded-[1px] bg-amber-400" />
-          <div className="rounded-[1px] bg-emerald-500" />
-          <div className="rounded-[1px] bg-neutral-100" />
-          <div className="rounded-[1px] bg-orange-500" />
-          <div className="rounded-[1px] bg-sky-500" />
-          <div className="rounded-[1px] bg-emerald-500" />
-          <div className="rounded-[1px] bg-red-600" />
-        </div>
+        <CubeGlyph />
 
         <div>
           <div className="flex items-center gap-2">

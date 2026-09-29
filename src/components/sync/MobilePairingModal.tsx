@@ -80,7 +80,7 @@ export const MobilePairingModal: React.FC<MobilePairingModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="relative w-full max-w-lg bg-[#111318] border border-neutral-800 rounded-3xl p-6 shadow-2xl flex flex-col gap-5 text-neutral-100 overflow-hidden max-h-[90vh] overflow-y-auto">
+      <div className="relative w-full max-w-lg bg-overlay border border-neutral-800 rounded-3xl p-6 shadow-2xl flex flex-col gap-5 text-neutral-100 overflow-hidden max-h-[90vh] overflow-y-auto">
         {/* Subtle accent glow */}
         <div className="absolute -top-24 -right-24 w-48 h-48 bg-sky-500/10 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
@@ -112,7 +112,7 @@ export const MobilePairingModal: React.FC<MobilePairingModalProps> = ({
         </div>
 
         {/* QR Code & State Card */}
-        <div className="flex flex-col items-center justify-center p-5 rounded-2xl bg-[#0a0b0e] border border-neutral-800/80 gap-3">
+        <div className="flex flex-col items-center justify-center p-5 rounded-2xl bg-inset border border-neutral-800/80 gap-3">
           {isCreating ? (
             <div className="flex flex-col items-center justify-center py-12 gap-3">
               <RefreshCw className="w-8 h-8 text-sky-400 animate-spin" />

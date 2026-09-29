@@ -114,7 +114,7 @@ function Workspace() {
   );
 
   return (
-    <div className="relative min-h-screen flex flex-col bg-[#0a0b0d] text-neutral-100 overflow-x-hidden">
+    <div className="relative min-h-screen flex flex-col bg-page text-neutral-100 overflow-x-hidden">
       {/* Mobile Pairing QR Modal */}
       <MobilePairingModal
         isOpen={isPairingOpen}
@@ -157,11 +157,11 @@ function Workspace() {
                 <button
                   type="button"
                   onClick={scanWithPhone}
-                  className="flex items-center gap-2 px-5 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-bold text-sm transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5"
+                  className="flex items-center gap-2 px-5 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-on-accent font-bold text-sm transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5"
                 >
                   <Smartphone className="w-4 h-4" />
                   <span>Scan with Phone</span>
-                  <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-neutral-950/20 text-neutral-950 font-mono uppercase tracking-wider">
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-on-accent/15 text-on-accent font-mono uppercase tracking-wider">
                     HD
                   </span>
                 </button>
@@ -262,7 +262,7 @@ function Workspace() {
       </main>
 
       {/* Footer */}
-      <footer className="relative z-10 w-full border-t border-neutral-800/80 bg-[#0d0f12]/80 px-4 sm:px-8 py-3 flex flex-wrap items-center justify-between text-xs text-neutral-400 font-mono gap-2">
+      <footer className="relative z-10 w-full border-t border-neutral-800/80 bg-raised/80 px-4 sm:px-8 py-3 flex flex-wrap items-center justify-between text-xs text-neutral-400 font-mono gap-2">
         <div>
           <span>Cubyntra</span> • <span>Necookie Labs © 2026</span>
         </div>

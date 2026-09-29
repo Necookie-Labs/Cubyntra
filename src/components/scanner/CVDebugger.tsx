@@ -18,7 +18,7 @@ export const CVDebugger: React.FC = () => {
   const stickers = currentClassification?.stickers || [];
 
   return (
-    <div className="fixed bottom-4 left-4 z-40 w-96 max-h-[85vh] bg-[#0c0e12]/95 backdrop-blur-md border border-neutral-800 rounded-xl shadow-2xl p-4 flex flex-col gap-3 font-mono text-xs overflow-y-auto">
+    <div className="fixed bottom-4 left-4 z-40 w-96 max-h-[85vh] bg-inset/95 backdrop-blur-md border border-neutral-800 rounded-xl shadow-2xl p-4 flex flex-col gap-3 font-mono text-xs overflow-y-auto">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-neutral-800 pb-2">
         <div className="flex items-center gap-2 text-sky-400">

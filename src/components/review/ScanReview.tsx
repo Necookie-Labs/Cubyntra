@@ -156,7 +156,7 @@ export const ScanReview: React.FC<ScanReviewProps> = ({ onRescanFace, onConfirme
   return (
     <section
       aria-labelledby="review-title"
-      className="flex flex-col gap-5 w-full max-w-lg mx-auto lg:mx-0 bg-[#0d0f12]/95 backdrop-blur-md border border-neutral-800 p-5 rounded-2xl shadow-2xl"
+      className="flex flex-col gap-5 w-full max-w-lg mx-auto lg:mx-0 bg-raised/95 backdrop-blur-md border border-neutral-800 p-5 rounded-2xl shadow-2xl"
     >
       <header className="flex flex-col gap-1.5">
         <span className="inline-flex w-fit items-center gap-1.5 px-2.5 py-1 rounded-full bg-sky-950/60 border border-sky-800/50 text-[11px] font-mono text-sky-400">
@@ -349,7 +349,7 @@ export const ScanReview: React.FC<ScanReviewProps> = ({ onRescanFace, onConfirme
           type="button"
           onClick={handleConfirm}
           disabled={!isValid}
-          className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-emerald-500 text-neutral-950 font-bold text-sm shadow-lg transition-[background-color,transform] duration-150 hover:bg-emerald-400 hover:-translate-y-0.5 motion-reduce:hover:translate-y-0 disabled:bg-neutral-800 disabled:text-neutral-500 disabled:shadow-none disabled:translate-y-0 disabled:cursor-not-allowed focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-300"
+          className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-emerald-500 text-on-accent font-bold text-sm shadow-lg transition-[background-color,transform] duration-150 hover:bg-emerald-400 hover:-translate-y-0.5 motion-reduce:hover:translate-y-0 disabled:bg-neutral-800 disabled:text-neutral-500 disabled:shadow-none disabled:translate-y-0 disabled:cursor-not-allowed focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-300"
         >
           <Sparkles className="w-4 h-4" />
           Confirm &amp; solve

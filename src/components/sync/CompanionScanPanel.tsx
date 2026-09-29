@@ -86,7 +86,7 @@ export const CompanionScanPanel: React.FC<CompanionScanPanelProps> = ({
   const style = CONNECTION_STYLE[connection];
 
   return (
-    <div className="flex flex-col gap-5 w-full max-w-lg mx-auto lg:mx-0 bg-[#0d0f12]/95 backdrop-blur-md border border-neutral-800 p-5 rounded-2xl shadow-2xl">
+    <div className="flex flex-col gap-5 w-full max-w-lg mx-auto lg:mx-0 bg-raised/95 backdrop-blur-md border border-neutral-800 p-5 rounded-2xl shadow-2xl">
       <header className="flex items-start justify-between gap-4">
         <div className="flex flex-col gap-1.5">
           <div
