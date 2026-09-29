@@ -5,9 +5,10 @@
  * Necookie Labs (c) 2026
  */
 
-import React, { useEffect } from 'react';
+import React, { useCallback, useEffect } from 'react';
 import { useCubyntraStore } from '@/stores/useCubyntraStore';
-import { CubeMove } from '@/cube/types';
+import { CubeMove, CubeState } from '@/cube/types';
+import { invertMove } from '@/cube/transforms';
 import confetti from 'canvas-confetti';
 import {
   Play,
@@ -20,10 +21,19 @@ import {
 } from 'lucide-react';
 
 export interface SolveControlsProps {
-  onExecuteMove?: (stepIndex: number) => void;
+  /** Animates one layer turn to targetState; resolves when the turn has finished. */
+  onAnimateMove?: (move: CubeMove, targetState: CubeState, durationMs: number) => Promise<void>;
 }
 
-export const SolveControls: React.FC<SolveControlsProps> = ({ onExecuteMove }) => {
+// At 1x a turn takes 300 ms followed by a 250 ms rest, the same 550 ms cadence as before.
+const BASE_TURN_MS = 300;
+const BASE_REST_MS = 250;
+
+function turnDurationMs(speed: number): number {
+  return Math.min(600, Math.max(90, BASE_TURN_MS / speed));
+}
+
+export const SolveControls: React.FC<SolveControlsProps> = ({ onAnimateMove }) => {
   const {
     solution,
     currentMoveIndex,
@@ -38,29 +48,48 @@ export const SolveControls: React.FC<SolveControlsProps> = ({ onExecuteMove }) =
     startScanning,
   } = useCubyntraStore();
 
+  // The store is advanced first and the turn is queued in the same tick, before React
+  // re-renders, so the visualizer sees a busy engine and defers repainting.
+  const goNext = useCallback(async (): Promise<boolean> => {
+    const move = stepNext();
+    if (!move) return false;
+    const { cubeState, playbackSpeed: speed } = useCubyntraStore.getState();
+    await onAnimateMove?.(move, cubeState, turnDurationMs(speed));
+    return true;
+  }, [stepNext, onAnimateMove]);
+
+  const goPrevious = useCallback(async (): Promise<void> => {
+    const { solution: sol, currentMoveIndex: index } = useCubyntraStore.getState();
+    if (!sol || index < 0) return;
+    const undone = sol.moves[index];
+    stepPrevious();
+    const { cubeState, playbackSpeed: speed } = useCubyntraStore.getState();
+    await onAnimateMove?.(invertMove(undone), cubeState, turnDurationMs(speed));
+  }, [stepPrevious, onAnimateMove]);
+
   const moves = solution?.moves || [];
   const currentMove = currentMoveIndex >= 0 && currentMoveIndex < moves.length ? moves[currentMoveIndex] : null;
   const isSolved = appState === 'solved' || (moves.length > 0 && currentMoveIndex === moves.length - 1);
 
-  // Auto-play timer loop
+  // Auto-play: each turn is awaited before the next begins, so no move can be skipped
+  // or overlap regardless of speed. Speed is re-read every step so changes apply live.
   useEffect(() => {
     if (!isPlaying) return;
+    let cancelled = false;
 
-    const baseDelay = 550;
-    const intervalTime = Math.max(150, baseDelay / playbackSpeed);
-
-    const timer = setInterval(() => {
-      const nextMove = stepNext();
-      if (!nextMove) {
-        clearInterval(timer);
-      } else if (onExecuteMove) {
-        const store = useCubyntraStore.getState();
-        onExecuteMove(store.currentMoveIndex);
+    (async () => {
+      while (!cancelled) {
+        const advanced = await goNext();
+        if (!advanced || cancelled) break;
+        const rest = BASE_REST_MS / useCubyntraStore.getState().playbackSpeed;
+        await new Promise((resolve) => setTimeout(resolve, rest));
       }
-    }, intervalTime);
+    })();
 
-    return () => clearInterval(timer);
-  }, [isPlaying, playbackSpeed, stepNext, onExecuteMove]);
+    return () => {
+      cancelled = true;
+    };
+  }, [isPlaying, goNext]);
 
   // Trigger celebration confetti when solved
   useEffect(() => {
@@ -90,10 +119,10 @@ export const SolveControls: React.FC<SolveControlsProps> = ({ onExecuteMove }) =
         togglePlay();
       } else if (e.code === 'ArrowRight') {
         e.preventDefault();
-        stepNext();
+        if (!useCubyntraStore.getState().isPlaying) void goNext();
       } else if (e.code === 'ArrowLeft') {
         e.preventDefault();
-        stepPrevious();
+        void goPrevious();
       } else if (e.code === 'KeyR') {
         e.preventDefault();
         resetToScramble();
@@ -102,7 +131,7 @@ export const SolveControls: React.FC<SolveControlsProps> = ({ onExecuteMove }) =
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [togglePlay, stepNext, stepPrevious, resetToScramble]);
+  }, [togglePlay, goNext, goPrevious, resetToScramble]);
 
   if (!solution) return null;
 
@@ -188,7 +217,7 @@ export const SolveControls: React.FC<SolveControlsProps> = ({ onExecuteMove }) =
 
           <button
             type="button"
-            onClick={stepPrevious}
+            onClick={() => void goPrevious()}
             disabled={currentMoveIndex < 0}
             className="p-2 rounded-lg bg-neutral-850 hover:bg-neutral-800 text-neutral-300 border border-neutral-800 disabled:opacity-40 transition-colors"
             title="Previous Move (Left Arrow)"
@@ -210,8 +239,8 @@ export const SolveControls: React.FC<SolveControlsProps> = ({ onExecuteMove }) =
 
           <button
             type="button"
-            onClick={stepNext}
-            disabled={currentMoveIndex >= moves.length - 1}
+            onClick={() => void goNext()}
+            disabled={isPlaying || currentMoveIndex >= moves.length - 1}
             className="p-2 rounded-lg bg-neutral-850 hover:bg-neutral-800 text-neutral-300 border border-neutral-800 disabled:opacity-40 transition-colors"
             title="Next Move (Right Arrow)"
             aria-label="Next Move"

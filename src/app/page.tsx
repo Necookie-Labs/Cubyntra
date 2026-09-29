@@ -7,6 +7,7 @@
 
 import React, { useRef, useCallback, useState } from 'react';
 import { useCubyntraStore } from '@/stores/useCubyntraStore';
+import { CubeMove, CubeState } from '@/cube/types';
 import { Header } from '@/components/branding/Header';
 import { HexagonBackground } from '@/components/visual/HexagonBackground';
 import { CubeVisualizer, CubeVisualizerRef } from '@/components/cube/CubeVisualizer';
@@ -36,16 +37,11 @@ export default function Home() {
       ? solution.moves[currentMoveIndex]
       : null;
 
-  const handleExecuteMove = useCallback(
-    async (stepIndex: number) => {
-      if (!solution || !visualizerRef.current) return;
-      const move = solution.moves[stepIndex];
-      const targetState = useCubyntraStore.getState().cubeState;
-      if (move) {
-        await visualizerRef.current.animateMove(move, targetState, 260);
-      }
+  const handleAnimateMove = useCallback(
+    async (move: CubeMove, targetState: CubeState, durationMs: number) => {
+      await visualizerRef.current?.animateMove(move, targetState, durationMs);
     },
-    [solution]
+    []
   );
 
   return (
@@ -164,7 +160,7 @@ export default function Home() {
 
           {/* 4. Solution & Solve Controls */}
           {(appState === 'solution_ready' || appState === 'solving' || appState === 'solved') && (
-            <SolveControls onExecuteMove={handleExecuteMove} />
+            <SolveControls onAnimateMove={handleAnimateMove} />
           )}
 
           {/* 5. Error & Diagnostic Recovery State */}
