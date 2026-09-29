@@ -9,7 +9,7 @@ import { CapturedFacePayload } from '../src/sync/types';
 import { SCAN_SEQUENCE, CANONICAL_CENTER_COLORS, createSolvedCubeState } from '../src/cube/constants';
 import { validateCubeState } from '../src/cube/validator';
 import { solveCube } from '../src/solver/solver';
-import { CubeState, Face } from '../src/cube/types';
+import { CubeState, Face, FaceStickers } from '../src/cube/types';
 import { buildDynamicPalette, classifyWithDynamicPalette } from '../src/vision/dynamicCalibration';
 import { resolve54StickerInvariant, StickerCostProfile } from '../src/vision/invariantSolver';
 
@@ -53,12 +53,12 @@ describe('Mobile Companion End-to-End Solve Pipeline', () => {
 
     // 4. Reconstruct CubeState from the completed mobile session
     const reconstructed: CubeState = {
-      U: completedSession!.scannedFaces.U!.stickers as any,
-      R: completedSession!.scannedFaces.R!.stickers as any,
-      F: completedSession!.scannedFaces.F!.stickers as any,
-      D: completedSession!.scannedFaces.D!.stickers as any,
-      L: completedSession!.scannedFaces.L!.stickers as any,
-      B: completedSession!.scannedFaces.B!.stickers as any,
+      U: completedSession!.scannedFaces.U!.stickers as FaceStickers,
+      R: completedSession!.scannedFaces.R!.stickers as FaceStickers,
+      F: completedSession!.scannedFaces.F!.stickers as FaceStickers,
+      D: completedSession!.scannedFaces.D!.stickers as FaceStickers,
+      L: completedSession!.scannedFaces.L!.stickers as FaceStickers,
+      B: completedSession!.scannedFaces.B!.stickers as FaceStickers,
     };
 
     // 5. Run physical validation

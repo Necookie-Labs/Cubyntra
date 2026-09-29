@@ -5,7 +5,7 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import { sessionManager } from '../src/sync/sessionManager';
-import { CapturedFacePayload } from '../src/sync/types';
+import { CapturedFacePayload, SessionEvent } from '../src/sync/types';
 import { FACES } from '../src/cube/constants';
 
 describe('SessionManager Sync Engine', () => {
@@ -33,7 +33,7 @@ describe('SessionManager Sync Engine', () => {
   it('broadcasts published events to active subscribers', () => {
     sessionManager.createSession('test-broadcast');
 
-    const receivedEvents: any[] = [];
+    const receivedEvents: SessionEvent[] = [];
     const unsubscribe = sessionManager.subscribe('test-broadcast', (event) => {
       receivedEvents.push(event);
     });
