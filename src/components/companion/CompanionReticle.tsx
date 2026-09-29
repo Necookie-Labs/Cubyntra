@@ -15,6 +15,8 @@ interface CompanionReticleProps {
   totalSteps: number;
   liveColors?: (CubeColor | null)[];
   isReady: boolean;
+  /** The viewfinder square; the photo is cropped to exactly this region of the camera frame. */
+  squareRef?: React.Ref<HTMLDivElement>;
 }
 
 export const CompanionReticle: React.FC<CompanionReticleProps> = ({
@@ -23,6 +25,7 @@ export const CompanionReticle: React.FC<CompanionReticleProps> = ({
   totalSteps,
   liveColors = [],
   isReady,
+  squareRef,
 }) => {
   const targetHex = COLOR_HEX[currentStep.centerColor];
 
@@ -47,7 +50,7 @@ export const CompanionReticle: React.FC<CompanionReticleProps> = ({
       </div>
 
       {/* 3x3 Center Viewfinder Square */}
-      <div className="relative w-[78vw] max-w-[320px] aspect-square flex items-center justify-center my-auto">
+      <div ref={squareRef} className="relative w-[78vw] max-w-[320px] aspect-square flex items-center justify-center my-auto">
         {/* Reticle Boundary Corners */}
         <div className="absolute -top-1 -left-1 w-6 h-6 border-t-2 border-l-2 border-white rounded-tl-lg shadow-sm" />
         <div className="absolute -top-1 -right-1 w-6 h-6 border-t-2 border-r-2 border-white rounded-tr-lg shadow-sm" />

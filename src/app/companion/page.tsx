@@ -10,10 +10,17 @@
 
 import React, { useEffect, useRef, useState, useCallback, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { SCAN_SEQUENCE, COLOR_HEX, FACES } from '@/cube/constants';
-import { CubeColor, Face, FaceStickers } from '@/cube/types';
-import { initializeCameraStream, terminateCameraStream, toggleCameraTorch } from '@/vision/camera';
-import { calculateROIBounds, sampleGridFromContext } from '@/vision/sampling';
+import { SCAN_SEQUENCE, COLOR_HEX } from '@/cube/constants';
+import { CubeColor } from '@/cube/types';
+import {
+  initializeCameraStream,
+  lockWhiteBalance,
+  terminateCameraStream,
+  toggleCameraTorch,
+} from '@/vision/camera';
+import { mapElementRectToVideo, sampleGridFromContext } from '@/vision/sampling';
+import { ROIBounds } from '@/vision/types';
+import { useMobileSession } from '@/sync/useMobileSession';
 import { CompanionReticle } from '@/components/companion/CompanionReticle';
 import {
   Camera,
@@ -23,10 +30,18 @@ import {
   ChevronRight,
   RotateCcw,
   Smartphone,
-  Sparkles,
   AlertCircle,
-  ExternalLink,
+  Loader2,
+  Monitor,
 } from 'lucide-react';
+
+/** Size of the photo sent to the computer: plenty for nine tiles, small enough to send fast. */
+const PHOTO_SIZE = 512;
+
+function toScreenRect(el: Element) {
+  const r = el.getBoundingClientRect();
+  return { left: r.left, top: r.top, width: r.width, height: r.height };
+}
 
 function CompanionScannerContent() {
   const searchParams = useSearchParams();
@@ -34,7 +49,9 @@ function CompanionScannerContent() {
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const squareRef = useRef<HTMLDivElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const session = useMobileSession(sessionId);
 
   const [stepIndex, setStepIndex] = useState(0);
   const [cameraStatus, setCameraStatus] = useState<'loading' | 'streaming' | 'error'>('loading');
@@ -42,12 +59,39 @@ function CompanionScannerContent() {
   const [hasTorch, setHasTorch] = useState(false);
   const [torchActive, setTorchActive] = useState(false);
   const [isCapturing, setIsCapturing] = useState(false);
-  const [completedFaces, setCompletedFaces] = useState<Face[]>([]);
   const [liveColors, setLiveColors] = useState<(CubeColor | null)[]>([]);
   const [captureFlash, setCaptureFlash] = useState(false);
 
   const currentStep = SCAN_SEQUENCE[Math.min(stepIndex, SCAN_SEQUENCE.length - 1)];
-  const isAllComplete = completedFaces.length === 6;
+  const isAccepted = (i: number) => session.status[SCAN_SEQUENCE[i].face] === 'accepted';
+  const isAllComplete = SCAN_SEQUENCE.every((_, i) => isAccepted(i));
+  const currentStatus = session.status[currentStep.face];
+
+  // Move on once the computer has read the current face; stay put while it reads or asks
+  // for a retake. Faces may be done out of order, so jump to the first one still missing.
+  const [advancedFor, setAdvancedFor] = useState<string | null>(null);
+  if (currentStatus === 'accepted' && advancedFor !== currentStep.face) {
+    setAdvancedFor(currentStep.face);
+    const next = SCAN_SEQUENCE.findIndex((_, i) => !isAccepted(i));
+    if (next !== -1) setStepIndex(next);
+  }
+
+  // The computer asked for a specific face again (from its review screen).
+  const [handledRescanAt, setHandledRescanAt] = useState<number | null>(null);
+  if (session.rescanRequest && session.rescanRequest.at !== handledRescanAt) {
+    setHandledRescanAt(session.rescanRequest.at);
+    const target = SCAN_SEQUENCE.findIndex((step) => step.face === session.rescanRequest!.face);
+    if (target !== -1) setStepIndex(target);
+    setAdvancedFor(null);
+  }
+
+  /** Where the reticle sits in camera-frame pixels; the same region is sampled and sent. */
+  const reticleRegion = useCallback((): ROIBounds | null => {
+    const video = videoRef.current;
+    const square = squareRef.current;
+    if (!video || !square || !video.videoWidth) return null;
+    return mapElementRectToVideo(toScreenRect(square), toScreenRect(video), video.videoWidth, video.videoHeight);
+  }, []);
 
   // Initialize Camera
   useEffect(() => {
@@ -73,6 +117,12 @@ function CompanionScannerContent() {
         streamRef.current = result.stream;
         setHasTorch(result.hasTorch);
         setCameraStatus('streaming');
+
+        // Give auto white balance a moment to settle on the scene, then freeze it so every
+        // face is shot at the same color temperature.
+        setTimeout(() => {
+          if (!isCancelled) void lockWhiteBalance(result.stream);
+        }, 1500);
       } catch (err: unknown) {
         if (!isCancelled) {
           setCameraStatus('error');
@@ -109,11 +159,15 @@ function CompanionScannerContent() {
         return;
       }
 
-      canvas.width = video.videoWidth || 640;
-      canvas.height = video.videoHeight || 480;
+      const roi = reticleRegion();
+      if (!roi) {
+        timer = setTimeout(sampleFrame, 200);
+        return;
+      }
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-      const roi = calculateROIBounds(canvas.width, canvas.height, 0.65);
       const samples = sampleGridFromContext(ctx, roi);
 
       setLiveColors(samples.map((s) => s.predictedColor));
@@ -125,7 +179,7 @@ function CompanionScannerContent() {
     return () => {
       if (timer) clearTimeout(timer);
     };
-  }, [cameraStatus]);
+  }, [cameraStatus, reticleRegion]);
 
   // Toggle Torch
   const handleToggleTorch = useCallback(async () => {
@@ -137,97 +191,47 @@ function CompanionScannerContent() {
     }
   }, [hasTorch, torchActive]);
 
-  // Take Snapshot & Dispatch Face
+  // Take the photo: crop exactly the reticle square and send it to the computer.
   const handleSnapFace = useCallback(async () => {
     const video = videoRef.current;
     const canvas = canvasRef.current;
-    if (!video || !canvas || isCapturing) return;
+    const roi = reticleRegion();
+    if (!video || !canvas || !roi || isCapturing) return;
 
     setIsCapturing(true);
     setCaptureFlash(true);
     setTimeout(() => setCaptureFlash(false), 150);
 
-    // Haptic feedback
     if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
       try {
         navigator.vibrate(50);
       } catch {
-        // ignore
+        // Haptics are optional.
       }
     }
 
     try {
-      const ctx = canvas.getContext('2d', { willReadFrequently: true });
-      if (!ctx) throw new Error('Canvas context unavailable');
+      const photo = document.createElement('canvas');
+      photo.width = PHOTO_SIZE;
+      photo.height = PHOTO_SIZE;
+      const pctx = photo.getContext('2d');
+      if (!pctx) throw new Error('Canvas context unavailable');
+      pctx.drawImage(video, roi.x, roi.y, roi.size, roi.size, 0, 0, PHOTO_SIZE, PHOTO_SIZE);
 
-      canvas.width = video.videoWidth || 1280;
-      canvas.height = video.videoHeight || 720;
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-      const roi = calculateROIBounds(canvas.width, canvas.height, 0.65);
-      const samples = sampleGridFromContext(ctx, roi);
-
-      const stickers = samples.map((s) => s.predictedColor);
-      const confidences = samples.map((s) => s.confidence);
-
-      // Create a small, lightweight thumbnail for desktop visualizer preview
-      const thumbCanvas = document.createElement('canvas');
-      thumbCanvas.width = 120;
-      thumbCanvas.height = 120;
-      const thumbCtx = thumbCanvas.getContext('2d');
-      if (thumbCtx) {
-        thumbCtx.drawImage(
-          canvas,
-          roi.x,
-          roi.y,
-          roi.size,
-          roi.size,
-          0,
-          0,
-          120,
-          120
-        );
-      }
-      const thumbnail = thumbCanvas.toDataURL('image/jpeg', 0.6);
-
-      const currentFace = currentStep.face;
-
-      // Dispatch to session if sessionId exists
-      if (sessionId) {
-        await fetch(`/api/session/${sessionId}/face`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            face: currentFace,
-            centerColor: currentStep.centerColor,
-            stickers,
-            confidences,
-            thumbnail,
-            capturedAt: Date.now(),
-          }),
-        });
-      }
-
-      setCompletedFaces((prev) =>
-        prev.includes(currentFace) ? prev : [...prev, currentFace]
-      );
-
-      // Advance to next step
-      if (stepIndex < SCAN_SEQUENCE.length - 1) {
-        setStepIndex((i) => i + 1);
-      }
+      await session.sendPhoto(currentStep.face, photo.toDataURL('image/jpeg', 0.9));
     } catch (err) {
       console.error('[Companion] Capture failed:', err);
     } finally {
       setIsCapturing(false);
     }
-  }, [isCapturing, currentStep, sessionId, stepIndex]);
+  }, [isCapturing, currentStep, reticleRegion, session]);
 
   // Restart Sequence
   const handleReset = useCallback(() => {
+    session.reset();
+    setAdvancedFor(null);
     setStepIndex(0);
-    setCompletedFaces([]);
-  }, []);
+  }, [session]);
 
   return (
     <div className="relative w-full h-[100dvh] bg-black text-white flex flex-col justify-between overflow-hidden select-none">
@@ -311,6 +315,7 @@ function CompanionScannerContent() {
             totalSteps={SCAN_SEQUENCE.length}
             liveColors={liveColors}
             isReady={true}
+            squareRef={squareRef}
           />
         )}
       </div>
@@ -323,10 +328,14 @@ function CompanionScannerContent() {
           </div>
 
           <div className="flex flex-col gap-1 max-w-xs">
-            <h2 className="text-xl font-bold text-white tracking-tight">All 6 Faces Captured!</h2>
-            <p className="text-xs text-neutral-400 leading-relaxed">
-              Your cube photos have been synced to the desktop screen. Look at your computer to
-              explore the 3D twin and step-by-step solution!
+            <h2 className="text-xl font-bold text-white tracking-tight">
+              {session.confirmed ? 'Solving on your computer' : 'All six faces read'}
+            </h2>
+            <p className="text-sm text-neutral-400 leading-relaxed flex items-start gap-2 text-left">
+              <Monitor className="w-4 h-4 mt-0.5 shrink-0 text-sky-400" />
+              {session.confirmed
+                ? 'Follow the moves on the 3D cube. You can put your phone down.'
+                : 'Check the cube on your computer, fix any tile it marks, then press Confirm & solve.'}
             </p>
           </div>
 
@@ -347,7 +356,7 @@ function CompanionScannerContent() {
           {/* 6-Step Indicator Pills */}
           <div className="flex items-center gap-2">
             {SCAN_SEQUENCE.map((step, idx) => {
-              const isDone = completedFaces.includes(step.face);
+              const isDone = session.status[step.face] === 'accepted';
               const isCurrent = idx === stepIndex;
               const hex = COLOR_HEX[step.centerColor];
 
@@ -371,6 +380,26 @@ function CompanionScannerContent() {
             })}
           </div>
 
+          {currentStatus && currentStatus !== 'accepted' && (
+            <div
+              role="status"
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs border backdrop-blur-md ${
+                currentStatus === 'rejected'
+                  ? 'bg-amber-500/15 border-amber-400/40 text-amber-200'
+                  : 'bg-sky-500/15 border-sky-400/40 text-sky-200'
+              }`}
+            >
+              {currentStatus === 'rejected' ? (
+                <RotateCcw className="w-3.5 h-3.5 shrink-0" />
+              ) : (
+                <Loader2 className="w-3.5 h-3.5 shrink-0 animate-spin motion-reduce:animate-none" />
+              )}
+              {currentStatus === 'sending' && 'Sending to your computer…'}
+              {currentStatus === 'reading' && 'Reading on your computer…'}
+              {currentStatus === 'rejected' && (session.reasons[currentStep.face] ?? 'Take this one again.')}
+            </div>
+          )}
+
           {/* Shutter Button & Step Nav */}
           <div className="flex items-center justify-between w-full max-w-xs px-2">
             <button
@@ -385,7 +414,7 @@ function CompanionScannerContent() {
             {/* Shutter Button */}
             <button
               type="button"
-              disabled={isCapturing || cameraStatus !== 'streaming'}
+              disabled={isCapturing || cameraStatus !== 'streaming' || currentStatus === 'sending' || currentStatus === 'reading'}
               onClick={handleSnapFace}
               className="relative p-1 rounded-full border-4 border-white/80 active:scale-95 transition-transform"
             >

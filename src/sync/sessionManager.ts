@@ -181,6 +181,8 @@ class SessionManager {
 
     if (!session.imageFaces.includes(payload.face)) session.imageFaces.push(payload.face);
     delete session.verdicts[payload.face];
+    // A photo is proof the phone is there, even before or without its event stream.
+    session.mobileConnected = true;
     session.isComplete = false;
 
     const notice: FaceImageNotice = {

@@ -97,8 +97,8 @@ export async function toggleCameraTorch(
   try {
     const capabilities = (track.getCapabilities ? track.getCapabilities() : {}) as Record<string, unknown>;
     if (capabilities.torch) {
-      await (track as any).applyConstraints({
-        advanced: [{ torch: enabled }],
+      await track.applyConstraints({
+        advanced: [{ torch: enabled } as MediaTrackConstraintSet],
       });
       return true;
     }
@@ -106,6 +106,27 @@ export async function toggleCameraTorch(
     return false;
   }
   return false;
+}
+
+/**
+ * Freezes white balance at its current setting where the device allows it (most Android
+ * Chrome builds; iOS Safari ignores it). All six faces are then shot at one color
+ * temperature, so the same plastic reads as the same color on every face instead of
+ * drifting as auto white balance reacts to whichever colors fill the frame.
+ */
+export async function lockWhiteBalance(stream: MediaStream | null): Promise<boolean> {
+  const track = stream?.getVideoTracks()[0];
+  if (!track?.getCapabilities) return false;
+
+  const modes = (track.getCapabilities() as { whiteBalanceMode?: string[] }).whiteBalanceMode;
+  if (!modes?.includes('manual')) return false;
+
+  try {
+    await track.applyConstraints({ advanced: [{ whiteBalanceMode: 'manual' } as MediaTrackConstraintSet] });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /**
