@@ -6,6 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import os from 'os';
 import { sessionManager } from '@/sync/sessionManager';
+import { rankLanAddresses } from '@/sync/network';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,7 +24,7 @@ function getLocalIpAddresses(): string[] {
     }
   }
 
-  return addresses.length > 0 ? addresses : ['127.0.0.1'];
+  return addresses.length > 0 ? rankLanAddresses(addresses) : ['127.0.0.1'];
 }
 
 export async function POST(req: NextRequest) {
