@@ -178,8 +178,10 @@ export class CubeEngine {
     // 9. Event Listeners
     this.attachEventListeners();
 
-    // 10. Start Render Loop
-    if (typeof document !== 'undefined') this.timer.connect(document);
+    // 10. Start Render Loop. The timer is deliberately not connected to the Page Visibility
+    // API: it would report zero elapsed time whenever document.hidden is true, which freezes
+    // queued turns in contexts that keep rendering while hidden. Clamping each frame's delta
+    // (MAX_FRAME_DELTA_S) already stops a returning tab from fast-forwarding a turn.
     this.renderLoop = this.renderLoop.bind(this);
     this.renderLoop();
   }

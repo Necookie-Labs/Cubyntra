@@ -216,6 +216,26 @@ describe('CubeEngine layer turns', () => {
     engine.dispose();
   });
 
+  it('keeps turning while the page reports itself hidden but still renders', async () => {
+    // Some contexts (occluded windows, automation, embedded views) keep firing animation
+    // frames while document.hidden is true. A turn must still complete there, or playback
+    // would wait on it forever.
+    vi.stubGlobal('document', {
+      hidden: true,
+      visibilityState: 'hidden',
+      addEventListener() {},
+      removeEventListener() {},
+    });
+    const engine = makeEngine();
+    const [move] = parseAlgorithm('R');
+    const target = applyMoves(createSolvedCubeState(), [move]);
+
+    void engine.animateMove(move, target);
+    await runUntilIdle(engine);
+    expect(readStateFromGeometry(engine)).toEqual(target);
+    engine.dispose();
+  });
+
   it('releases every waiting caller when disposed mid-sequence', async () => {
     const engine = makeEngine();
     const done = parseAlgorithm('R U F').map((m) => engine.animateMove(m, createSolvedCubeState()));
