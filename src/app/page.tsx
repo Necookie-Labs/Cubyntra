@@ -81,7 +81,8 @@ function Workspace() {
     if (scanSource === 'companion') void confirmScan();
   }, [confirmScan, scanSource]);
 
-  const startOver = useCallback(() => {
+  // Back to the start screen from anywhere: ends any scan and phone session.
+  const goHome = useCallback(() => {
     disconnectPhone();
     setPairingMode('closed');
     resetAll();
@@ -89,6 +90,7 @@ function Workspace() {
 
   const loadDemo = useCallback(() => {
     disconnectPhone();
+    setPairingMode('closed');
     void loadMockScramble();
   }, [disconnectPhone, loadMockScramble]);
 
@@ -117,7 +119,7 @@ function Workspace() {
       <HexagonBackground />
 
       {/* Main Header */}
-      <Header />
+      <Header onHome={goHome} onScanWebcam={scanWithWebcam} onDemo={loadDemo} />
 
       {/* Telemetry Debugger (Toggleable) */}
       <CVDebugger />
@@ -209,7 +211,7 @@ function Workspace() {
 
           {/* 2b. Review the scan before solving */}
           {appState === 'reviewing' && (
-            <ScanReview onRescanFace={rescanFromReview} onConfirmed={onReviewConfirmed} onStartOver={startOver} />
+            <ScanReview onRescanFace={rescanFromReview} onConfirmed={onReviewConfirmed} onStartOver={goHome} />
           )}
 
           {/* 3. Processing State */}
