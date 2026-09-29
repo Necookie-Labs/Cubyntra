@@ -105,6 +105,9 @@ export class CubeEngine {
   // Layer turns are serialized through a queue and advanced by the single render loop.
   private moveQueue: QueuedMove[] = [];
   private activeTween: ActiveTween | null = null;
+  // Latest externally requested state, applied once queued turns have drained so
+  // stickers never repaint to a post-move state while a layer is still turning.
+  private pendingSync: CubeState | null = null;
 
   // Interaction & camera rotation state
   private isDragging = false;
@@ -354,6 +357,18 @@ export class CubeEngine {
   }
 
   /**
+   * Repaints to the given state now, or after in-flight turns finish if any are queued.
+   */
+  public requestSync(state: CubeState): void {
+    if (this.isBusy()) {
+      this.pendingSync = state;
+    } else {
+      this.pendingSync = null;
+      this.syncWithCubeState(state);
+    }
+  }
+
+  /**
    * Sets or updates directional move guidance arrow.
    */
   public setMoveArrow(move: CubeMove | null): void {
@@ -460,6 +475,10 @@ export class CubeEngine {
 
     // Resynchronize exact sticker colors with the logical state (zero drift).
     this.syncWithCubeState(tween.targetState);
+    if (this.moveQueue.length === 0 && this.pendingSync) {
+      this.syncWithCubeState(this.pendingSync);
+      this.pendingSync = null;
+    }
     tween.resolve();
   }
 

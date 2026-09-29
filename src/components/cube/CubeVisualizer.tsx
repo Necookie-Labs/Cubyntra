@@ -50,11 +50,10 @@ export const CubeVisualizer = forwardRef<CubeVisualizerRef, CubeVisualizerProps>
       };
     }, []);
 
-    // Synchronize sticker colors when state updates externally
+    // Synchronize sticker colors when state updates externally. Deferred while turns
+    // are animating, otherwise the cube would jump to the post-move colors mid-turn.
     useEffect(() => {
-      if (engineRef.current) {
-        engineRef.current.syncWithCubeState(state);
-      }
+      engineRef.current?.requestSync(state);
     }, [state]);
 
     // Update move guidance arrow
@@ -74,7 +73,7 @@ export const CubeVisualizer = forwardRef<CubeVisualizerRef, CubeVisualizerProps>
         engineRef.current?.resetCamera();
       },
       syncState: (nextState: CubeState) => {
-        engineRef.current?.syncWithCubeState(nextState);
+        engineRef.current?.requestSync(nextState);
       },
     }));
 
