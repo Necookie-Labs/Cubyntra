@@ -5,10 +5,21 @@
  * Necookie Labs (c) 2026
  */
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useCompanion } from '@/sync/CompanionSyncProvider';
 import { FACES, COLOR_HEX, CANONICAL_CENTER_COLORS } from '@/cube/constants';
-import { Smartphone, CheckCircle2, Copy, ExternalLink, X, RefreshCw, Loader2, RotateCcw } from 'lucide-react';
+import {
+  Smartphone,
+  CheckCircle2,
+  Copy,
+  Check,
+  ExternalLink,
+  X,
+  RefreshCw,
+  Loader2,
+  RotateCcw,
+  AlertTriangle,
+} from 'lucide-react';
 
 interface MobilePairingModalProps {
   isOpen: boolean;
@@ -36,11 +47,34 @@ export const MobilePairingModal: React.FC<MobilePairingModalProps> = ({
 
   // The session outlives this dialog: closing it must not disconnect the phone, which
   // keeps shooting while the desktop shows progress and, later, the review screen.
+  // After a failure, wait for "Try again" rather than retrying in a loop.
   useEffect(() => {
-    if (isOpen && !sessionId && !isCreating) void initSession();
-  }, [isOpen, sessionId, isCreating, initSession]);
+    if (isOpen && !sessionId && !isCreating && !error) void initSession();
+  }, [isOpen, sessionId, isCreating, error, initSession]);
+
+  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle');
+  const linkRef = useRef<HTMLSpanElement>(null);
+  const copyLink = async (url: string) => {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopyState('copied');
+    } catch {
+      // Clipboard can be blocked; select the link so it can be copied by hand.
+      const range = document.createRange();
+      if (linkRef.current) {
+        range.selectNodeContents(linkRef.current);
+        window.getSelection()?.removeAllRanges();
+        window.getSelection()?.addRange(range);
+      }
+      setCopyState('failed');
+    }
+    setTimeout(() => setCopyState('idle'), 2000);
+  };
 
   if (!isOpen) return null;
+
+  // Phones only open the camera on https:// pages.
+  const insecureLink = companionUrl?.startsWith('http://') ?? false;
 
   const capturedCount = FACES.filter((f) => faceStatus[f] === 'accepted').length;
 
@@ -111,10 +145,29 @@ export const MobilePairingModal: React.FC<MobilePairingModalProps> = ({
               </div>
             </div>
           ) : error ? (
-            <div className="text-xs text-rose-400 py-6 font-mono text-center">
-              Error initializing session: {error}
+            <div className="flex flex-col items-center gap-3 py-6 text-center">
+              <AlertTriangle className="w-7 h-7 text-rose-400" />
+              <p className="text-sm text-rose-200 max-w-xs">Couldn’t create a pairing code. {error}</p>
+              <button
+                type="button"
+                onClick={() => void initSession()}
+                className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg bg-white text-neutral-950 text-xs font-bold hover:bg-neutral-200 transition-colors"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                Try again
+              </button>
             </div>
           ) : null}
+
+          {insecureLink && (
+            <div role="alert" className="flex items-start gap-2 w-full p-3 rounded-lg bg-amber-500/10 border border-amber-500/40 text-xs text-amber-200 text-left">
+              <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+              <span>
+                The phone camera won’t open on an <span className="font-mono">http://</span> link. Stop the server and
+                start it with <span className="font-mono">npm run dev</span> (HTTPS), then open this page again.
+              </span>
+            </div>
+          )}
 
           {/* Network IP Selector (if multiple interfaces available) */}
           {availableIps && availableIps.length > 0 && (
@@ -153,15 +206,23 @@ export const MobilePairingModal: React.FC<MobilePairingModalProps> = ({
           {/* Session Direct Link */}
           {companionUrl && (
             <div className="flex items-center justify-between gap-2 w-full px-3 py-1.5 rounded-lg bg-neutral-900 border border-neutral-800 text-xs text-neutral-400 font-mono">
-              <span className="truncate max-w-[280px]">{companionUrl}</span>
+              <span ref={linkRef} className="truncate max-w-[280px]">{companionUrl}</span>
               <div className="flex items-center gap-1 shrink-0">
+                <span role="status" className="text-[10px] text-neutral-400">
+                  {copyState === 'copied' ? 'Copied' : copyState === 'failed' ? 'Press Ctrl+C' : ''}
+                </span>
                 <button
                   type="button"
-                  onClick={() => navigator.clipboard.writeText(companionUrl)}
-                  title="Copy URL"
+                  onClick={() => void copyLink(companionUrl)}
+                  title="Copy link"
+                  aria-label="Copy link"
                   className="p-1 hover:text-white transition-colors"
                 >
-                  <Copy className="w-3.5 h-3.5" />
+                  {copyState === 'copied' ? (
+                    <Check className="w-3.5 h-3.5 text-emerald-400" />
+                  ) : (
+                    <Copy className="w-3.5 h-3.5" />
+                  )}
                 </button>
                 <a
                   href={companionUrl}
