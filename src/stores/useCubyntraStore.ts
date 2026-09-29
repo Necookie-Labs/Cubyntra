@@ -53,6 +53,8 @@ export interface CubyntraStore {
   cubeState: CubeState;
   originalScrambleState: CubeState;
   validationResult: ValidationResult | null;
+  /** Readable message for an unexpected failure that is not a cube validation issue. */
+  errorMessage: string | null;
   solution: SolveResult | null;
 
   // Playback State
@@ -107,6 +109,7 @@ export const useCubyntraStore = create<CubyntraStore>((set, get) => ({
   cubeState: createSolvedCubeState(),
   originalScrambleState: createSolvedCubeState(),
   validationResult: null,
+  errorMessage: null,
   solution: null,
 
   currentMoveIndex: -1,
@@ -117,6 +120,7 @@ export const useCubyntraStore = create<CubyntraStore>((set, get) => ({
     set({
       appState: 'scanning',
       scanSource: 'webcam',
+      errorMessage: null,
       faceSamples: {},
       faceImages: {},
       resolution: null,
@@ -204,6 +208,7 @@ export const useCubyntraStore = create<CubyntraStore>((set, get) => ({
     set({
       appState: 'scanning',
       scanSource: 'companion',
+      errorMessage: null,
       faceSamples: {},
       faceImages: {},
       resolution: null,
@@ -246,7 +251,21 @@ export const useCubyntraStore = create<CubyntraStore>((set, get) => ({
     const nextStep = SCAN_SEQUENCE.findIndex((step) => !nextSamples[step.face]);
 
     if (FACES.every((f) => nextSamples[f])) {
-      const resolution = resolveCubeColors(nextSamples as Record<Face, StickerSample[]>);
+      let resolution: ResolvedCube;
+      try {
+        resolution = resolveCubeColors(nextSamples as Record<Face, StickerSample[]>);
+      } catch (err) {
+        console.error('[Cubyntra] Color resolution failed:', err);
+        set({
+          faceSamples: nextSamples,
+          faceImages: nextImages,
+          scannedFaces: nextScanned,
+          appState: 'error',
+          validationResult: null,
+          errorMessage: 'The six faces could not be combined into a cube. Try scanning again.',
+        });
+        return;
+      }
       set({
         faceSamples: nextSamples,
         faceImages: nextImages,
@@ -307,56 +326,43 @@ export const useCubyntraStore = create<CubyntraStore>((set, get) => ({
 
   validateAndSolve: async () => {
     const { cubeState } = get();
-    set({ appState: 'processing' });
+    set({ appState: 'processing', errorMessage: null });
 
-    const validation = validateCubeState(cubeState);
-    if (!validation.valid) {
+    // Anything unexpected must land in the error screen, never leave the spinner running.
+    try {
+      await solveInto(cubeState);
+    } catch (err) {
+      console.error('[Cubyntra] Solve failed unexpectedly:', err);
       set({
-        validationResult: validation,
         appState: 'error',
+        validationResult: null,
+        errorMessage: `Something went wrong while solving. ${err instanceof Error ? err.message : ''}`.trim(),
       });
-      return;
     }
-
-    const solutionResult = await solveCube(cubeState);
-    if (!solutionResult.success) {
-      set({
-        validationResult: {
-          valid: false,
-          status: 'invalid',
-          issues: [
-            {
-              code: 'PERMUTATION_PARITY',
-              message: solutionResult.error || 'Failed to solve cube state.',
-            },
-          ],
-        },
-        appState: 'error',
-      });
-      return;
-    }
-
-    set({
-      validationResult: validation,
-      solution: solutionResult,
-      currentMoveIndex: -1,
-      appState: solutionResult.moveCount === 0 ? 'solved' : 'solution_ready',
-    });
   },
 
   loadMockScramble: async (customScramble) => {
     const scramble = customScramble || "R U R' U' R' F R2 U' R' U' R U R' F'";
-    const { state, scannedFaces } = getScrambledMockScan(scramble);
-
-    set({
-      scannedFaces,
-      cubeState: state,
-      originalScrambleState: state,
-      currentStepIndex: 6,
-      currentMoveIndex: -1,
-      isPlaying: false,
-      appState: 'processing',
-    });
+    try {
+      const { state, scannedFaces } = getScrambledMockScan(scramble);
+      set({
+        scannedFaces,
+        cubeState: state,
+        originalScrambleState: state,
+        currentStepIndex: 6,
+        currentMoveIndex: -1,
+        isPlaying: false,
+        appState: 'processing',
+        errorMessage: null,
+      });
+    } catch (err) {
+      set({
+        appState: 'error',
+        validationResult: null,
+        errorMessage: `The demo cube could not be loaded. ${err instanceof Error ? err.message : ''}`.trim(),
+      });
+      return;
+    }
 
     await get().validateAndSolve();
   },
@@ -448,6 +454,7 @@ export const useCubyntraStore = create<CubyntraStore>((set, get) => ({
     set({
       appState: 'ready',
       scanSource: null,
+      errorMessage: null,
       faceSamples: {},
       faceImages: {},
       resolution: null,
@@ -463,3 +470,41 @@ export const useCubyntraStore = create<CubyntraStore>((set, get) => ({
     });
   },
 }));
+
+/** Validates and solves `cubeState`, writing the outcome into the store. */
+async function solveInto(cubeState: CubeState): Promise<void> {
+  const set = useCubyntraStore.setState;
+  const validation = validateCubeState(cubeState);
+  if (!validation.valid) {
+    set({
+      validationResult: validation,
+      appState: 'error',
+    });
+    return;
+  }
+
+  const solutionResult = await solveCube(cubeState);
+  if (!solutionResult.success) {
+    set({
+      validationResult: {
+        valid: false,
+        status: 'invalid',
+        issues: [
+          {
+            code: 'PERMUTATION_PARITY',
+            message: solutionResult.error || 'Failed to solve cube state.',
+          },
+        ],
+      },
+      appState: 'error',
+    });
+    return;
+  }
+
+  set({
+    validationResult: validation,
+    solution: solutionResult,
+    currentMoveIndex: -1,
+    appState: solutionResult.moveCount === 0 ? 'solved' : 'solution_ready',
+  });
+}
