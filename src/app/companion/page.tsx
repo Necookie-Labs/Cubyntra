@@ -1,16 +1,18 @@
 'use client';
 
 /**
- * Cubyntra - Mobile Companion Scanner Viewport
+ * Cubyntra - Mobile Companion Scanner
  * Necookie Labs (c) 2026
  *
- * Dedicated mobile-first photo scanner for high-resolution, glare-free capture.
- * Follows ADR-001: 100% on-device image processing and transient peer synchronization.
+ * The phone half of a scan. It coaches the user through six photos, checks each live frame
+ * for the usual problems (wrong face, glare, darkness, motion), takes the photo by itself
+ * once the frame holds steady, and sends a crop of exactly the reticle to the computer,
+ * which reads the colors and answers.
  */
 
-import React, { useEffect, useRef, useState, useCallback, Suspense } from 'react';
+import React, { useCallback, useEffect, useRef, useState, useSyncExternalStore, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { SCAN_SEQUENCE, COLOR_HEX } from '@/cube/constants';
+import { COLOR_HEX, SCAN_SEQUENCE } from '@/cube/constants';
 import { CubeColor } from '@/cube/types';
 import {
   initializeCameraStream,
@@ -19,24 +21,35 @@ import {
   toggleCameraTorch,
 } from '@/vision/camera';
 import { mapElementRectToVideo, sampleGridFromContext } from '@/vision/sampling';
-import { ROIBounds } from '@/vision/types';
+import { detectCubeInROISync } from '@/vision/cubeDetector';
+import { assessCaptureQuality, CaptureQuality, measureGlare } from '@/vision/captureQuality';
+import { ROIBounds, StickerSample } from '@/vision/types';
 import { useMobileSession } from '@/sync/useMobileSession';
-import { CompanionReticle } from '@/components/companion/CompanionReticle';
+import { CompanionReticle, ReticleTone } from '@/components/companion/CompanionReticle';
+import { FaceGuide } from '@/components/companion/FaceGuide';
+import { CaptureCoach, hasSeenCaptureCoach } from '@/components/companion/CaptureCoach';
 import {
+  AlertCircle,
   Camera,
-  Zap,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
-  RotateCcw,
-  Smartphone,
-  AlertCircle,
+  CircleHelp,
   Loader2,
   Monitor,
+  RotateCcw,
+  Zap,
 } from 'lucide-react';
 
 /** Size of the photo sent to the computer: plenty for nine tiles, small enough to send fast. */
 const PHOTO_SIZE = 512;
+/** How often the live frame is checked. */
+const SAMPLE_INTERVAL_MS = 150;
+/** How long every check must hold before the photo takes itself. */
+const HOLD_MS = 600;
+
+/** localStorage has no change events worth following here; read it once per render. */
+const noSubscription = () => () => {};
 
 function toScreenRect(el: Element) {
   const r = el.getBoundingClientRect();
@@ -46,29 +59,39 @@ function toScreenRect(el: Element) {
 function CompanionScannerContent() {
   const searchParams = useSearchParams();
   const sessionId = searchParams.get('session');
+  const session = useMobileSession(sessionId);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const squareRef = useRef<HTMLDivElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const session = useMobileSession(sessionId);
 
   const [stepIndex, setStepIndex] = useState(0);
   const [cameraStatus, setCameraStatus] = useState<'loading' | 'streaming' | 'error'>('loading');
+  const [cameraAttempt, setCameraAttempt] = useState(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [hasTorch, setHasTorch] = useState(false);
   const [torchActive, setTorchActive] = useState(false);
   const [isCapturing, setIsCapturing] = useState(false);
+  const [captureFlash, setCaptureFlash] = useState(0);
   const [liveColors, setLiveColors] = useState<(CubeColor | null)[]>([]);
-  const [captureFlash, setCaptureFlash] = useState(false);
+  const [quality, setQuality] = useState<CaptureQuality | null>(null);
+  const [holdProgress, setHoldProgress] = useState(0);
+  const [autoCapture, setAutoCapture] = useState(true);
+  // The coach shows once per device. The server renders it as already seen, and the client
+  // corrects that after hydration. `coachOverride` records the user opening or closing it.
+  const coachSeen = useSyncExternalStore(noSubscription, hasSeenCaptureCoach, () => true);
+  const [coachOverride, setCoachOverride] = useState<boolean | null>(null);
+  const showCoach = coachOverride ?? !coachSeen;
 
   const currentStep = SCAN_SEQUENCE[Math.min(stepIndex, SCAN_SEQUENCE.length - 1)];
   const isAccepted = (i: number) => session.status[SCAN_SEQUENCE[i].face] === 'accepted';
   const isAllComplete = SCAN_SEQUENCE.every((_, i) => isAccepted(i));
   const currentStatus = session.status[currentStep.face];
+  const isWaitingOnComputer = currentStatus === 'sending' || currentStatus === 'reading';
 
-  // Move on once the computer has read the current face; stay put while it reads or asks
-  // for a retake. Faces may be done out of order, so jump to the first one still missing.
+  // Move on once the computer has read the current face. Faces can be done out of order,
+  // so jump to the first one still missing.
   const [advancedFor, setAdvancedFor] = useState<string | null>(null);
   if (currentStatus === 'accepted' && advancedFor !== currentStep.face) {
     setAdvancedFor(currentStep.face);
@@ -76,7 +99,7 @@ function CompanionScannerContent() {
     if (next !== -1) setStepIndex(next);
   }
 
-  // The computer asked for a specific face again (from its review screen).
+  // The computer asked for a specific face again from its review screen.
   const [handledRescanAt, setHandledRescanAt] = useState<number | null>(null);
   if (session.rescanRequest && session.rescanRequest.at !== handledRescanAt) {
     setHandledRescanAt(session.rescanRequest.at);
@@ -85,7 +108,7 @@ function CompanionScannerContent() {
     setAdvancedFor(null);
   }
 
-  /** Where the reticle sits in camera-frame pixels; the same region is sampled and sent. */
+  /** Where the reticle sits in camera-frame pixels; the same region is checked and sent. */
   const reticleRegion = useCallback((): ROIBounds | null => {
     const video = videoRef.current;
     const square = squareRef.current;
@@ -93,7 +116,7 @@ function CompanionScannerContent() {
     return mapElementRectToVideo(toScreenRect(square), toScreenRect(video), video.videoWidth, video.videoHeight);
   }, []);
 
-  // Initialize Camera
+  // Camera
   useEffect(() => {
     let isCancelled = false;
 
@@ -101,25 +124,22 @@ function CompanionScannerContent() {
       if (!videoRef.current) return;
       setCameraStatus('loading');
       setErrorMessage(null);
-
       try {
         const result = await initializeCameraStream(videoRef.current, {
           facingMode: 'environment',
           idealWidth: 1920,
           idealHeight: 1080,
         });
-
         if (isCancelled) {
           terminateCameraStream(result.stream);
           return;
         }
-
         streamRef.current = result.stream;
         setHasTorch(result.hasTorch);
         setCameraStatus('streaming');
 
-        // Give auto white balance a moment to settle on the scene, then freeze it so every
-        // face is shot at the same color temperature.
+        // Let auto white balance settle on the scene, then freeze it so every face is shot
+        // at the same color temperature.
         setTimeout(() => {
           if (!isCancelled) void lockWhiteBalance(result.stream);
         }, 1500);
@@ -131,309 +151,434 @@ function CompanionScannerContent() {
       }
     };
 
-    startCamera();
-
+    void startCamera();
     return () => {
       isCancelled = true;
       terminateCameraStream(streamRef.current);
       streamRef.current = null;
     };
-  }, []);
+  }, [cameraAttempt]);
 
-  // Live Sampling Loop (every 200ms)
+  // Take the photo: crop exactly the reticle square and send it to the computer.
+  const takePhoto = useCallback(
+    async (snapshot: CaptureQuality | null) => {
+      const video = videoRef.current;
+      const roi = reticleRegion();
+      if (!video || !roi || isCapturing) return;
+
+      setIsCapturing(true);
+      setCaptureFlash((n) => n + 1);
+      try {
+        navigator.vibrate?.(40);
+      } catch {
+        // Haptics are optional.
+      }
+
+      try {
+        const photo = document.createElement('canvas');
+        photo.width = PHOTO_SIZE;
+        photo.height = PHOTO_SIZE;
+        const pctx = photo.getContext('2d');
+        if (!pctx) throw new Error('Canvas context unavailable');
+        pctx.drawImage(video, roi.x, roi.y, roi.size, roi.size, 0, 0, PHOTO_SIZE, PHOTO_SIZE);
+
+        await session.sendPhoto(
+          currentStep.face,
+          photo.toDataURL('image/jpeg', 0.9),
+          snapshot
+            ? { passed: snapshot.ready, failing: snapshot.checks.filter((c) => !c.ok).map((c) => c.id) }
+            : undefined
+        );
+      } catch (err) {
+        console.error('[Companion] Capture failed:', err);
+      } finally {
+        setIsCapturing(false);
+      }
+    },
+    [currentStep, isCapturing, reticleRegion, session]
+  );
+
+  // The sampling loop reads these through refs so it never runs on stale values.
+  const loopState = useRef({
+    face: currentStep.face,
+    busy: false,
+    auto: true,
+    paused: false,
+    takePhoto,
+  });
+  useEffect(() => {
+    loopState.current = {
+      face: currentStep.face,
+      busy: isCapturing || isWaitingOnComputer || currentStatus === 'accepted',
+      auto: autoCapture,
+      paused: showCoach || isAllComplete,
+      takePhoto,
+    };
+  }, [currentStep.face, isCapturing, isWaitingOnComputer, currentStatus, autoCapture, showCoach, isAllComplete, takePhoto]);
+
+  // After a photo the shutter disarms until the frame stops qualifying (the user turns the
+  // cube or moves), so a rejected photo is never retaken in a loop.
+  const armedRef = useRef(true);
+  const readySinceRef = useRef<number | null>(null);
+  const previousSamplesRef = useRef<StickerSample[] | null>(null);
+
+  useEffect(() => {
+    armedRef.current = true;
+    readySinceRef.current = null;
+  }, [currentStep.face]);
+
+  // Live checks
   useEffect(() => {
     if (cameraStatus !== 'streaming') return;
-    let timer: NodeJS.Timeout | null = null;
+    let timer: ReturnType<typeof setTimeout> | null = null;
 
-    const sampleFrame = () => {
+    const tick = () => {
+      timer = setTimeout(tick, SAMPLE_INTERVAL_MS);
       const video = videoRef.current;
       const canvas = canvasRef.current;
-      if (!video || !canvas || video.readyState < 2) {
-        timer = setTimeout(sampleFrame, 200);
-        return;
-      }
-
-      const ctx = canvas.getContext('2d', { willReadFrequently: true });
-      if (!ctx) {
-        timer = setTimeout(sampleFrame, 200);
-        return;
-      }
-
       const roi = reticleRegion();
-      if (!roi) {
-        timer = setTimeout(sampleFrame, 200);
-        return;
-      }
+      if (!video || !canvas || !roi || video.readyState < 2) return;
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      if (!ctx) return;
+
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
+      const state = loopState.current;
       const samples = sampleGridFromContext(ctx, roi);
+      const detection = detectCubeInROISync(ctx, roi, samples);
+      const q = assessCaptureQuality({
+        samples,
+        detection,
+        expectedFace: state.face,
+        glareByTile: measureGlare(ctx, roi),
+        previousSamples: previousSamplesRef.current,
+      });
+      previousSamplesRef.current = samples;
 
-      setLiveColors(samples.map((s) => s.predictedColor));
-      timer = setTimeout(sampleFrame, 200);
+      setQuality(q);
+      setLiveColors(detection.isCube ? samples.map((s) => s.predictedColor) : []);
+
+      if (!q.ready) {
+        armedRef.current = true;
+        readySinceRef.current = null;
+        setHoldProgress(0);
+        return;
+      }
+      if (!state.auto || state.paused || state.busy || !armedRef.current) {
+        readySinceRef.current = null;
+        setHoldProgress(0);
+        return;
+      }
+
+      const now = performance.now();
+      readySinceRef.current ??= now;
+      const progress = Math.min(1, (now - readySinceRef.current) / HOLD_MS);
+      setHoldProgress(progress);
+      if (progress >= 1) {
+        armedRef.current = false;
+        readySinceRef.current = null;
+        setHoldProgress(0);
+        void state.takePhoto(q);
+      }
     };
 
-    timer = setTimeout(sampleFrame, 200);
-
+    timer = setTimeout(tick, SAMPLE_INTERVAL_MS);
     return () => {
       if (timer) clearTimeout(timer);
     };
   }, [cameraStatus, reticleRegion]);
 
-  // Toggle Torch
   const handleToggleTorch = useCallback(async () => {
     if (!hasTorch || !streamRef.current) return;
-    const nextState = !torchActive;
-    const success = await toggleCameraTorch(streamRef.current, nextState);
-    if (success) {
-      setTorchActive(nextState);
-    }
+    const next = !torchActive;
+    if (await toggleCameraTorch(streamRef.current, next)) setTorchActive(next);
   }, [hasTorch, torchActive]);
 
-  // Take the photo: crop exactly the reticle square and send it to the computer.
-  const handleSnapFace = useCallback(async () => {
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
-    const roi = reticleRegion();
-    if (!video || !canvas || !roi || isCapturing) return;
-
-    setIsCapturing(true);
-    setCaptureFlash(true);
-    setTimeout(() => setCaptureFlash(false), 150);
-
-    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
-      try {
-        navigator.vibrate(50);
-      } catch {
-        // Haptics are optional.
-      }
-    }
-
-    try {
-      const photo = document.createElement('canvas');
-      photo.width = PHOTO_SIZE;
-      photo.height = PHOTO_SIZE;
-      const pctx = photo.getContext('2d');
-      if (!pctx) throw new Error('Canvas context unavailable');
-      pctx.drawImage(video, roi.x, roi.y, roi.size, roi.size, 0, 0, PHOTO_SIZE, PHOTO_SIZE);
-
-      await session.sendPhoto(currentStep.face, photo.toDataURL('image/jpeg', 0.9));
-    } catch (err) {
-      console.error('[Companion] Capture failed:', err);
-    } finally {
-      setIsCapturing(false);
-    }
-  }, [isCapturing, currentStep, reticleRegion, session]);
-
-  // Restart Sequence
   const handleReset = useCallback(() => {
     session.reset();
     setAdvancedFor(null);
     setStepIndex(0);
   }, [session]);
 
+  // What the reticle and the hint line say right now, most urgent first.
+  let tone: ReticleTone = 'idle';
+  let hint: { text: string; kind: 'fix' | 'progress' | 'ok' | 'error' } | null = null;
+  if (currentStatus === 'rejected') {
+    tone = 'fix';
+    hint = { text: session.reasons[currentStep.face] ?? 'Take this one again.', kind: 'error' };
+  } else if (currentStatus === 'sending') {
+    tone = 'steady';
+    hint = { text: 'Sending to your computer…', kind: 'progress' };
+  } else if (currentStatus === 'reading') {
+    tone = 'steady';
+    hint = { text: 'Reading on your computer…', kind: 'progress' };
+  } else if (quality && !quality.ready) {
+    tone = quality.topHint === 'Hold still.' ? 'idle' : 'fix';
+    hint = { text: quality.topHint ?? 'Line up the cube', kind: 'fix' };
+  } else if (quality?.ready) {
+    tone = 'steady';
+    hint = { text: autoCapture ? 'Hold still…' : 'Looks good. Tap the shutter.', kind: 'ok' };
+  }
+  if (currentStatus === 'accepted') tone = 'done';
+
+  const ringCircumference = 2 * Math.PI * 38;
+
   return (
-    <div className="relative w-full h-[100dvh] bg-black text-white flex flex-col justify-between overflow-hidden select-none">
-      {/* Hidden processing canvas */}
+    <div className="relative w-full h-[100dvh] flex flex-col bg-black text-white overflow-hidden select-none">
       <canvas ref={canvasRef} className="hidden" />
 
-      {/* Screen Shutter Flash Effect */}
-      {captureFlash && (
-        <div className="absolute inset-0 bg-white z-50 pointer-events-none animate-out fade-out duration-150" />
-      )}
+      {/* Camera */}
+      <video ref={videoRef} playsInline muted autoPlay className="absolute inset-0 z-0 w-full h-full object-cover" />
 
-      {/* Top Floating App Bar */}
-      <header className="relative z-30 flex items-center justify-between p-4 bg-gradient-to-b from-black/80 to-transparent">
-        <div className="flex items-center gap-2">
-          <div className="p-1.5 rounded-lg bg-sky-500/20 text-sky-400 border border-sky-500/30">
-            <Smartphone className="w-4 h-4" />
-          </div>
-          <div>
-            <h1 className="text-xs font-bold tracking-tight text-white flex items-center gap-1.5">
-              Cubyntra Companion
-            </h1>
-            <div className="flex items-center gap-1.5 text-[10px] font-mono text-neutral-400">
-              {sessionId ? (
-                <>
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  <span>ID: {sessionId}</span>
-                </>
-              ) : (
-                <span className="text-amber-400">Standalone Mode</span>
-              )}
-            </div>
-          </div>
-        </div>
+      {/* Shutter flash, re-keyed per photo */}
+      {captureFlash > 0 && <div key={captureFlash} className="cb-flash absolute inset-0 z-40 bg-white pointer-events-none" />}
 
-        {/* Torch / Flashlight Toggle */}
-        {hasTorch && (
-          <button
-            type="button"
-            onClick={handleToggleTorch}
-            className={`p-2.5 rounded-full border transition-all ${
-              torchActive
-                ? 'bg-amber-400 text-black border-amber-300 shadow-[0_0_12px_rgba(251,191,36,0.6)]'
-                : 'bg-black/60 backdrop-blur-md text-white border-neutral-700'
+      {/* Top bar */}
+      <header className="relative z-30 shrink-0 flex items-center justify-between gap-3 px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 bg-gradient-to-b from-black/80 to-transparent">
+        <div className="flex items-center gap-2 min-w-0">
+          <span
+            className={`w-2 h-2 rounded-full shrink-0 ${
+              !sessionId ? 'bg-amber-400' : session.connected ? 'bg-emerald-400' : 'bg-neutral-500'
             }`}
-          >
-            <Zap className="w-4 h-4" />
-          </button>
-        )}
-      </header>
-
-      {/* Full-Screen Camera Viewport */}
-      <div className="absolute inset-0 z-10 flex items-center justify-center overflow-hidden bg-neutral-950">
-        <video
-          ref={videoRef}
-          playsInline
-          muted
-          autoPlay
-          className="w-full h-full object-cover"
-        />
-
-        {cameraStatus === 'loading' && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/90 gap-3 z-30">
-            <div className="w-8 h-8 border-2 border-sky-400 border-t-transparent rounded-full animate-spin" />
-            <span className="text-xs font-mono text-neutral-300">Accessing rear camera...</span>
-          </div>
-        )}
-
-        {cameraStatus === 'error' && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/95 p-6 text-center gap-4 z-30">
-            <AlertCircle className="w-10 h-10 text-rose-400" />
-            <div className="text-sm font-bold text-white">Camera Unavailable</div>
-            <p className="text-xs text-neutral-400 max-w-xs">{errorMessage}</p>
-          </div>
-        )}
-
-        {/* Reticle Overlay */}
-        {cameraStatus === 'streaming' && !isAllComplete && (
-          <CompanionReticle
-            currentStep={currentStep}
-            stepIndex={stepIndex}
-            totalSteps={SCAN_SEQUENCE.length}
-            liveColors={liveColors}
-            isReady={true}
-            squareRef={squareRef}
+            aria-hidden
           />
-        )}
-      </div>
-
-      {/* All Complete Screen Modal */}
-      {isAllComplete && (
-        <div className="absolute inset-0 z-40 flex flex-col items-center justify-center p-6 bg-black/90 backdrop-blur-lg text-center gap-5">
-          <div className="p-4 rounded-3xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 animate-in zoom-in-95 duration-300">
-            <CheckCircle2 className="w-16 h-16" />
-          </div>
-
-          <div className="flex flex-col gap-1 max-w-xs">
-            <h2 className="text-xl font-bold text-white tracking-tight">
-              {session.confirmed ? 'Solving on your computer' : 'All six faces read'}
-            </h2>
-            <p className="text-sm text-neutral-400 leading-relaxed flex items-start gap-2 text-left">
-              <Monitor className="w-4 h-4 mt-0.5 shrink-0 text-sky-400" />
-              {session.confirmed
-                ? 'Follow the moves on the 3D cube. You can put your phone down.'
-                : 'Check the cube on your computer, fix any tile it marks, then press Confirm & solve.'}
-            </p>
-          </div>
-
+          <span className="text-xs text-neutral-300 truncate">
+            {!sessionId ? 'Not linked to a computer' : session.connected ? 'Linked to your computer' : 'Connecting…'}
+          </span>
+        </div>
+        <div className="flex items-center gap-1">
           <button
             type="button"
-            onClick={handleReset}
-            className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-neutral-800 hover:bg-neutral-700 text-xs font-bold text-white border border-neutral-700 transition-all mt-4"
+            onClick={() => setCoachOverride(true)}
+            aria-label="How to take the photos"
+            className="w-11 h-11 grid place-items-center rounded-full text-neutral-200 hover:bg-white/10 transition-colors"
           >
-            <RotateCcw className="w-4 h-4" />
-            <span>Scan Another Cube</span>
+            <CircleHelp className="w-5 h-5" />
           </button>
-        </div>
-      )}
-
-      {/* Bottom Floating Control Bar */}
-      {!isAllComplete && (
-        <footer className="relative z-30 flex flex-col items-center gap-3 p-4 bg-gradient-to-t from-black/95 via-black/80 to-transparent">
-          {/* 6-Step Indicator Pills */}
-          <div className="flex items-center gap-2">
-            {SCAN_SEQUENCE.map((step, idx) => {
-              const isDone = session.status[step.face] === 'accepted';
-              const isCurrent = idx === stepIndex;
-              const hex = COLOR_HEX[step.centerColor];
-
-              return (
-                <button
-                  key={step.face}
-                  type="button"
-                  onClick={() => setStepIndex(idx)}
-                  className={`w-6 h-6 rounded-full border flex items-center justify-center transition-all ${
-                    isCurrent
-                      ? 'ring-2 ring-white ring-offset-2 ring-offset-black scale-110'
-                      : 'opacity-70 hover:opacity-100'
-                  }`}
-                  style={{ backgroundColor: hex, borderColor: isCurrent ? '#ffffff' : 'transparent' }}
-                >
-                  {isDone && (
-                    <CheckCircle2 className="w-3.5 h-3.5 text-neutral-900 stroke-[3]" />
-                  )}
-                </button>
-              );
-            })}
-          </div>
-
-          {currentStatus && currentStatus !== 'accepted' && (
-            <div
-              role="status"
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs border backdrop-blur-md ${
-                currentStatus === 'rejected'
-                  ? 'bg-amber-500/15 border-amber-400/40 text-amber-200'
-                  : 'bg-sky-500/15 border-sky-400/40 text-sky-200'
+          {hasTorch && (
+            <button
+              type="button"
+              onClick={handleToggleTorch}
+              aria-pressed={torchActive}
+              aria-label="Flash"
+              className={`w-11 h-11 grid place-items-center rounded-full transition-colors ${
+                torchActive ? 'bg-amber-400 text-black' : 'text-neutral-200 hover:bg-white/10'
               }`}
             >
-              {currentStatus === 'rejected' ? (
-                <RotateCcw className="w-3.5 h-3.5 shrink-0" />
-              ) : (
-                <Loader2 className="w-3.5 h-3.5 shrink-0 animate-spin motion-reduce:animate-none" />
-              )}
-              {currentStatus === 'sending' && 'Sending to your computer…'}
-              {currentStatus === 'reading' && 'Reading on your computer…'}
-              {currentStatus === 'rejected' && (session.reasons[currentStep.face] ?? 'Take this one again.')}
-            </div>
+              <Zap className="w-5 h-5" />
+            </button>
           )}
+        </div>
+      </header>
 
-          {/* Shutter Button & Step Nav */}
-          <div className="flex items-center justify-between w-full max-w-xs px-2">
+      {/* Guidance + reticle */}
+      {cameraStatus === 'streaming' && !isAllComplete && (
+        <main className="relative z-20 flex-1 min-h-0 flex flex-col items-center justify-center gap-4 px-4 pointer-events-none">
+          <section
+            key={currentStep.face}
+            className="cb-rise flex items-center gap-3 w-full max-w-sm p-3 rounded-2xl bg-black/65 backdrop-blur-md border border-white/10"
+            aria-live="polite"
+          >
+            <FaceGuide
+              key={currentStep.face}
+              front={currentStep.centerColor}
+              top={currentStep.view.top}
+              right={currentStep.view.right}
+              className="cb-turn-in w-16 h-16 shrink-0"
+            />
+            <div className="flex flex-col gap-1 min-w-0">
+              <span className="text-[11px] font-mono uppercase tracking-wider text-sky-300">
+                Step {stepIndex + 1} of 6 · {currentStep.title}
+              </span>
+              <p className="text-sm leading-snug text-white">{currentStep.instruction}</p>
+              <span className="text-xs text-neutral-400">{currentStep.rotationHint}</span>
+            </div>
+          </section>
+
+          <CompanionReticle
+            tone={tone}
+            expectedColor={currentStep.centerColor}
+            liveColors={liveColors}
+            squareRef={squareRef}
+          />
+
+          <div className="h-10 shrink-0 flex items-center">
+            {hint && (
+              <p
+                role="status"
+                className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-full text-sm backdrop-blur-md border ${
+                  hint.kind === 'error'
+                    ? 'bg-amber-500/20 border-amber-400/50 text-amber-100'
+                    : hint.kind === 'fix'
+                    ? 'bg-black/60 border-amber-400/40 text-amber-100'
+                    : hint.kind === 'progress'
+                    ? 'bg-sky-500/20 border-sky-400/40 text-sky-100'
+                    : 'bg-black/60 border-sky-400/40 text-sky-100'
+                }`}
+              >
+                {hint.kind === 'progress' && <Loader2 className="w-4 h-4 animate-spin motion-reduce:animate-none" />}
+                {hint.kind === 'error' && <RotateCcw className="w-4 h-4" />}
+                {hint.text}
+              </p>
+            )}
+          </div>
+        </main>
+      )}
+
+      {(cameraStatus !== 'streaming' || isAllComplete) && <div className="flex-1" aria-hidden />}
+
+      {/* Camera states */}
+      {cameraStatus === 'loading' && (
+        <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-3 bg-black">
+          <Loader2 className="w-7 h-7 text-sky-400 animate-spin motion-reduce:animate-none" />
+          <p className="text-sm text-neutral-300">Opening the camera…</p>
+          <p className="text-xs text-neutral-500">Allow camera access if your phone asks.</p>
+        </div>
+      )}
+      {cameraStatus === 'error' && (
+        <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-4 bg-black px-8 text-center">
+          <AlertCircle className="w-10 h-10 text-rose-400" />
+          <div className="flex flex-col gap-1">
+            <h2 className="text-lg font-bold">The camera didn’t open</h2>
+            <p className="text-sm text-neutral-400 max-w-xs">{errorMessage}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setCameraAttempt((n) => n + 1)}
+            className="min-h-12 px-6 rounded-2xl bg-white text-neutral-950 font-bold text-sm"
+          >
+            Try again
+          </button>
+        </div>
+      )}
+
+      {/* Bottom controls */}
+      {!isAllComplete && cameraStatus === 'streaming' && (
+        <footer className="relative z-30 shrink-0 flex flex-col items-center gap-3 px-4 pt-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] bg-gradient-to-t from-black/90 via-black/70 to-transparent">
+          <ol className="flex items-center gap-2" aria-label="Faces">
+            {SCAN_SEQUENCE.map((step, idx) => {
+              const status = session.status[step.face];
+              const isCurrent = idx === stepIndex;
+              return (
+                <li key={step.face}>
+                  <button
+                    type="button"
+                    onClick={() => setStepIndex(idx)}
+                    aria-current={isCurrent ? 'step' : undefined}
+                    aria-label={`${step.title}${status === 'accepted' ? ', read' : status === 'rejected' ? ', needs a retake' : ''}`}
+                    className="w-9 h-9 grid place-items-center"
+                  >
+                    <span
+                      className={`w-6 h-6 rounded-full grid place-items-center border-2 transition-transform duration-150 ${
+                        isCurrent ? 'scale-110 border-white' : status === 'rejected' ? 'border-amber-400' : 'border-transparent'
+                      }`}
+                      style={{ backgroundColor: COLOR_HEX[step.centerColor] }}
+                    >
+                      {status === 'accepted' && <CheckCircle2 className="w-4 h-4 text-neutral-950" strokeWidth={3} />}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ol>
+
+          <div className="flex items-center justify-between w-full max-w-xs">
             <button
               type="button"
               disabled={stepIndex === 0}
               onClick={() => setStepIndex((i) => Math.max(0, i - 1))}
-              className="p-3 text-neutral-400 hover:text-white disabled:opacity-20 transition-all"
+              aria-label="Previous face"
+              className="w-12 h-12 grid place-items-center text-neutral-300 disabled:opacity-25"
             >
               <ChevronLeft className="w-6 h-6" />
             </button>
 
-            {/* Shutter Button */}
+            {/* Shutter: the ring fills while the frame holds steady, then the photo takes itself. */}
             <button
               type="button"
-              disabled={isCapturing || cameraStatus !== 'streaming' || currentStatus === 'sending' || currentStatus === 'reading'}
-              onClick={handleSnapFace}
-              className="relative p-1 rounded-full border-4 border-white/80 active:scale-95 transition-transform"
+              onClick={() => void takePhoto(quality)}
+              disabled={isCapturing || isWaitingOnComputer}
+              aria-label="Take photo"
+              className="relative w-[84px] h-[84px] grid place-items-center active:scale-95 transition-transform disabled:opacity-60"
             >
-              <div className="w-16 h-16 rounded-full bg-white flex items-center justify-center shadow-lg active:bg-neutral-200">
-                <Camera className="w-6 h-6 text-black" />
-              </div>
+              <svg viewBox="0 0 84 84" className="absolute inset-0 -rotate-90" aria-hidden>
+                <circle cx="42" cy="42" r="38" fill="none" stroke="rgba(255,255,255,0.35)" strokeWidth="4" />
+                <circle
+                  cx="42"
+                  cy="42"
+                  r="38"
+                  fill="none"
+                  stroke={quality && !quality.ready && !isWaitingOnComputer ? '#fbbf24' : '#38bdf8'}
+                  strokeWidth="4"
+                  strokeLinecap="round"
+                  strokeDasharray={ringCircumference}
+                  strokeDashoffset={ringCircumference * (1 - holdProgress)}
+                />
+              </svg>
+              <span className="w-[66px] h-[66px] rounded-full bg-white grid place-items-center">
+                {isWaitingOnComputer ? (
+                  <Loader2 className="w-6 h-6 text-neutral-900 animate-spin motion-reduce:animate-none" />
+                ) : (
+                  <Camera className="w-6 h-6 text-neutral-900" />
+                )}
+              </span>
             </button>
 
             <button
               type="button"
               disabled={stepIndex === SCAN_SEQUENCE.length - 1}
               onClick={() => setStepIndex((i) => Math.min(SCAN_SEQUENCE.length - 1, i + 1))}
-              className="p-3 text-neutral-400 hover:text-white disabled:opacity-20 transition-all"
+              aria-label="Next face"
+              className="w-12 h-12 grid place-items-center text-neutral-300 disabled:opacity-25"
             >
               <ChevronRight className="w-6 h-6" />
             </button>
           </div>
+
+          <button
+            type="button"
+            onClick={() => setAutoCapture((a) => !a)}
+            aria-pressed={autoCapture}
+            className="min-h-9 px-3 text-xs text-neutral-400 hover:text-white transition-colors"
+          >
+            Auto-capture <span className={autoCapture ? 'text-sky-300' : 'text-neutral-500'}>{autoCapture ? 'on' : 'off'}</span>
+          </button>
         </footer>
       )}
+
+      {/* Done */}
+      {isAllComplete && (
+        <div className="cb-rise absolute inset-0 z-40 flex flex-col items-center justify-center gap-6 p-8 bg-black/92 backdrop-blur-lg text-center">
+          <div className="p-4 rounded-3xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
+            <CheckCircle2 className="w-14 h-14" />
+          </div>
+          <div className="flex flex-col gap-2 max-w-xs">
+            <h2 className="text-xl font-bold tracking-tight">
+              {session.confirmed ? 'Solving on your computer' : sessionId ? 'All six faces read' : 'All six photos taken'}
+            </h2>
+            <p className="text-sm text-neutral-300 leading-relaxed flex items-start gap-2 text-left">
+              <Monitor className="w-4 h-4 mt-0.5 shrink-0 text-sky-400" />
+              {session.confirmed
+                ? 'Follow the moves on the 3D cube. You can put your phone down.'
+                : sessionId
+                ? 'Check the cube on your computer, fix any tile it marks, then press Confirm & solve.'
+                : 'Open Cubyntra on a computer and scan its QR code to send your photos there.'}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={handleReset}
+            className="min-h-12 inline-flex items-center gap-2 px-5 rounded-2xl bg-neutral-800 hover:bg-neutral-700 text-sm font-semibold transition-colors"
+          >
+            <RotateCcw className="w-4 h-4" />
+            Scan another cube
+          </button>
+        </div>
+      )}
+
+      {showCoach && <CaptureCoach onDone={() => setCoachOverride(false)} />}
     </div>
   );
 }
@@ -442,9 +587,7 @@ export default function CompanionPage() {
   return (
     <Suspense
       fallback={
-        <div className="w-full h-[100dvh] bg-black flex items-center justify-center text-white text-xs font-mono">
-          Loading Companion...
-        </div>
+        <div className="w-full h-[100dvh] bg-black grid place-items-center text-sm text-neutral-400">Loading…</div>
       }
     >
       <CompanionScannerContent />

@@ -36,3 +36,31 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.3);
 }
+
+/* Motion: a few short, purposeful entrances. Everything stops under reduced motion. */
+@keyframes cb-rise {
+  from { opacity: 0; transform: translateY(6px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes cb-turn-in {
+  from { opacity: 0; transform: rotate(-14deg) scale(0.9); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes cb-flash {
+  from { opacity: 0.85; }
+  to { opacity: 0; }
+}
+
+.cb-rise { animation: cb-rise 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.cb-turn-in { animation: cb-turn-in 320ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.cb-flash { animation: cb-flash 180ms ease-out both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .cb-rise,
+  .cb-turn-in,
+  .cb-flash {
+    animation: none;
+  }
+}

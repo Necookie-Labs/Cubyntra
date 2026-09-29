@@ -77,52 +77,68 @@ export interface ScanStepGuidance {
   face: Face;
   centerColor: CubeColor;
   title: string;
+  /** How to get from the previous step's grip to this one. */
   instruction: string;
+  /** Short check of the end position: what faces the camera and what is on top. */
   rotationHint: string;
+  /** Centers on top and on the right while this face points at the camera. */
+  view: { top: CubeColor; right: CubeColor };
 }
 
+/**
+ * Every step is one simple move from the previous grip, and each photo's rows and columns
+ * line up with how the cube model indexes that face. The last step matters most: after the
+ * Left photo the cube must be turned back to Green before tipping, or the Bottom photo
+ * arrives a quarter turn off.
+ */
 export const SCAN_SEQUENCE: ScanStepGuidance[] = [
   {
     face: 'U',
     centerColor: 'white',
-    title: 'Top Face (White)',
-    instruction: 'Hold the White face facing the camera with Green on the bottom edge.',
-    rotationHint: 'Initial position: White facing camera, Green facing down.',
+    title: 'Top face',
+    instruction: 'Hold the cube with White on top and Green facing you, then tip the top toward you.',
+    rotationHint: 'White faces you · Green at the bottom',
+    view: { top: 'blue', right: 'red' },
   },
   {
     face: 'F',
     centerColor: 'green',
-    title: 'Front Face (Green)',
-    instruction: 'Rotate the cube downwards so Green faces the camera and White is on top.',
-    rotationHint: 'Tilt cube down 90°: Green faces you, White on top.',
+    title: 'Front face',
+    instruction: 'Tip the top back, away from you, so Green faces you and White is on top.',
+    rotationHint: 'Green faces you · White on top',
+    view: { top: 'white', right: 'red' },
   },
   {
     face: 'R',
     centerColor: 'red',
-    title: 'Right Face (Red)',
-    instruction: 'Keep White on top and rotate the cube 90° to the left so Red faces the camera.',
-    rotationHint: 'Turn cube left 90°: Red faces you, White stays on top.',
+    title: 'Right face',
+    instruction: 'Turn the whole cube a quarter to the left. White stays on top.',
+    rotationHint: 'Red faces you · White on top',
+    view: { top: 'white', right: 'blue' },
   },
   {
     face: 'B',
     centerColor: 'blue',
-    title: 'Back Face (Blue)',
-    instruction: 'Keep White on top and rotate the cube 90° to the left so Blue faces the camera.',
-    rotationHint: 'Turn cube left 90°: Blue faces you, White stays on top.',
+    title: 'Back face',
+    instruction: 'Turn a quarter to the left again. White stays on top.',
+    rotationHint: 'Blue faces you · White on top',
+    view: { top: 'white', right: 'orange' },
   },
   {
     face: 'L',
     centerColor: 'orange',
-    title: 'Left Face (Orange)',
-    instruction: 'Keep White on top and rotate the cube 90° to the left so Orange faces the camera.',
-    rotationHint: 'Turn cube left 90°: Orange faces you, White stays on top.',
+    title: 'Left face',
+    instruction: 'Turn a quarter to the left again. White stays on top.',
+    rotationHint: 'Orange faces you · White on top',
+    view: { top: 'white', right: 'green' },
   },
   {
     face: 'D',
     centerColor: 'yellow',
-    title: 'Bottom Face (Yellow)',
-    instruction: 'Rotate the cube upwards so Yellow faces the camera with Green on top.',
-    rotationHint: 'Tilt cube up 90°: Yellow faces you, Green on top.',
+    title: 'Bottom face',
+    instruction: 'Turn left once more so Green faces you, then tip the top away from you.',
+    rotationHint: 'Yellow faces you · Green on top',
+    view: { top: 'green', right: 'red' },
   },
 ];
 
