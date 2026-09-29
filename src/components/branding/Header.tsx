@@ -9,6 +9,7 @@ import React from 'react';
 import { useCubyntraStore } from '@/stores/useCubyntraStore';
 import { ShieldCheck, Terminal, Sparkles, RefreshCw } from 'lucide-react';
 import { CubeGlyph } from './CubeGlyph';
+import { ThemeToggle } from './ThemeToggle';
 
 interface HeaderProps {
   /** Return to the start screen, ending any scan and phone session. */
@@ -82,6 +83,8 @@ export const Header: React.FC<HeaderProps> = ({ onHome, onScanWebcam, onDemo }) 
         >
           <RefreshCw className="w-4 h-4" />
         </button>
+
+        <ThemeToggle />
 
         {/* Developer CV Debugger Toggle */}
         <button
