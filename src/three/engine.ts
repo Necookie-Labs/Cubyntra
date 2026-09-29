@@ -64,7 +64,10 @@ export class CubeEngine {
     this.rootCubeGroup = new THREE.Group();
     this.pivotGroup = new THREE.Group();
     this.scene.add(this.rootCubeGroup);
-    this.scene.add(this.pivotGroup);
+    // The pivot lives inside the cube group so a turning layer shares the cube's
+    // orbit rotation and idle bob. Parented to the scene, the layer would detach
+    // mid-turn and rotate about a world axis instead of the cube's own axis.
+    this.rootCubeGroup.add(this.pivotGroup);
 
     // 2. Camera
     const width = container.clientWidth || 400;
@@ -516,7 +519,6 @@ export class CubeEngine {
     this.currentDistance += (this.targetDistance - this.currentDistance) * 0.12;
 
     this.rootCubeGroup.rotation.copy(this.currentRotation);
-    this.pivotGroup.position.set(0, 0, 0);
 
     // Subtle physical floating bob and breathing shadow
     if (!this.prefersReducedMotion) {
