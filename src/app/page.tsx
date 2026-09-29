@@ -61,6 +61,13 @@ function Workspace() {
     setPairingMode('auto');
   }, [startCompanionScan]);
 
+  // The old pairing ended: make a new QR code, keeping the faces already read here.
+  const { initSession } = companion;
+  const newPairing = useCallback(() => {
+    void initSession();
+    setPairingMode('manual');
+  }, [initSession]);
+
   const scanWithWebcam = useCallback(() => {
     disconnectPhone();
     setPairingMode('closed');
@@ -208,6 +215,7 @@ function Workspace() {
                 onShowQr={() => setPairingMode('manual')}
                 onUseWebcam={scanWithWebcam}
                 onCancel={goHome}
+                onNewPairing={newPairing}
               />
             ) : (
               <CameraScanner onBack={goHome} />

@@ -29,10 +29,43 @@ interface CompanionScanPanelProps {
   onUseWebcam: () => void;
   /** End the phone scan and return to the start screen. */
   onCancel: () => void;
+  /** Start a new pairing (new QR code) after the old one ended. */
+  onNewPairing: () => void;
 }
 
-export const CompanionScanPanel: React.FC<CompanionScanPanelProps> = ({ onShowQr, onUseWebcam, onCancel }) => {
-  const { mobileConnected, faceStatus, faceReasons, lastPhotos } = useCompanion();
+type Connection = 'ended' | 'reconnecting' | 'phone' | 'waiting';
+
+const CONNECTION_STYLE: Record<Connection, { pill: string; dot: string; label: string }> = {
+  ended: {
+    pill: 'bg-rose-950/50 border-rose-800/60 text-rose-300',
+    dot: 'bg-rose-400',
+    label: 'Pairing ended',
+  },
+  reconnecting: {
+    pill: 'bg-amber-950/40 border-amber-800/60 text-amber-300',
+    dot: 'bg-amber-400 animate-pulse motion-reduce:animate-none',
+    label: 'Reconnecting…',
+  },
+  phone: {
+    pill: 'bg-emerald-950/50 border-emerald-800/60 text-emerald-400',
+    dot: 'bg-emerald-400',
+    label: 'Phone connected',
+  },
+  waiting: {
+    pill: 'bg-neutral-900 border-neutral-800 text-neutral-400',
+    dot: 'bg-amber-400 animate-pulse motion-reduce:animate-none',
+    label: 'Waiting for your phone',
+  },
+};
+
+export const CompanionScanPanel: React.FC<CompanionScanPanelProps> = ({
+  onShowQr,
+  onUseWebcam,
+  onCancel,
+  onNewPairing,
+}) => {
+  const { mobileConnected, isConnected, sessionEnded, sessionId, faceStatus, faceReasons, lastPhotos } =
+    useCompanion();
   const scannedFaces = useCubyntraStore((s) => s.scannedFaces);
 
   // Older phones send colors instead of photos; count those as read too.
@@ -42,29 +75,50 @@ export const CompanionScanPanel: React.FC<CompanionScanPanelProps> = ({ onShowQr
   const doneCount = SCAN_SEQUENCE.filter((s) => statusOf(s.face) === 'accepted').length;
   const nextStep = SCAN_SEQUENCE.find((s) => statusOf(s.face) !== 'accepted');
 
+  // A stream that has not opened yet is "waiting", not "reconnecting".
+  const connection: Connection = sessionEnded
+    ? 'ended'
+    : sessionId && !isConnected && mobileConnected
+    ? 'reconnecting'
+    : mobileConnected
+    ? 'phone'
+    : 'waiting';
+  const style = CONNECTION_STYLE[connection];
+
   return (
     <div className="flex flex-col gap-5 w-full max-w-lg mx-auto lg:mx-0 bg-[#0d0f12]/95 backdrop-blur-md border border-neutral-800 p-5 rounded-2xl shadow-2xl">
       <header className="flex items-start justify-between gap-4">
         <div className="flex flex-col gap-1.5">
           <div
-            className={`inline-flex w-fit items-center gap-2 px-2.5 py-1 rounded-full border text-[11px] font-mono ${
-              mobileConnected
-                ? 'bg-emerald-950/50 border-emerald-800/60 text-emerald-400'
-                : 'bg-neutral-900 border-neutral-800 text-neutral-400'
-            }`}
+            className={`inline-flex w-fit items-center gap-2 px-2.5 py-1 rounded-full border text-[11px] font-mono ${style.pill}`}
             role="status"
           >
-            <span
-              className={`w-1.5 h-1.5 rounded-full ${
-                mobileConnected ? 'bg-emerald-400' : 'bg-amber-400 animate-pulse motion-reduce:animate-none'
-              }`}
-            />
-            {mobileConnected ? 'Phone connected' : 'Waiting for your phone'}
+            <span className={`w-1.5 h-1.5 rounded-full ${style.dot}`} />
+            {style.label}
           </div>
           <h2 className="text-xl font-bold tracking-tight text-white">Scanning with your phone</h2>
-          <p className="text-sm text-neutral-400 leading-relaxed">
-            Take each photo on your phone. It shows up here within a second and is read on this computer.
-          </p>
+          {connection === 'ended' ? (
+            <div className="flex flex-col items-start gap-3">
+              <p className="text-sm text-rose-200/90 leading-relaxed">
+                This pairing expired or the server restarted, so your phone can no longer reach this computer.
+                Make a new QR code and scan it with your phone to carry on.
+              </p>
+              <button
+                type="button"
+                onClick={onNewPairing}
+                className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg bg-white text-neutral-950 text-xs font-bold hover:bg-neutral-200 transition-colors"
+              >
+                <QrCode className="w-3.5 h-3.5" />
+                New QR code
+              </button>
+            </div>
+          ) : (
+            <p className="text-sm text-neutral-400 leading-relaxed">
+              {connection === 'reconnecting'
+                ? 'The connection dropped. Reconnecting on its own; keep your phone on this page.'
+                : 'Take each photo on your phone. It shows up here within a second and is read on this computer.'}
+            </p>
+          )}
         </div>
         <button
           type="button"

@@ -32,7 +32,10 @@ export interface CompanionSyncState {
   companionUrl: string | null;
   availableIps: string[];
   isCreating: boolean;
+  /** The event stream is open. False while it is reconnecting. */
   isConnected: boolean;
+  /** The server no longer knows this pairing (expired or deleted); a new QR code is needed. */
+  sessionEnded: boolean;
   mobileConnected: boolean;
   error: string | null;
   faceStatus: Partial<Record<Face, FaceScanStatus>>;
@@ -49,6 +52,7 @@ const INITIAL_STATE: CompanionSyncState = {
   availableIps: [],
   isCreating: false,
   isConnected: false,
+  sessionEnded: false,
   mobileConnected: false,
   error: null,
   faceStatus: {},
@@ -58,12 +62,21 @@ const INITIAL_STATE: CompanionSyncState = {
 
 const QR_OPTIONS = { width: 320, margin: 2, color: { dark: '#0f172a', light: '#ffffff' } };
 
+/** The server answered that this pairing no longer exists. */
+class SessionEndedError extends Error {
+  constructor() {
+    super('This pairing has ended');
+  }
+}
+
 async function postJson(url: string, body?: unknown): Promise<void> {
-  await fetch(url, {
+  const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
+  if (res.status === 404) throw new SessionEndedError();
+  if (!res.ok) throw new Error(`Request failed (${res.status})`);
 }
 
 export function useCompanionSync() {
@@ -95,6 +108,10 @@ export function useCompanionSync() {
       if (isStale()) return;
 
       const res = await fetch(`/api/session/${sessionId}/face?face=${face}`, { cache: 'no-store' });
+      if (res.status === 404) {
+        const body = await res.clone().json().catch(() => ({}));
+        if (typeof body.error === 'string' && body.error.includes('Session not found')) throw new SessionEndedError();
+      }
       if (!res.ok) {
         const reason = 'The photo did not reach this computer. Take it again.';
         patchFace(face, 'rejected', { reason });
@@ -136,6 +153,13 @@ export function useCompanionSync() {
     [patchFace]
   );
 
+  /** The server forgot this pairing: stop listening and let the UI offer a new QR code. */
+  const markEnded = useCallback(() => {
+    eventSourceRef.current?.close();
+    eventSourceRef.current = null;
+    setState((s) => ({ ...s, sessionEnded: true, isConnected: false, mobileConnected: false }));
+  }, []);
+
   const enqueueFace = useCallback(
     (sessionId: string, face: Face, capturedAt?: number) => {
       if (capturedAt !== undefined) latestCaptureRef.current[face] = capturedAt;
@@ -143,11 +167,15 @@ export function useCompanionSync() {
       analysisChainRef.current = analysisChainRef.current
         .then(() => analyzeFace(sessionId, face, capturedAt))
         .catch((err) => {
+          if (err instanceof SessionEndedError) {
+            markEnded();
+            return;
+          }
           console.error('[CompanionSync] Face analysis failed:', err);
           patchFace(face, 'rejected', { reason: 'Could not read that photo. Take it again.' });
         });
     },
-    [analyzeFace, patchFace]
+    [analyzeFace, markEnded, patchFace]
   );
 
   const handleEvent = useCallback(
@@ -164,7 +192,7 @@ export function useCompanionSync() {
           break;
         case 'STATE_SYNC': {
           const session = event.payload as SessionState;
-          setState((s) => ({ ...s, mobileConnected: session.mobileConnected }));
+          setState((s) => ({ ...s, mobileConnected: session.mobileConnected, isConnected: true, sessionEnded: false }));
           // After a stream reconnect, pick up any photos this page has not analyzed yet.
           const { faceSamples } = useCubyntraStore.getState();
           for (const face of session.imageFaces ?? []) {
@@ -259,8 +287,13 @@ export function useCompanionSync() {
 
       const es = new EventSource(`/api/session/${sessionId}/events?role=desktop`);
       eventSourceRef.current = es;
-      es.onopen = () => setState((s) => ({ ...s, isConnected: true }));
-      es.onerror = () => setState((s) => ({ ...s, isConnected: false }));
+      es.onopen = () => setState((s) => ({ ...s, isConnected: true, sessionEnded: false }));
+      es.onerror = () => {
+        // CONNECTING: the browser is retrying on its own (Wi-Fi blip, server restart).
+        // CLOSED: the server refused the stream, which means the pairing no longer exists.
+        if (es.readyState === EventSource.CLOSED) markEnded();
+        else setState((s) => ({ ...s, isConnected: false }));
+      };
       es.onmessage = (msg) => {
         try {
           handleEventRef.current(JSON.parse(msg.data) as SessionEvent);
@@ -275,7 +308,7 @@ export function useCompanionSync() {
         error: err instanceof Error ? err.message : 'Unknown error',
       }));
     }
-  }, []);
+  }, [markEnded]);
 
   /** Sends the phone back to a face from the review screen. */
   const requestRescan = useCallback(
@@ -288,16 +321,28 @@ export function useCompanionSync() {
         delete faceStatus[face];
         return { ...s, faceStatus };
       });
-      await postJson(`/api/session/${sessionId}/rescan`, { face });
+      try {
+        await postJson(`/api/session/${sessionId}/rescan`, { face });
+      } catch (err) {
+        if (err instanceof SessionEndedError) markEnded();
+        else console.error('[CompanionSync] Rescan request failed:', err);
+      }
     },
-    []
+    [markEnded]
   );
 
   /** Tells the phone the scan is done; the server drops every held photo. */
   const confirmScan = useCallback(async () => {
     const sessionId = sessionIdRef.current;
-    if (sessionId) await postJson(`/api/session/${sessionId}/confirm`);
-  }, []);
+    if (!sessionId) return;
+    try {
+      await postJson(`/api/session/${sessionId}/confirm`);
+    } catch (err) {
+      // The solve continues either way; an ended pairing already dropped its photos.
+      if (err instanceof SessionEndedError) markEnded();
+      else console.error('[CompanionSync] Confirm failed:', err);
+    }
+  }, [markEnded]);
 
   useEffect(() => disconnect, [disconnect]);
 
