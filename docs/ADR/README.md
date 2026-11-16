@@ -22,3 +22,4 @@ This directory contains records of key architectural and engineering decisions m
 | [ADR-009](009-mobile-companion-qr-pairing.md) | Mobile Companion Scanner with Ephemeral QR Pairing & Center-Sticker Calibration | Amended by ADR-010 | 2026-09 |
 | [ADR-010](010-desktop-side-analysis-and-global-color-resolution.md) | Desktop-Side Photo Analysis & Global 54-Sticker Color Resolution | Accepted | 2026-09 |
 | [ADR-011](011-voxel-design-system.md) | Voxel Design System: Flat Tokens, Blocks and Enforced Style Rules | Accepted | 2026-11 |
+| [ADR-014](014-claude-coach.md) | Claude Coach: Haiku 5.5 Explanations with a Move Guardrail, Templates and a Spend Cap | Accepted | 2026-11 |
