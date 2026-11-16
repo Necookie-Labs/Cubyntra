@@ -94,6 +94,15 @@ npm run test:tutor-soak
 The tutor engine tests (`tests/tutor-*.test.ts`) and their measured move counts are described in
 `docs/tutor/METHODS.md`, section 8.
 
+The checkpoint tests (`tests/vision-palette.test.ts`, `tests/vision-checkpoint-capture.test.ts`,
+`tests/tutor-checkpoint.test.ts`, `tests/tutor-diagnose.test.ts`, `tests/tutor-recovery.test.ts`
+and the end-to-end `tests/checkpoint-synthetic.test.ts`) and their measured rates are described
+in `docs/tutor/CHECKPOINTS.md`, section 7. To write the rates as JSON:
+
+```bash
+CHECKPOINT_REPORT=report.json npx vitest run tests/checkpoint-synthetic.test.ts
+```
+
 ### Current Test Execution Results:
 ```
  ✓ tests/cube.test.ts (14 tests) 18ms
