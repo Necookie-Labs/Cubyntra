@@ -100,7 +100,7 @@ own full-screen camera layout.
    Practice      │ Trainer (/trainer)*  Timer (/timer)*  Progress (/progress)│
    This device   │ Pair phone (/pair)**                 Settings (/settings) │
                  └──────────────────────────────────────────────────────────┘
-   * layout shell, "Coming soon" (Phase 9)   ** opens the existing pairing dialog (Phase 8)
+   * layout shell, "Coming soon" (Phase 9)   ** QR code and typed code (Phase 8 state-only sync)
 
    Home ──Scan my cube──► Scan ──confirm review──► Solve ──solved──► Home / Scan
      │  ──Try a demo cube──────────────────────────►  │
@@ -170,8 +170,12 @@ install button, iOS "Share → Add to Home Screen" hint, or "Installed").
 
 ### 3.6 Trainer, Timer, Progress, Pair
 Trainer, Timer and Progress have their real layout with a plain "Coming soon" chip and disabled
-controls; Progress already shows the profile's real counts. Pair lists the three pairing steps
-and opens the existing QR pairing dialog until Phase 8 rebuilds it.
+controls; Progress already shows the profile's real counts. **Pair** shows the QR code, the
+six-character typed code with its expiry, a status chip (waiting, phone connected, ended), the
+laptop address choice and Unpair. The pairing lives in the shell, so it survives navigation; once
+the phone is connected `/scan` offers "Scan with the phone" and `/solve` mirrors the step, grip
+and playback on the phone. `/companion` (the phone) is inside the shell but full screen, with no
+navigation over the viewfinder.
 
 ---
 

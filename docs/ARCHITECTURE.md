@@ -171,15 +171,20 @@ flowchart LR
   `/companion` stays outside the group. `app/manifest.ts` serves `/manifest.webmanifest`;
   `app/appMetadata.ts` holds the document metadata and viewport (theme colors, Apple web-app).
 - **Session bootstrap.** `useStudentSession` (run by the shell) fetches the app token
-  (`/api/auth/token` on the laptop, or a token stored by pairing), loads the profile from
+  (`/api/auth/token` on the laptop; on a paired phone the token from its sessionStorage pairing,
+  `cubyntra.pairing`, ADR-015), loads the profile from
   `/api/student`, starts catching the install prompt and applies the reduce-motion setting.
 - **Student profile.** `src/lib/studentProfile.ts` (schema, validation, defaults; no Node or DOM)
   and `src/lib/studentFile.ts` (server: atomic read/write of `data/student.json`).
   `useTutorStore` saves the whole profile through `PUT /api/student` after every change; without
   a token everything works for the visit and is marked unsaved.
-- **Checkpoint adapter.** `src/app-shell/checkpointAdapter.ts` calls `verifyCheckpoint` directly.
-  Until Phase 5's `src/tutor/diagnose.ts` and `src/tutor/recovery.ts` land it carries a stand-in
-  single-slip diagnosis (wrong direction, skipped or doubled move) and recovery rule with the
-  same signatures, so wiring the real modules changes that one file.
+- **Checkpoint adapter.** `src/app-shell/checkpointAdapter.ts` is the only caller of
+  `verifyCheckpoint`, `diagnoseMistake`, `decideRecovery` and `replanFromScan` (ADR-013). A
+  confident diagnosis resumes with a corrective step or a fresh plan; otherwise the student shows
+  one more face or rescans, and a mid-solve rescan re-plans with the same method and grip.
+- **Pairing.** `AppShell` holds the one `CompanionSyncProvider`, so a pairing made on `/pair`
+  survives navigation. `/companion` (the phone) sits in the shell without navigation. On
+  `/solve`, `useTutorSync` mirrors the step, grip and twin playback to the phone and applies the
+  phone's playback commands, grip and checkpoint verdicts (ADR-015: states only).
 - **Planning.** Steps are planned in the worker (`tutor.plan`); if the worker itself fails the
   store plans once on the main thread; a `TutorPlanError` becomes the "scan again" error state.

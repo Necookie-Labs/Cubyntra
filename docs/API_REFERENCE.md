@@ -270,7 +270,9 @@ deleteSyncSession(sessionId, secret): Promise<void>  // keepalive
 useCompanionSync()   // laptop: initSession (single-flight, cancelled on unmount), disconnect (DELETE),
                      // selectHost, send, subscribe, requestRescan, confirmScan, connections, code, …
 useMobileSession(creds, { onEnded? }) // phone: sendFace, rejectFace, controlPlayback, startOver, …
-usePlaybackSync(sync) // laptop: publishes the solution, two-way playback (src/sync/playbackSync.ts)
+useTutorSync(sync, twinPlayback) // device on /solve: publishes step, start cube, grip, twin playback and
+                     // checkpoint verdicts; applies the other device's playback, grip and verdicts
+                     // (src/sync/tutorSync.ts; wire index = moves applied - 1)
 ```
 
 Playback is last-writer-wins by the server's sequence number: each device applies playback messages
@@ -356,12 +358,15 @@ writeStudentProfile(profile: StudentProfile): void  // atomic; throws ProfileToo
 type SolvePhase = 'idle' | 'loading' | 'step' | 'checking' | 'celebrate' | 'mismatch' | 'solved' | 'error';
 startSolve(state, method); resumeSolve(): Promise<boolean>; loadPlan();
 beginCheckpoint(); submitObservation(observation); editTiles(face, edits); confirmByHand();
-advance(); replayStep(); continueFromDiagnosis(); abandonSolve();
+advance(); replayStep(); continueFromDiagnosis(); showNextFace(); replanFromRescan(scanned);
+setGrip(grip); applyRemoteCheckpoint({ stepIndex, result, mistakes? }); abandonSolve();
 updateSettings(patch); setName(name); savePalette(palette); loadProfile();
 
-// src/app-shell/checkpointAdapter.ts
+// src/app-shell/checkpointAdapter.ts (wires src/tutor/checkpoint, diagnose and recovery)
 checkCheckpoint(plan, observations): { result: CheckpointResult; diagnosis: Diagnosis | null; recovery: Recovery | null }
+  // mismatch -> diagnoseMistake(plan, observations), decideRecovery(plan, diagnosis)
 confirmCheckpointByHand(plan); checkWithEdits(plan, observations, face, edits); toCoachDiagnosis(diagnosis)
-type Recovery = { kind: 'continue'; state; grip; description } | { kind: 'show-face'; face } | { kind: 'rescan' }
+replanAfterRescan(scanned, method, grip, stepIndex): ScanReplan   // replanFromScan
+faceToShowNext(outcome): Face | null   // needsRescan with showNext
 ```
 
