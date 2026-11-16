@@ -6,11 +6,11 @@
 import React from 'react';
 import type { StepPlan } from '@/tutor/types';
 import { ProgressBlocks } from '@/components/ui';
-import { METHOD_INFO } from '@/app-shell/methodInfo';
+import { METHOD_INFO, methodStages } from '@/app-shell/methodInfo';
 
 export function StageHeader({ plan }: { plan: StepPlan }) {
   const info = METHOD_INFO[plan.method];
-  const total = info.stages.length;
+  const total = methodStages(plan.method, plan.options?.lastLayer).length;
   return (
     <header className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-bold text-muted">
