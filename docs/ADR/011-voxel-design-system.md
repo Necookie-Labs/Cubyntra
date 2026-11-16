@@ -33,7 +33,7 @@ writes `data-theme` before first paint and the header toggle cycles Light, Dark 
 | `--vx-well` | `#DCEBCF` | `#111A0B` | sunken wells, tracks |
 | `--vx-ink` | `#2E4A22` moss | `#E4EFD8` | text |
 | `--vx-muted` | `#4D6841` | `#A7BF98` | secondary text |
-| `--vx-line` / `--vx-line-soft` | `#2E4A22` / `#B9CFA8` | `#0B1306` / `#33472A` | outlines / dividers |
+| `--vx-line` / `--vx-line-soft` | `#2E4A22` / `#B9CFA8` | `#6E8C5C` / `#33472A` | outlines / dividers |
 | `--vx-shadow` | `#B5CCA2` | `#0B1306` | hard offset shadow |
 | `--vx-lip` | white at 35% | white at 12% | light top lip of a block |
 | `--vx-leaf` / `-edge` / `-soft` | `#5FA83A` / `#3F7A24` / `#CFE6BD` | same / same / `#2B4420` | primary |
@@ -103,10 +103,15 @@ Body text pairs, computed from the token values (AA needs 4.5:1):
 | on-leaf on warn | 7.77 | 7.77 |
 | on-danger on danger | 5.42 | 5.42 |
 | focus ring on ground (non-text, needs 3:1) | 5.48 | 9.10 |
+| outline (line) on ground / panel / well (non-text, needs 3:1) | 8.75 / 8.91 / 7.94 | 4.42 / 3.85 / 4.73 |
 
 White text on leaf would be 2.94:1, which is why primary buttons use dark `--vx-on-leaf` text.
 In light mode the leaf fill alone is 2.59:1 against the ground, so every leaf control also carries
 the 2px ink outline (8.75:1).
+The dark theme's outline was near-black (`#0B1306`, 1.1:1 on the dark surfaces), which left
+inputs, switches and radio cards without a visible edge; it is a sage `#6E8C5C` since Phase 10.
+The hard shadow keeps the near-black. `tests/a11y-contrast.test.ts` computes every pair here from
+`globals.css` and fails below the AA thresholds.
 
 ## Consequences
 

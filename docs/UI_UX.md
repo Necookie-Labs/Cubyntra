@@ -41,7 +41,7 @@ All colors are CSS variables in one block of `src/app/globals.css` (`/* tokens:s
 | Sunken well | `bg-well` | `#DCEBCF` | `#111A0B` |
 | Text | `text-ink` | moss `#2E4A22` | `#E4EFD8` |
 | Secondary text | `text-muted` | `#4D6841` | `#A7BF98` |
-| Outline / divider | `border-line` / `border-line-soft` | `#2E4A22` / `#B9CFA8` | `#0B1306` / `#33472A` |
+| Outline / divider | `border-line` / `border-line-soft` | `#2E4A22` / `#B9CFA8` | `#6E8C5C` / `#33472A` |
 | Primary | `bg-leaf`, `bg-leaf-edge`, `bg-leaf-soft`, `text-on-leaf` | `#5FA83A`, `#3F7A24`, `#CFE6BD`, `#1B2E13` | soft `#2B4420` |
 | Warning | `bg-warn`, `bg-warn-soft` | `#E8B730`, `#F6E7B8` | soft `#3D3210` |
 | Error | `bg-danger`, `bg-danger-soft`, `text-on-danger` | `#B83A26`, `#F5D6CC`, `#FFF8EC` | soft `#43190F` |
