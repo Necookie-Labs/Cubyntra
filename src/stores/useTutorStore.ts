@@ -20,8 +20,11 @@ import { gripOf, viewInGrip, type Grip } from '@/cube/grip';
 import type { AttemptRecord } from '@/coach/types';
 import { planStepInWorker } from '@/solver/client';
 import { applyTileEdits, type TileEdit } from '@/tutor/checkpoint';
-import type { FaceObservation, MethodId, StepPlan } from '@/tutor/types';
+import type { FaceObservation, MethodId, MethodOptions, StepPlan } from '@/tutor/types';
 import type { StudentPalette } from '@/vision/palette';
+import { answerDrill } from '@/learn/leitner';
+import { addActiveDay, completedStage, localDay, recordStage, stageKey } from '@/learn/mastery';
+import { MAX_TIMER_HISTORY, type HintUse, type Penalty, type TimerSolve, type TrainerSetId } from '@/learn/types';
 import {
   MAX_SAVED_ATTEMPTS,
   defaultStudentProfile,
@@ -59,6 +62,8 @@ export interface TutorStore {
   observations: FaceObservation[];
   checkpoint: CheckpointOutcome | null;
   errorMessage: string | null;
+  /** The highest coach hint asked for on the stage in progress (recorded for mastery). */
+  stageHint: HintUse;
 
   setToken: (token: string | null) => void;
   loadProfile: () => Promise<void>;
@@ -87,7 +92,30 @@ export interface TutorStore {
   setGrip: (grip: Grip) => Promise<void>;
   /** A checkpoint verdict reached on the paired device for the current step. */
   applyRemoteCheckpoint: (remote: RemoteCheckpoint) => void;
+  /**
+   * Joins the step the paired device is showing, when no solve is open here: the same cube,
+   * grip and step number plan the very same step (the tutor is deterministic).
+   */
+  followRemoteStep: (remote: RemoteStep) => Promise<void>;
   abandonSolve: () => void;
+  /** The coach was asked for a hint at `level` on the current step. */
+  noteHint: (level: HintUse) => void;
+
+  /** Trainer: a case was answered (got it or missed it). */
+  answerTrainerCase: (caseId: string, correct: boolean) => void;
+  setTrainerSet: (set: TrainerSetId) => void;
+
+  /** Timer: a finished solve, the penalty of the newest solve, or dropping it. */
+  addTimerSolve: (solve: TimerSolve) => void;
+  setLastTimerPenalty: (penalty: Penalty) => void;
+  deleteLastTimerSolve: () => void;
+}
+
+export interface RemoteStep {
+  /** The cube at the start of the step, as held (its centers give the grip). */
+  state: CubeState;
+  method: MethodId;
+  stepIndex: number;
 }
 
 export interface RemoteCheckpoint {
@@ -109,18 +137,34 @@ const SESSION_RESET = {
   observations: [],
   checkpoint: null,
   errorMessage: null,
+  stageHint: 0 as HintUse,
 };
 
+/** The learner settings that pick a method's variant (only CFOP's last layer so far). */
+export function methodOptionsFor(method: MethodId, settings: Pick<StudentSettings, 'lastLayer'>): MethodOptions | undefined {
+  return method === 'cfop' && settings.lastLayer === 'full' ? { lastLayer: 'full' } : undefined;
+}
+
 /** Plans off the main thread; if the worker itself fails, plans once on the main thread. */
-async function planStep(state: CubeState, method: MethodId, grip: Grip, stepIndex: number): Promise<StepPlan | null> {
+async function planStep(
+  state: CubeState,
+  method: MethodId,
+  grip: Grip,
+  stepIndex: number,
+  options?: MethodOptions
+): Promise<StepPlan | null> {
   try {
-    return await planStepInWorker(state, method, grip, stepIndex);
+    return options
+      ? await planStepInWorker(state, method, grip, stepIndex, options)
+      : await planStepInWorker(state, method, grip, stepIndex);
   } catch (error) {
     if (error instanceof Error && error.name === 'TutorPlanError') throw error;
     const { planNextStep } = await import('@/tutor');
-    return planNextStep(state, method, grip, stepIndex);
+    return planNextStep(state, method, grip, stepIndex, options);
   }
 }
+
+const today = () => localDay(new Date());
 
 // Saves are chained so they reach the server in order.
 let saveChain: Promise<unknown> = Promise.resolve();
@@ -147,7 +191,7 @@ export const useTutorStore = create<TutorStore>((set, get) => {
 
   /** Writes the session's solve into the profile. */
   const persistSolve = () => {
-    const { profile, method, cube, grip, stepIndex, attempts } = get();
+    const { profile, method, cube, grip, stepIndex, attempts, stageHint } = get();
     if (!method || !cube || !grip) return;
     const startedAt = profile.currentSolve?.startedAt ?? now();
     persist({
@@ -158,6 +202,7 @@ export const useTutorStore = create<TutorStore>((set, get) => {
         grip,
         stepIndex,
         attempts: attempts.slice(-MAX_SAVED_ATTEMPTS),
+        ...(stageHint > 0 ? { stageHint } : {}),
         startedAt,
         updatedAt: now(),
       },
@@ -238,6 +283,7 @@ export const useTutorStore = create<TutorStore>((set, get) => {
         grip: saved.grip,
         stepIndex: saved.stepIndex,
         attempts: saved.attempts,
+        stageHint: saved.stageHint ?? 0,
         phase: 'loading',
       });
       await get().loadPlan();
@@ -245,11 +291,11 @@ export const useTutorStore = create<TutorStore>((set, get) => {
     },
 
     loadPlan: async () => {
-      const { cube, method, grip, stepIndex } = get();
+      const { cube, method, grip, stepIndex, profile: before } = get();
       if (!cube || !method || !grip) return;
       set({ phase: 'loading', plan: null, checkpoint: null, observations: [], errorMessage: null });
       try {
-        const plan = await planStep(cube, method, grip, stepIndex);
+        const plan = await planStep(cube, method, grip, stepIndex, methodOptionsFor(method, before.settings));
         // A newer solve may have started while this one planned.
         if (get().cube !== cube) return;
         if (!plan) {
@@ -257,7 +303,12 @@ export const useTutorStore = create<TutorStore>((set, get) => {
           persist({
             ...profile,
             currentSolve: null,
-            stats: { ...profile.stats, solvesCompleted: profile.stats.solvesCompleted + 1, lastSolveAt: now() },
+            stats: {
+              ...profile.stats,
+              solvesCompleted: profile.stats.solvesCompleted + 1,
+              lastSolveAt: now(),
+              activeDays: addActiveDay(profile.stats.activeDays, today()),
+            },
           });
           set({ phase: 'solved' });
           return;
@@ -306,19 +357,25 @@ export const useTutorStore = create<TutorStore>((set, get) => {
     },
 
     advance: async () => {
-      const { plan, profile, stepIndex } = get();
+      const { plan, profile, stepIndex, stageHint } = get();
       if (!plan) return;
+      // A step that finished its stage records the stage with the highest hint it needed.
+      const finished = completedStage(plan);
       set({
         cube: plan.expectedState,
         grip: plan.gripAfter,
         stepIndex: stepIndex + 1,
         attempts: [],
+        stageHint: finished ? 0 : stageHint,
         profile: {
           ...profile,
           stats: {
             ...profile.stats,
             stepsCompleted: profile.stats.stepsCompleted + 1,
             checkpointsPassed: profile.stats.checkpointsPassed + 1,
+            stages: finished
+              ? recordStage(profile.stats.stages, stageKey(plan.method, finished), stageHint)
+              : profile.stats.stages,
           },
         },
       });
@@ -355,9 +412,15 @@ export const useTutorStore = create<TutorStore>((set, get) => {
     },
 
     replanFromRescan: (scanned) => {
-      const { method, plan, grip, stepIndex } = get();
+      const { method, plan, grip, stepIndex, profile } = get();
       if (!method) return;
-      const replan = replanAfterRescan(scanned, method, plan?.gripAfter ?? grip ?? undefined, stepIndex);
+      const replan = replanAfterRescan(
+        scanned,
+        method,
+        plan?.gripAfter ?? grip ?? undefined,
+        stepIndex,
+        methodOptionsFor(method, profile.settings)
+      );
       if (!replan.ok) {
         set({ cube: scanned, plan: null, phase: 'error', errorMessage: replan.reason });
         return;
@@ -409,9 +472,56 @@ export const useTutorStore = create<TutorStore>((set, get) => {
       }
     },
 
+    followRemoteStep: async ({ state, method, stepIndex }) => {
+      const { phase } = get();
+      if (phase !== 'idle' && phase !== 'solved') return;
+      set({ ...SESSION_RESET, method, cube: state, grip: gripOf(state), stepIndex, phase: 'loading' });
+      persistSolve();
+      await get().loadPlan();
+    },
+
     abandonSolve: () => {
       set({ ...SESSION_RESET });
       persist({ ...get().profile, currentSolve: null });
+    },
+
+    noteHint: (level) => {
+      if (level <= get().stageHint) return;
+      set({ stageHint: level });
+      persistSolve();
+    },
+
+    answerTrainerCase: (caseId, correct) => {
+      const { profile } = get();
+      persist({
+        ...profile,
+        trainer: answerDrill(profile.trainer, caseId, correct),
+        stats: { ...profile.stats, activeDays: addActiveDay(profile.stats.activeDays, today()) },
+      });
+    },
+
+    setTrainerSet: (trainerSet) => {
+      const { profile } = get();
+      if (profile.trainer.set === trainerSet) return;
+      persist({ ...profile, trainer: { ...profile.trainer, set: trainerSet } });
+    },
+
+    addTimerSolve: (solve) => {
+      const { profile } = get();
+      persist({ ...profile, timer: { history: [...profile.timer.history, solve].slice(-MAX_TIMER_HISTORY) } });
+    },
+
+    setLastTimerPenalty: (penalty) => {
+      const { profile } = get();
+      const history = profile.timer.history;
+      if (!history.length) return;
+      persist({ ...profile, timer: { history: [...history.slice(0, -1), { ...history[history.length - 1], penalty }] } });
+    },
+
+    deleteLastTimerSolve: () => {
+      const { profile } = get();
+      if (!profile.timer.history.length) return;
+      persist({ ...profile, timer: { history: profile.timer.history.slice(0, -1) } });
     },
   };
 });

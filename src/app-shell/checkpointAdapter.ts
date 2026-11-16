@@ -17,7 +17,7 @@ import type { Grip } from '@/cube/grip';
 import { applyTileEdits, confirmManually, verifyCheckpoint, type TileEdit } from '@/tutor/checkpoint';
 import { diagnoseMistake } from '@/tutor/diagnose';
 import { decideRecovery, replanFromScan, type Recovery, type ScanReplan } from '@/tutor/recovery';
-import type { CheckpointResult, Diagnosis, FaceObservation, MethodId, StepPlan } from '@/tutor/types';
+import type { CheckpointResult, Diagnosis, FaceObservation, MethodId, MethodOptions, StepPlan } from '@/tutor/types';
 
 export type { Recovery, ResumePlan, ScanReplan } from '@/tutor/recovery';
 
@@ -52,14 +52,15 @@ export function checkWithEdits(
   return checkCheckpoint(plan, edited);
 }
 
-/** Plans from a full rescan taken in the middle of a solve, held as the student last was. */
+/** Plans from a full rescan taken in the middle of a solve, held as the student last was, on the same variant. */
 export function replanAfterRescan(
   scanned: CubeState,
   method: MethodId,
   grip: Grip | undefined,
-  stepIndex: number
+  stepIndex: number,
+  options: MethodOptions = {}
 ): ScanReplan {
-  return replanFromScan(scanned, method, grip, stepIndex);
+  return replanFromScan(scanned, method, grip, stepIndex, options);
 }
 
 /** The diagnosis to hand the coach (useCoach projects it), or undefined when there is none. */
