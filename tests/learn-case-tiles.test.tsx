@@ -8,6 +8,7 @@ import React from 'react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import { CaseLegend, CaseTiles } from '@/components/learn/CaseTiles';
+import type { TrainerCard } from '@/learn/types';
 
 afterEach(cleanup);
 
@@ -17,7 +18,7 @@ const cases = [
   { id: 'c', name: 'Case C' },
   { id: 'd', name: 'Case D' },
 ];
-const cards = {
+const cards: Record<string, TrainerCard> = {
   b: { box: 1, due: 0, seen: 1, missed: 1 },
   c: { box: 3, due: 0, seen: 3, missed: 0 },
   d: { box: 5, due: 0, seen: 6, missed: 0 },
