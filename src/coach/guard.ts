@@ -21,6 +21,14 @@
  * a bare letter used as a shape name ("L shape", "U perm", "an L"). The step's own case and
  * stage names ("Headlights (U)") are blanked out before the scan, and a repeat count after a
  * bracket, like "(R U R' U') x2", is not the rotation `x2`.
+ *
+ * Condensed notation. A word made only of move units, glued together or joined by hyphens, is
+ * read unit by unit: "RUR'U'", "R-U-R'-U'", "R2U". It counts as moves when it has a prime, a
+ * count or a hyphen and at least one capital; a plain capital word ("URL", "FUR", "BUD") counts
+ * only next to other moves ("Do RU R' U'"). A count other than 2 is a number of quarter turns
+ * ("R3" is `R'`); a count that comes to no turn at all ("R4") cannot be checked and so is
+ * rejected. "F2L", "3x3" and possessives ("R's") stay words; `x` with a count other than 2 is a
+ * repeat count ("x3").
  */
 
 import { parseMove } from '../cube/transforms';
@@ -112,6 +120,106 @@ interface Candidate extends MoveToken {
   explicit: boolean;
   /** Upper-case or suffixed: anchors a run of bare letters. */
   anchor: boolean;
+  /** Units of one condensed word share a word id; a run needs two words to be move-like. */
+  word: number;
+}
+
+// One unit of a condensed word: a letter, an optional `w`, then an optional count and prime.
+const UNIT = /([URFDLBMESurfdlbxyz])(w?)(\d+'?|'\d*)?/y;
+// A maximal word for the condensed scan: letters, digits, primes and hyphens.
+const CONDENSED_WORD = /[A-Za-z0-9'-]+/g;
+// Cube words that look like notation.
+const NOT_NOTATION = /^(?:F2L|[23]x[23])$/i;
+
+/** Canonical move for a count of quarter turns (`R3` is `R'`), or null for no turn at all. */
+function canonicalOfCount(letter: string, wide: string, suffix: string): string | null {
+  const digits = suffix.replace("'", '');
+  if (!digits) return canonicalOf(letter, wide, suffix);
+  let turns = Number(digits) % 4;
+  if (suffix.includes("'")) turns = (4 - turns) % 4;
+  if (turns === 0) return null;
+  return canonicalOf(letter, wide, turns === 1 ? '' : turns === 2 ? '2' : "'");
+}
+
+interface CondensedUnit {
+  raw: string;
+  letter: string;
+  wide: string;
+  suffix: string;
+  index: number;
+  end: number;
+}
+
+/** The units of a condensed word, or null if the word is not made only of move units. */
+function splitCondensed(word: string, offset: number): { units: CondensedUnit[]; hyphen: boolean } | null {
+  const units: CondensedUnit[] = [];
+  let hyphen = false;
+  let i = 0;
+  while (i < word.length) {
+    if (units.length && word[i] === '-') {
+      hyphen = true;
+      i++;
+    }
+    UNIT.lastIndex = i;
+    const m = UNIT.exec(word);
+    if (!m) return null;
+    const [raw, letter, wide] = m;
+    if (wide && !UPPER.test(letter)) return null;
+    units.push({ raw, letter, wide, suffix: m[3] ?? '', index: offset + i, end: offset + i + raw.length });
+    i += raw.length;
+  }
+  return units.length ? { units, hyphen } : null;
+}
+
+/**
+ * Move units inside condensed or hyphenated words ("RUR'U'", "R-U-R'-U'") and counted turns
+ * ("R3"), which the letter-by-letter scan skips because the letters touch.
+ */
+function condensedCandidates(text: string, nextWord: () => number): Candidate[] {
+  const out: Candidate[] = [];
+  for (const m of text.matchAll(CONDENSED_WORD)) {
+    let word = m[0];
+    let offset = m.index ?? 0;
+    // An opening quote is not part of the word; a closing one is tried both ways below.
+    while (word.startsWith("'")) {
+      word = word.slice(1);
+      offset++;
+    }
+    if (!word || NOT_NOTATION.test(word)) continue;
+    let split = splitCondensed(word, offset);
+    if (!split && word.endsWith("'")) split = splitCondensed(word.slice(0, -1), offset);
+    if (!split) continue;
+    const { units, hyphen } = split;
+    // "R's", "U'r": an apostrophe before a lower-case letter makes a possessive or contraction.
+    if (/'[a-z]/.test(word)) continue;
+    const suffixed = units.some((u) => u.suffix || u.wide);
+    if (units.length === 1) {
+      // A single unit is the letter scan's job, except a count it does not read ("R3", "U0").
+      const [u] = units;
+      const digits = u.suffix.replace("'", '');
+      if (!digits || digits === '2') continue;
+      // "x3": a repeat count, not a rotation.
+      if (u.letter === 'x') continue;
+      out.push({ raw: u.raw, canonical: canonicalOfCount(u.letter, u.wide, u.suffix), index: u.index, end: u.end, explicit: true, anchor: true, word: nextWord() });
+      continue;
+    }
+    const capital = units.some((u) => UPPER.test(u.letter));
+    if (!capital) continue;
+    const explicit = suffixed || hyphen;
+    const word_ = nextWord();
+    for (const u of units) {
+      out.push({
+        raw: u.raw,
+        canonical: canonicalOfCount(u.letter, u.wide, u.suffix),
+        index: u.index,
+        end: u.end,
+        explicit,
+        anchor: true,
+        word: word_,
+      });
+    }
+  }
+  return out;
 }
 
 /** Every move-notation token in `text`, in order. */
@@ -119,6 +227,8 @@ export function extractMoveTokens(input: string): MoveToken[] {
   const { text: unquoted, spans } = codeSpans(input);
   const text = unquoted.replace(PRIMES, "'");
   const inCode = (i: number) => spans.some(([a, b]) => i >= a && i < b);
+  let words = 0;
+  const nextWord = () => words++;
   const found: Candidate[] = [];
   for (const m of text.matchAll(CANDIDATE)) {
     const index = m.index ?? 0;
@@ -145,8 +255,12 @@ export function extractMoveTokens(input: string): MoveToken[] {
       end,
       explicit: suffixed || code || verb || bracketed,
       anchor: upper || suffixed,
+      word: nextWord(),
     });
   }
+  const seen = new Set(found.map((t) => t.index));
+  for (const t of condensedCandidates(text, nextWord)) if (!seen.has(t.index)) found.push(t);
+  found.sort((a, b) => a.index - b.index);
 
   // Group candidates into runs that touch (only spaces, commas or brackets between them).
   const runs: Candidate[][] = [];
@@ -158,7 +272,8 @@ export function extractMoveTokens(input: string): MoveToken[] {
   }
   return runs
     .flatMap((run) => {
-      const moveLike = run.length >= 2 && run.some((t) => t.anchor);
+      // A plain capital word ("URL") on its own is not a run: it needs a neighbour.
+      const moveLike = run.length >= 2 && run.some((t) => t.anchor) && new Set(run.map((t) => t.word)).size >= 2;
       return run.filter((t) => t.explicit || moveLike);
     })
     .map(({ raw, canonical, index }) => ({ raw, canonical, index }));

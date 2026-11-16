@@ -181,3 +181,65 @@ describe('relayableLength', () => {
     expect(text.slice(0, relayableLength(text))).toBe(shownPart);
   });
 });
+
+describe('condensed and hyphenated notation', () => {
+  const SEXY = allowedMoves({ setupMoves: '', algorithm: "R U R' U'" });
+
+  it.each<[string, (string | null)[]]>([
+    ["RUR'U'", ['R', 'U', "R'", "U'"]],
+    ["Do RUR'U' now.", ['R', 'U', "R'", "U'"]],
+    ["R-U-R'-U'", ['R', 'U', "R'", "U'"]],
+    ["Then R-U-R'-U'-F.", ['R', 'U', "R'", "U'", 'F']],
+    ['R2U', ['R2', 'U']],
+    ["R'2U", ['R2', 'U']],
+    ["RwUr'", ['r', 'U', "r'"]],
+    ['R3', ["R'"]],
+    ["Do U3' first.", ['U']],
+    ['Try R5.', ['R']],
+    ['R4', [null]],
+    ["(RUR'U')", ['R', 'U', "R'", "U'"]],
+    ["[RUR'U']", ['R', 'U', "R'", "U'"]],
+    ["Press `RUR'U'` twice.", ['R', 'U', "R'", "U'"]],
+    ["- RUR'U'", ['R', 'U', "R'", "U'"]],
+    ["1. R-U-R'-U'", ['R', 'U', "R'", "U'"]],
+    ["* RUR'U', then F.", ['R', 'U', "R'", "U'", 'F']],
+    ["Try 'RUR'U'' next.", ['R', 'U', "R'", "U'"]],
+    ["Do RU R' U'.", ['R', 'U', "R'", "U'"]],
+    ["(RUR'U') x2", ['R', 'U', "R'", "U'"]],
+    ["R U R'U'", ['R', 'U', "R'", "U'"]],
+  ])('reads the moves in "%s"', (text, expected) => {
+    expect(tokens(text)).toEqual(expected);
+  });
+
+  it.each([
+    'RUN to the shop.',
+    'Open the URL in a browser.',
+    'Ready? Go!',
+    'The FUR coat is warm.',
+    'A BUD and a LED.',
+    'This is the F2L stage on a 3x3.',
+    "I think R's turn is next.",
+    'Repeat it x3.',
+    'Make a U-turn with the top.',
+    'The F face, the R side and plan B.',
+    'Born in the U.S.A.',
+    "Don't stop, you're doing well.",
+    'Rb perm and Ua perm.',
+    'The x-axis and the y-axis.',
+  ])('leaves ordinary words alone in "%s"', (text) => {
+    expect(tokens(text)).toEqual([]);
+  });
+
+  it.each([
+    ["Do RUR'U' twice.", true],
+    ["Do RUR'F' twice.", false],
+    ["R-U-R'-F", false],
+    ['Use R3 here.', true],
+    ['Use F3 here.', false],
+    ['Use R4 here.', false],
+    ["Do RUF R' U'.", false],
+    ['Open the URL.', true],
+  ] as const)('guards "%s" (ok: %s)', (text, ok) => {
+    expect(checkReplyMoves(text, SEXY).ok).toBe(ok);
+  });
+});
