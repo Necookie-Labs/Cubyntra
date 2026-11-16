@@ -161,7 +161,7 @@ cube to hand, use **Try a demo cube** on the home screen or the scanner's demo b
 ### 6.2 The student profile
 The profile lives in `data/student.json` (git-ignored) and is read and written through
 `GET`/`PUT /api/student` with the `x-cubyntra-token` header (§5.3). Writes are atomic and capped at
-32 KB; a file that fails validation is moved to `data/student.json.bad` and a fresh profile is
+128 KB (profile version 2; a version 1 file is migrated when read); a file that fails validation is moved to `data/student.json.bad` and a fresh profile is
 used. Delete `data/student.json` to start over as a new student.
 
 **Where each device gets the token** (`src/app-shell/appToken.ts`): the laptop's browser from

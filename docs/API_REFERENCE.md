@@ -388,21 +388,33 @@ guidedSolveInWorker(state, method, grip?, options?): Promise<GuidedSolve>
 | Route | Auth | Body | Response |
 |---|---|---|---|
 | `GET /api/student` | token | – | `StudentProfile` (the default one before anything is saved) |
-| `PUT /api/student` | token | whole `StudentProfile` (≤ 32 KB) | the saved profile; `400` invalid, `401` no token, `413` too large |
+| `PUT /api/student` | token | whole `StudentProfile` (≤ 128 KB) | the saved profile; `400` invalid, `401` no token, `413` too large |
 
 ```typescript
 // src/lib/studentProfile.ts (shared; no Node or DOM)
+type HintUse = 0 | 1 | 2 | 3;                     // highest coach hint asked for (src/learn/types.ts)
 interface StudentProfile {
-  version: 1;
+  version: 2;
   name: string;                                   // ≤ 40 characters
   settings: { methodDefault: MethodId; plainLanguage: boolean; stickerLetters: boolean;
-              reducedMotion: boolean; theme: 'light' | 'dark' | 'system' };
+              reducedMotion: boolean; theme: 'light' | 'dark' | 'system';
+              lastLayer: '2-look' | 'full' };     // CFOP only; v2
   palette: StudentPalette | null;                 // src/vision/palette.ts
   currentSolve: { method: MethodId; state: CubeState; grip: Grip; stepIndex: number;
-                  attempts: AttemptRecord[]; startedAt: string; updatedAt: string } | null;
-  stats: { solvesCompleted: number; stepsCompleted: number; checkpointsPassed: number; lastSolveAt: string | null };
+                  attempts: AttemptRecord[];      // ≤ 20
+                  stageHint?: HintUse;            // v2: highest hint so far on the stage in progress
+                  startedAt: string; updatedAt: string } | null;
+  stats: { solvesCompleted: number; stepsCompleted: number; checkpointsPassed: number; lastSolveAt: string | null;
+           stages: Record<`${MethodId}/${string}`, HintUse[]>;  // v2: per stage completion, ≤ 10 kept
+           activeDays: string[] };                // v2: local YYYY-MM-DD, sorted, unique, ≤ 400
+  trainer: { turn: number;                        // v2: drills answered so far
+             cards: Record<caseId, { box: 1 | 2 | 3 | 4 | 5; due: number; seen: number; missed: number }>; // ≤ 300
+             set: 'beginner' | 'f2l' | 'last-layer-2look' | 'oll' | 'pll' | null };
+  timer: { history: { ms: number; penalty: 'none' | '+2' | 'DNF'; at: string; scramble: string }[] }; // v2: ≤ 100, oldest first
 }
 parseStudentProfile(input: unknown): { ok: true; profile: StudentProfile } | { ok: false; error: string }
+  // a version 1 profile is migrated first (migrateProfileV1); version 3+ is rejected
+migrateProfileV1(input: unknown): unknown       // v1 -> v2: lastLayer '2-look', no stage records or days, empty trainer and timer
 defaultStudentProfile(): StudentProfile
 
 // src/lib/studentFile.ts (server only)
@@ -415,13 +427,50 @@ startSolve(state, method); resumeSolve(): Promise<boolean>; loadPlan();
 beginCheckpoint(); submitObservation(observation); editTiles(face, edits); confirmByHand();
 advance(); replayStep(); continueFromDiagnosis(); showNextFace(); replanFromRescan(scanned);
 setGrip(grip); applyRemoteCheckpoint({ stepIndex, result, mistakes? }); abandonSolve();
+followRemoteStep({ state, method, stepIndex })   // join the paired device's step when no solve is open here
 updateSettings(patch); setName(name); savePalette(palette); loadProfile();
+noteHint(level)                                  // stageHint = max(stageHint, level); saved with the solve
+// advance(): when the step finished its stage (progressAfter's thousands > stageIndex), records
+//   stats.stages['<method>/<stage>'] with stageHint and resets it; a finished solve adds today to activeDays
+answerTrainerCase(caseId, correct); setTrainerSet(set)         // Leitner update + today in activeDays
+addTimerSolve(solve); setLastTimerPenalty(penalty); deleteLastTimerSolve()
+methodOptionsFor(method, settings): MethodOptions | undefined  // { lastLayer: 'full' } for CFOP only;
+//   passed to planStepInWorker and replanAfterRescan, so worker jobs carry it as `options`
 
 // src/app-shell/checkpointAdapter.ts (wires src/tutor/checkpoint, diagnose and recovery)
 checkCheckpoint(plan, observations): { result: CheckpointResult; diagnosis: Diagnosis | null; recovery: Recovery | null }
   // mismatch -> diagnoseMistake(plan, observations), decideRecovery(plan, diagnosis)
 confirmCheckpointByHand(plan); checkWithEdits(plan, observations, face, edits); toCoachDiagnosis(diagnosis)
-replanAfterRescan(scanned, method, grip, stepIndex): ScanReplan   // replanFromScan
+replanAfterRescan(scanned, method, grip, stepIndex, options?): ScanReplan   // replanFromScan
 faceToShowNext(outcome): Face | null   // needsRescan with showNext
 ```
 
+
+## 10. Learning Features (`src/learn/`, pure; no DOM or React)
+
+```typescript
+// trainerSets.ts: TRAINER_SETS (beginner 7, f2l 41, last-layer-2look 16, oll 57, pll 21)
+trainerSet(id); trainerCaseIds(id, group?); trainerCase(id, caseId)
+// drill.ts: a case as a StepPlan (set up from solved by the inverse algorithm + a random top turn)
+buildDrill(case, auf = 0): { case; auf; plan: StepPlan }; randomAuf(case, random?); drillGrip(case)
+// leitner.ts: boxes 1-5 counted in drills; BOX_GAP = [0, 2, 4, 8, 16, 32]; learned from box 3
+reviewCard(card, correct, turn); answerDrill(state, caseId, correct); nextCase(state, caseIds, lastCaseId?)
+isLearned(card); setProgress(state, caseIds): { learned; seen; total }
+// timer.ts: WCA inspection and averages
+inspectionPenalty(elapsedMs): 'none' | '+2' | 'DNF'      // +2 from 15 s, DNF from 17 s
+inspectionCue(elapsedMs); trimmedAverage(solves); currentAverage(history, n); bestAverage(history, n)
+bestSingle(history); formatTime(ms); formatSolve(solve); timerReducer(machine, event)  // press / release / tick / cancel
+// scramble.ts
+generateScramble(random?, length = 20): Move[]; scrambledState(moves)
+// mastery.ts: 3 of the newest 5 completions without a level-3 hint = mastered
+isStageMastered(records); stageStatus(records); recordStage(stages, key, hint); completedStage(plan)
+isBeginnerMastered(stages); isTwoLookMastered(stages); graduationSuggestion({ stages, methodDefault, lastLayer })
+localDay(date); addActiveDay(days, day); currentStreak(days, today); longestStreak(days); recentDays(today, n)
+```
+
+`src/app-shell/progressSummary.ts`: `summarizeProgress(profile, today)` (blocks placed, streak, cases
+learned) and `cfopWorldStages(profile)`, shared by Home and Progress.
+
+Sync on the phone (`src/sync/`): `useMobileTutorTarget(creds)` is a `TutorSyncTarget` that posts as
+`mobile` and replays the snapshot's step (`snapshotStepEvents`); `useSolveSyncTarget()` picks the
+laptop's pairing or the phone's; `remoteStepFor(event, ownClientId, lastCube)` is the step to join.

@@ -162,9 +162,11 @@ flowchart TD
     RESUME --> PLAN
 ```
 
-- **What is stored.** `data/student.json` (version 1, at most 32 KB, written atomically): name,
+- **What is stored.** `data/student.json` (version 2, at most 128 KB, written atomically; a version 1 file is migrated on read): name,
   settings, the palette (mean and spread per color, no images), the solve in progress (method,
-  cube state as held, grip, step index, attempts at the current step) and stats counters.
+  cube state as held, grip, step index, attempts at the current step, the highest hint on the stage), stats
+  counters, the highest hint used each time a stage was completed, the days practised, the trainer's
+  Leitner boxes per case and the timer history (times, penalties and scrambles; no images).
 - **What leaves the tab.** Checkpoint photos never leave the device that took them: frames are
   drawn into a canvas, sampled to 9 RGB values and classified in the tab. Only the profile JSON
   goes to `/api/student` and only the compact facts JSON (no images, no cube state) goes to
