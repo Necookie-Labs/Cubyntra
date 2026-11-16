@@ -41,7 +41,8 @@ fixed templates. The solve never depends on the model.
 A method is an ordered list of stages. A stage has a detector (`isComplete`), a planner (`plan`),
 a monotone progress measure and a check spec. Algorithms live in case tables
 (`src/tutor/cases/`): 41 F2L cases, 2-look OLL (3 + 7) and 2-look PLL (2 + 4), each with an id, a
-name, recognition text and notation. Full OLL/PLL (Phase 9) only adds rows.
+name, recognition text and notation. Full OLL/PLL (Phase 9) adds rows and a variant of the
+CFOP method that uses them (see the addendum).
 
 ### 4. Every plan is replayed before it is returned
 The engine applies `setupMoves` then `algorithm` to the logical cube and requires the result to
@@ -91,3 +92,52 @@ steps of their own.
   to recognise those cubes explicitly (documented in `METHODS.md`).
 - The engine assumes a valid cube with the standard color scheme; a scan must pass
   `validateCubeState` first.
+
+---
+
+## Addendum (2026-11-17, Phase 9): method options and the full last layer
+
+**Context.** Full OLL (57 cases) and PLL (21 cases) are a second way of doing the same CFOP
+stages, for a learner who has outgrown 2-look. They must not change what a 2-look learner sees,
+and the choice has to reach the engine from the solve screen, through the worker, and survive a
+recovery replan.
+
+**Decision.**
+
+1. **Learner settings are a `MethodOptions` object, not new method ids.** `MethodId` stays
+   `'beginner' | 'cfop'`. Every engine entry point (`planNextStep`, `currentStage`, `progress`,
+   `runGuidedSolve`, `getMethod`, `replanFromScan`, the three `tutor.*` worker jobs) takes an
+   optional `options` last; the one setting so far is `lastLayer: '2-look' | 'full'`. Missing,
+   `{}` and `'2-look'` are the same thing and give the plans they always gave.
+2. **A setting selects a variant definition.** `getMethod('cfop', { lastLayer: 'full' })` returns
+   `CFOP_FULL_METHOD`: the same cross, F2L and final-turn stage objects, with stages `oll` and
+   `pll` in place of the four 2-look stages. Methods are still plain data; the engine's replay
+   and advance check apply unchanged.
+3. **A plan remembers its settings.** `StepPlan.options` is present only when the settings differ
+   from the defaults (so default plans are byte-for-byte what they were). Recovery replans with
+   `plan.options`, because stage indexes and progress values differ between variants.
+4. **Case ids are disjoint between variants** (`oll-01`…`oll-57`, `pll-aa`…`pll-z` against
+   `oll-edges-*`, `oll-corners-*`, `pll-corners-*`, `pll-edges-*`), so an id always names one
+   algorithm. `caseIdsOf(method, options)` lists a variant; `allCaseIds()` lists them all.
+5. **Recognition by construction still holds** (decision 5): the planner tries each table
+   algorithm after each top turn and keeps the one that finishes the stage. The tables also carry
+   each case's definition (`pattern` for OLL, `cycles` for PLL), and tests check algorithm against
+   definition, definition against a hand-written sheet of what each standard case looks like,
+   and the tables against an enumeration of every last-layer state (57 of 58 orientation classes,
+   21 of 22 permutation classes, each exactly once).
+6. **No rotations inside table algorithms**, keeping decision 6: where the common algorithm for a
+   case begins with a cube rotation, a rotation-free algorithm for the same case is used.
+
+**Alternatives considered.**
+
+| Option | Why not |
+|---|---|
+| A third method id (`cfop-full`) | Coach, store, sync and saved progress all key on the method; a learner changing one setting would look like a different method |
+| Replace 2-look outright | 78 algorithms is the wrong first step for a beginner; 2-look stays the default |
+| A module-level setting | The engine must stay a pure function of its arguments (decision 1) |
+| Always put `options` on the plan | Changes every stored and compared default plan for no benefit |
+
+**Consequences.** 10,000 fixed-seed scrambles solve with the full last layer in 62.3 turns on
+average (87 at most) against 75.7 (106) for 2-look, with all 78 cases triggered. The coach needs
+case notes for the 78 new ids and stage notes for `oll` and `pll`; until then its templates use
+the plan's own facts, and a test keeps that path working.
