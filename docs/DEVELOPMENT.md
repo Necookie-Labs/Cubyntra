@@ -157,8 +157,13 @@ cube to hand, use **Try a demo cube** on the home screen or the scanner's demo b
 The profile lives in `data/student.json` (git-ignored) and is read and written through
 `GET`/`PUT /api/student` with the `x-cubyntra-token` header (§5.3). Writes are atomic and capped at
 32 KB; a file that fails validation is moved to `data/student.json.bad` and a fresh profile is
-used. Delete `data/student.json` to start over as a new student. Without a token (an unpaired
-phone) the app still works for the visit and Settings says changes are not saved.
+used. Delete `data/student.json` to start over as a new student.
+
+**Where each device gets the token** (`src/app-shell/appToken.ts`): the laptop's browser from
+`GET /api/auth/token`; a paired phone from its pairing, which Phase 8 keeps in sessionStorage
+(`cubyntra.pairing`, from the QR fragment or the typed-code reply; ADR-015). That is the only
+place a phone holds it, so it ends with the tab. Without a token (an unpaired phone) the app still
+works for the visit and Settings says changes are not saved.
 
 ### 6.3 Installing on a phone
 - **Android (Chrome).** Open the laptop's `https://<laptop-ip>:3000` on the phone, then
