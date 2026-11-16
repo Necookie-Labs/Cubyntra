@@ -2,99 +2,110 @@
 
 **Product**: Cubyntra  
 **Organization**: Necookie Labs  
-**Document Version**: 1.0  
-**Status**: V1 Release  
-**Last Updated**: 2026-09-26  
+**Document Version**: 2.0  
+**Status**: Tutor rebuild (2.0.0)  
+**Last Updated**: 2026-11-17  
 
 ---
 
 ## 1. Architectural Philosophy & Principles
 
-Cubyntra is engineered according to five fundamental architectural tenets:
-1. **Mathematical Ground Truth Over Graphics**: The logical domain model (`CubeState`) is the absolute ground truth. The 3D Three.js rendering engine is purely a visual projection.
-2. **Zero-Cloud Privacy Sandbox**: Video streams and pixel buffers remain strictly confined to the local browser context.
-3. **Unidirectional State Flow**: State changes propagate strictly downward via the centralized Zustand store (`useCubyntraStore`), preventing split-brain or synchronization anomalies.
-4. **Drift-Free Digital Twin**: 3D layer rotations snap cubie coordinate vectors and rotation quaternions back to orthogonal integers after every turn.
-5. **Decoupled Move Representation**: Moves are represented as hardware-agnostic `CubeMove` objects, creating an extension point for physical robotics.
+Cubyntra is a local, single-student cube tutor. Its architecture follows six tenets:
+1. **Mathematical ground truth over graphics**: the logical `CubeState` is the truth. The
+   Three.js twin only draws it.
+2. **The engine picks every move**: the deterministic tutor engine plans each step and replays it
+   on the logical cube before it is shown; Claude only explains (ADR-012, ADR-014).
+3. **No pixels leave the capturing device**: frames are sampled to tile colors in the tab that
+   holds the camera; the phone and laptop exchange states only (ADR-001, ADR-015).
+4. **Pure cores**: `src/cube`, `src/tutor` and `src/learn` have no DOM, React, Three.js or network
+   imports and are tested directly.
+5. **Drift-free twin**: every layer turn snaps cubie positions and orientations back to integers.
+6. **Local by design**: one laptop server holds the profile file, the coach key and the sync
+   relay; nothing is hosted.
 
 ---
 
-## 2. End-to-End Pipeline Architecture
+## 2. End-to-End Architecture
 
 ```mermaid
 flowchart TD
-    subgraph PERCEPTION [Perception Layer (Client-Side)]
-        A[WebRTC Video Stream] --> B[Offscreen 2D Canvas]
-        B --> C[Centered ROI Extraction]
-        C --> D[3x3 Cell Sampling]
-        D --> E[Trimmed-Mean Pixel Aggregation]
-        E --> F[sRGB to HSV & CIELAB Space]
-        F --> G[Lighting-Adaptive Classifier]
-        G --> H[Temporal Stability Buffer]
-        H -->|Consensus Reached| I[Scanned Face Matrix]
+    subgraph CAPTURE [Capture: in the tab with the camera]
+        A[Webcam or phone camera] --> B[Reticle crop on a canvas]
+        B --> C[9 tile samples: trimmed mean, HSV / CIELAB]
+        C --> D[ML cube check, capture quality]
+        D -->|phone: face-scanned colors only| R[(Sync relay, laptop server memory)]
+        D -->|webcam| E
+        R --> E[resolveCubeColors: 54 tiles at once]
     end
 
-    subgraph DOMAIN [Cube Domain & Validation Layer]
-        I --> J[6-Face State Reconstruction]
-        J --> K[Physical Invariant Validator]
-        K -->|Check Sticker Counts & Centers| L{Basic Valid?}
-        L -- No --> M[Diagnostic Error Recovery]
-        L -- Yes --> N{Parity Valid?}
-        N -- Twist / Flip / Permutation Error --> M
-        N -- Valid --> O[Logical CubeState]
+    subgraph DOMAIN [Cube domain]
+        E --> F[Review net + tile fixes]
+        F --> G{validateCubeState}
+        G -- invalid --> F
+        G -- valid --> H[CubeState + student palette]
     end
 
-    subgraph SOLVING [Algorithmic Solving Layer]
-        O --> P[Facelet Serializer URFDLB]
-        P --> Q[Herbert Kociemba Two-Phase Engine]
-        Q --> R[Raw Move Sequence]
-        R --> S[Move Parser & HTM Normalizer]
-        S --> T[Post-Solve Simulation Verifier]
-        T -->|Verified Solved| U[Hardware-Agnostic CubeMove[]]
+    subgraph TUTOR [Tutor: Web Worker]
+        H --> I[planNextStep: method stages, case tables]
+        I --> J[Replay on logical cube, must advance]
+        J --> K[StepPlan]
     end
 
-    subgraph PRESENTATION [Visualization & Execution Layer]
-        U --> V[Move Dispatcher / Planner]
-        V --> W[Three.js 27-Cubie Digital Twin]
-        V --> X[3D Directional Move Arrows]
-        V --> Y[Interactive UI Ticker & Controls]
-        W -->|Integer Orthogonal Snapping| Z[Drift-Free Visual Twin]
-        V -.->|Future Hardware Extension Point| HW[ESP32 / Physical Motor Controller]
+    subgraph PRESENT [Teaching]
+        K --> L[Teaching twin: grip camera, spotlight, chips, playback, preview]
+        K --> M[Coach facts JSON] --> N[/api/coach: Haiku 5.5 or template/]
+        L --> O[I did it: checkpoint face read with the palette]
+        O --> P[checkpointAdapter: verify, diagnose, recover]
+        P -- match --> Q[advance: cube = expectedState] --> I
+        P -- mismatch --> S[corrective step / one more face / rescan]
+        S --> I
     end
+
+    Q --> T[(data/student.json via PATCH /api/student)]
 ```
+
+The Kociemba solver (`src/solver/solver.ts`) still validates and solves each confirmed scan in
+the worker, but no tutor step comes from it.
 
 ---
 
-## 3. Module Boundaries & Dependency Inversion
-
-The project enforces strict directory boundaries and unidirectional dependencies:
+## 3. Module Boundaries & Dependency Direction
 
 ```
 src/
-├── cube/          (Pure Domain Models - Zero DOM or Three.js dependencies)
-├── vision/        (Computer Vision - MediaDevices, Canvas, Color Spaces)
-├── solver/        (Algorithmic Solver - Kociemba Two-Phase, HTM)
-├── tutor/         (Deterministic tutor engine: methods, step plans, checkpoint checks)
-├── twin/          (Step plans mapped onto the 3D twin)
-├── three/         (3D Graphics Engine - Three.js WebGL, 27 Cubies, Snapping)
+├── cube/          (pure domain: moves, grip, pieces, orientation, validation; no imports outside)
+├── tutor/         (deterministic tutor engine: methods, case tables, step plans, checkpoint,
+│                   diagnosis, recovery)
+├── learn/         (trainer sets, drills, Leitner, mastery, streaks, timer rules; pure)
+├── vision/        (camera, sampling, color, ML cube check, capture quality, palette, checkpoint read)
+├── solver/        (Kociemba two-phase solver and the Web Worker that runs solver and tutor jobs)
+├── twin/          (step plans mapped onto the 3D twin)
+├── three/         (Three.js engine: voxel cubies, snapping, arrows, spotlight, ghost, playback)
 ├── coach/         (Claude coach: facts, templates, guardrail, spend; useCoach hook)
-├── app-shell/     (App shell glue: navigation map, app token, checkpoint adapter, wake lock, install)
-├── lib/           (Tokens, theme, local data dir, app secret, student profile schema and file)
+├── sync/          (pairing, session relay, state messages, tutor and playback mirroring)
+├── app-shell/     (shell glue: app token, checkpoint adapter, navigation map, wake lock, install)
+├── lib/           (tokens, theme, data dir, app secret, body cap, student profile schema, file, ops)
 ├── stores/        (Zustand: useCubyntraStore for the scan, useTutorStore for the guided solve)
-├── components/    (React presentation: ui/, shell/, home/, scan/, solve/, settings/, twin/ ...)
-└── app/           (Next.js routes: (app)/ shell screens, companion/, api/, manifest.ts)
+├── components/    (React presentation: ui/, shell/, home/, scan/, solve/, trainer/, timer/ ...)
+└── app/           (Next.js routes: (app)/ screens incl. companion/, api/, manifest.ts)
 ```
 
 ### Dependency Direction Rules:
-- `src/cube/` has **zero external dependencies**. It contains pure TypeScript models, math invariants, face rotations, and parity checks.
-- `src/vision/` depends only on `src/cube/` for type definitions (`Face`, `CubeColor`, `ScannedFace`). It has **zero Three.js dependencies**.
-- `src/solver/` depends only on `src/cube/` to serialize `CubeState` and verify solutions.
-- `src/tutor/` depends only on `src/cube/`. It plans every step of a guided solve and never imports the DOM, Three.js, React, the solver or the network (ADR-012).
-- `src/twin/` maps step plans onto the 3D twin (positions, slots, playback-driven aids). It depends on `src/cube/`, `src/tutor/` types and the engine's teaching API as a type; it has no DOM, React or Three.js imports.
-- `src/three/` depends on `src/cube/` for `CubeState` and `CubeMove` contracts. It receives states and animates them.
-- `src/stores/` orchestrates `cube`, `vision`, `solver`, and `three`. `useCubyntraStore` owns the
-  scan; `useTutorStore` owns the guided solve (plan, checkpoint outcome, attempts) and the student
-  profile, and reads the scan store only through its public state and actions.
+- `src/cube/` imports nothing outside itself.
+- `src/tutor/` depends only on `src/cube/`. It never imports the DOM, Three.js, React, the solver
+  or the network (ADR-012; checked by `tests/tutor-api.test.ts`).
+- `src/learn/` depends on `src/cube/` and `src/tutor/` only.
+- `src/vision/` depends only on `src/cube/` for types (`Face`, `CubeColor`, `ScannedFace`). It
+  has no Three.js imports.
+- `src/solver/` depends on `src/cube/` and `src/tutor/` (the worker runs tutor jobs).
+- `src/twin/` depends on `src/cube/`, `src/tutor/` types and the engine's teaching API as a
+  type; it has no DOM, React or Three.js imports.
+- `src/three/` depends on `src/cube/` and `src/lib/` (tokens). It receives states and animates them.
+- `src/coach/` depends on `src/cube/`, `src/tutor/` and `src/lib/`; its server half
+  (`service.ts`, `spend.ts`) runs only in route handlers.
+- `src/stores/` orchestrates `cube`, `vision`, `solver`, `tutor` and `learn`. `useCubyntraStore`
+  owns the scan; `useTutorStore` owns the guided solve (plan, checkpoint outcome, attempts) and
+  the student profile, and reads the scan store only through its public state and actions.
 - `src/app-shell/` holds the shell's non-visual pieces. `checkpointAdapter.ts` is the only place
   the app calls checkpoint verification, mistake diagnosis and recovery (see §8).
 - `src/components/` connects UI events to `src/stores/`.
@@ -116,7 +127,7 @@ The solver module (`src/solver/`) is encapsulated behind a clean contract:
 export async function solveCube(state: CubeState): Promise<SolveResult>;
 ```
 
-Before passing a state into the Kociemba two-phase search, `solveCube` runs `validateCubeState(state)`. After Kociemba returns a candidate sequence, `solveCube` simulates applying the moves on an internal deep-cloned `CubeState` using `applyMoves(state, moves)`. Only if `isCubeSolved(simulatedState) === true` does it return success.
+Before passing a state into the Kociemba two-phase search, `solveCube` runs `validateCubeState(state)`. After Kociemba returns a candidate sequence, `solveCube` simulates applying the moves on an internal deep-cloned `CubeState` using `applyMoves(state, moves)`. Only if `isCubeSolved(simulatedState) === true` does it return success. The state is turned to standard orientation first and the solution is translated back into the frame the cube is held in. The app calls it through the worker client (`solveInWorker`, `src/solver/client.ts`), which falls back to the main thread when a worker is unavailable.
 
 ---
 
@@ -124,51 +135,42 @@ Before passing a state into the Kociemba two-phase search, `solveCube` runs `val
 In standard 3D engines, repeatedly applying Euler angles or quaternions leads to accumulated floating-point inaccuracies ($\sin(\theta), \cos(\theta)$ rounding errors), resulting in misaligned stickers after 20–30 turns.
 
 Cubyntra eliminates drift completely:
-1. **Grouping**: During animation, 9 cubies are attached to a temporary `pivotGroup`.
-2. **Animation**: Smooth easing rotates the pivot around the face axis.
+1. **Grouping**: During animation, the turning cubies (9 for a face or slice, 18 for a wide move, 27 for a rotation) are attached to a temporary `pivotGroup` inside the cube group.
+2. **Animation**: Easing rotates the pivot around the move axis.
 3. **Detachment**: Upon completion, cubies are detached back to `rootCubeGroup`.
 4. **Integer Snapping**: World coordinates are rounded to exact integers ($x, y, z \in \{-1, 0, 1\}$).
 5. **Orthogonal Angle Snapping**: Quaternions are snapped to multiples of $\pi / 2$.
 6. **State Resynchronization**: Cubie sticker colors are refreshed directly from the logical `CubeState`.
 
-Result: **0.000% accumulation drift** across thousands of rotations.
+Result: no accumulated drift; `tests/three-motion.test.ts` and `three-playback.test.ts` check exact snapping after queued scrambles and that the twin matches the logical state after every playback step.
 
 ---
 
 ## 7. Future Hardware Extension Points
-Cubyntra V1 produces a standardized array of `CubeMove` objects:
+Moves are plain data (`src/cube/types.ts`), independent of how they are carried out:
 
 ```ts
-export interface CubeMove {
-  face: 'U' | 'D' | 'L' | 'R' | 'F' | 'B';
-  quarterTurns: 1 | -1 | 2; // 1 = 90° CW, -1 = 90° CCW, 2 = 180°
-  notation: string;
-  description: string;
-}
+type Move = (
+  | { kind: 'face'; face: Face }
+  | { kind: 'wide'; face: Face }
+  | { kind: 'slice'; slice: 'M' | 'E' | 'S' }
+  | { kind: 'rotation'; axis: 'x' | 'y' | 'z' }
+) & { quarterTurns: 1 | -1 | 2; notation: string; description: string };
 ```
 
-This structure serves as an extensible hardware dispatch abstraction:
-
-```mermaid
-flowchart LR
-    CubeMove["CubeMove[]"] --> Dispatcher[MoveDispatcher]
-    Dispatcher --> ThreeJs[ThreeJsExecutor (V1)]
-    Dispatcher --> HumanGuide[HumanGuideExecutor (V1)]
-    Dispatcher -.->|FUTURE| Serial[WebSerial / WebBluetooth]
-    Serial -.-> ESP32[ESP32 Microcontroller]
-    ESP32 -.-> Steppers[6x Stepper Motors]
-```
-
-*The hardware pipeline is FUTURE / OUT OF SCOPE FOR V1.*
+Today two consumers exist: the Three.js engine animates them and the UI names them for the
+student (`moveName`). A hardware executor would be a third consumer of the same arrays; nothing
+of it is built. See [FUTURE_HARDWARE.md](FUTURE_HARDWARE.md) (concept only, out of scope).
 
 ---
 
-## 8. App Shell (Phase 7)
+## 8. App Shell
 
 - **Routes.** `src/app/(app)/` holds the tutor screens (`/`, `/scan`, `/solve`, `/trainer`,
   `/timer`, `/progress`, `/pair`, `/settings`) under one layout, `AppShell`. Each `page.tsx` is a
   server component that sets the title and renders one client view from `src/components/`.
-  `/companion` stays outside the group. `app/manifest.ts` serves `/manifest.webmanifest`;
+  `/companion` (the phone page) is in the group too, full screen without navigation.
+  `app/manifest.ts` serves `/manifest.webmanifest`;
   `app/appMetadata.ts` holds the document metadata and viewport (theme colors, Apple web-app).
 - **Session bootstrap.** `useStudentSession` (run by the shell) fetches the app token
   (`/api/auth/token` on the laptop; on a paired phone the token from its sessionStorage pairing,
