@@ -4,7 +4,8 @@
  *
  * Permuting the last layer in two looks: first the corners (2 cases, or already done), then
  * the edges (4 cases, or already done). Recognition is written for yellow on top, after turning
- * the top layer to the position the algorithm starts from.
+ * the top layer to the position the algorithm starts from. It compares top-layer stickers with
+ * each other, never with the centers, because the top may still be a turn away from them.
  */
 
 import { LastLayerCase } from './oll2look';
@@ -30,25 +31,25 @@ export const PLL_EDGE_CASES: readonly LastLayerCase[] = [
   {
     id: 'pll-edges-ua',
     name: 'Ua perm',
-    recognition: 'One side is finished. Hold it at the back: the front edge belongs on the right.',
+    recognition: 'One side of the top layer is a solid bar of one color. Hold the bar at the back: the front edge has the color of the corners on the right side.',
     algorithm: "R U' R U R U R U' R' U' R2",
   },
   {
     id: 'pll-edges-ub',
     name: 'Ub perm',
-    recognition: 'One side is finished. Hold it at the back: the front edge belongs on the left.',
+    recognition: 'One side of the top layer is a solid bar of one color. Hold the bar at the back: the front edge has the color of the corners on the left side.',
     algorithm: "R2 U R U R' U' R' U' R' U R'",
   },
   {
     id: 'pll-edges-h',
     name: 'H perm',
-    recognition: 'No side is finished. Every edge belongs on the opposite side.',
+    recognition: 'No side of the top layer is a solid bar. Every edge has the color of the corners on the opposite side.',
     algorithm: 'M2 U M2 U2 M2 U M2',
   },
   {
     id: 'pll-edges-z',
     name: 'Z perm',
-    recognition: 'No side is finished. The front edge belongs on the left and the back edge on the right.',
+    recognition: 'No side of the top layer is a solid bar. The front edge has the color of the left corners and the back edge the color of the right corners.',
     algorithm: "M' U M2 U M2 U M' U2 M2 U'",
   },
 ];
