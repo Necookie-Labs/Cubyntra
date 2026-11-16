@@ -64,8 +64,10 @@ tried with its picture turned 90°, 180° and 270° (`turnPicture`):
 - otherwise the face is compared as shown, as before.
 
 `diagnoseMistake` does the same when no slip fits the faces as shown: each way of turning the
-shown pictures is tried with single slips, and one is used (reported in `diagnosis.rotations`)
-only if it is the only way that makes a slip fit.
+shown pictures (every combination for one or two faces; one face at a time when more are shown)
+is tried with single slips, replayed once and scored per way, and one is used (reported in
+`diagnosis.rotations`) only if it is the only way that makes a slip fit. Faces in `trustHold` are
+never turned.
 
 ## 3. Reading a face: the student's palette
 

@@ -347,9 +347,21 @@ interface Scored extends MistakeCandidate {
   contradictions: number;
 }
 
-function scoreCandidate(plan: StepPlan, candidate: MistakeCandidate, seen: readonly Seen[]): Scored {
-  const raw = applyMoves(plan.startState, candidate.performedMoves);
-  const state = viewInGrip(raw, plan.gripAfter).state;
+/** Replayed cubes by candidate, so trying turned readings does not replay every slip again. */
+type ReplayCache = Map<MistakeCandidate, { state: CubeState; key: string }>;
+
+function replay(plan: StepPlan, candidate: MistakeCandidate, cache: ReplayCache): { state: CubeState; key: string } {
+  let hit = cache.get(candidate);
+  if (!hit) {
+    const state = viewInGrip(applyMoves(plan.startState, candidate.performedMoves), plan.gripAfter).state;
+    hit = { state, key: stateKey(state) };
+    cache.set(candidate, hit);
+  }
+  return hit;
+}
+
+function scoreCandidate(plan: StepPlan, candidate: MistakeCandidate, seen: readonly Seen[], cache: ReplayCache): Scored {
+  const { state, key } = replay(plan, candidate, cache);
   let likelihood = 0;
   let contradictions = 0;
   let signature = '';
@@ -365,7 +377,7 @@ function scoreCandidate(plan: StepPlan, candidate: MistakeCandidate, seen: reado
   return {
     ...candidate,
     state,
-    key: stateKey(state),
+    key,
     signature,
     score: likelihood + Math.log(candidate.prior),
     contradictions,
@@ -393,18 +405,24 @@ export function diagnoseMistake(
   observations: readonly FaceObservation[],
   options: DiagnoseOptions = {}
 ): Diagnosis {
-  const asShown = diagnoseAsShown(plan, observations, options, true);
+  const singles = enumerateMistakes(plan);
+  const cache: ReplayCache = new Map();
+  const asShown = diagnoseAsShown(plan, observations, options, singles, cache, true);
   if (asShown.likelyMistakes.length) return asShown;
 
   // Nothing fits the faces as shown: maybe a face was held rotated (a center cannot tell).
-  // Each way of turning the shown pictures is tried with single slips; one that alone makes a
-  // mistake fit is used, several are a tie and the cube is rescanned.
+  // Each way of turning the shown pictures is tried with single slips (replayed once, scored per
+  // way); one that alone makes a mistake fit is used, several are a tie and the cube is rescanned.
   const latest = new Map<Face, FaceObservation>();
   for (const observation of observations) latest.set(observation.face, observation);
   const trusted = new Set(options.trustHold ?? []);
   const faces = [...latest.keys()].filter((face) => !trusted.has(face));
   if (!faces.length) return asShown;
-  const ways = faces.reduce<(0 | 1 | 2 | 3)[][]>((acc) => acc.flatMap((a) => ([0, 1, 2, 3] as const).map((k) => [...a, k])), [[]]);
+  // Every combination for the usual one or two faces; with more faces shown, one face at a time.
+  const ways: (0 | 1 | 2 | 3)[][] =
+    faces.length <= 2
+      ? faces.reduce<(0 | 1 | 2 | 3)[][]>((acc) => acc.flatMap((a) => ([0, 1, 2, 3] as const).map((k) => [...a, k])), [[]])
+      : faces.flatMap((_, i) => ([1, 2, 3] as const).map((k) => faces.map((__, j) => (j === i ? k : 0))));
   let found: { diagnosis: Diagnosis; rotations: Partial<Record<Face, 1 | 2 | 3>> } | null = null;
   for (const way of ways) {
     if (way.every((k) => k === 0)) continue;
@@ -412,7 +430,7 @@ export function diagnoseMistake(
       const k = way[faces.indexOf(o.face)] ?? 0;
       return k ? { face: o.face, stickers: turnPicture(o.stickers, k) } : o;
     });
-    const diagnosis = diagnoseAsShown(plan, turned, options, false);
+    const diagnosis = diagnoseAsShown(plan, turned, options, singles, cache, false);
     if (!diagnosis.likelyMistakes.length) continue;
     if (found) return asShown;
     const rotations: Partial<Record<Face, 1 | 2 | 3>> = {};
@@ -428,6 +446,8 @@ function diagnoseAsShown(
   plan: StepPlan,
   observations: readonly FaceObservation[],
   options: DiagnoseOptions,
+  singles: MistakeCandidate[],
+  cache: ReplayCache,
   withPairs: boolean
 ): Diagnosis {
   const topK = options.topK ?? 3;
@@ -437,11 +457,11 @@ function diagnoseAsShown(
   const expectedKey = stateKey(plan.expectedState);
   const score = (candidates: MistakeCandidate[]) =>
     distinctCubes(
-      candidates.map((c) => scoreCandidate(plan, c, seen)),
+      candidates.map((c) => scoreCandidate(plan, c, seen, cache)),
       expectedKey
     );
 
-  let cubes = score(enumerateMistakes(plan));
+  let cubes = score(singles);
   if (withPairs && !cubes.some((c) => c.contradictions === 0)) {
     const known = new Set(cubes.map((c) => c.key));
     cubes = [...cubes, ...score(enumeratePairs(plan)).filter((c) => !known.has(c.key))];
