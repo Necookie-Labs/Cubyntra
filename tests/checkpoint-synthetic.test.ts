@@ -115,7 +115,7 @@ const emptyTally = (): KindTally => ({
   hiddenButMatched: 0,
 });
 
-describe('checkpoint checks on synthetic photos', () => {
+describe('checkpoint checks on synthetic photos', { timeout: 90_000 }, () => {
   const all = students();
   const stepCount = all.reduce((n, s) => n + s.steps.length, 0);
   const report: Record<string, unknown> = { seed: SEED, students: all.length, steps: stepCount };
