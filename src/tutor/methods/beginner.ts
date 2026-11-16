@@ -322,6 +322,49 @@ function planMiddleEdges(view: CubeState): StepDraft {
 }
 
 // ---------------------------------------------------------------------------------------------
+// 5. Yellow cross
+// ---------------------------------------------------------------------------------------------
+
+const YELLOW_CROSS = "F R U R' U' F'";
+const CROSS_SHAPES = ['dot', 'l', 'line'] as const;
+
+/** 0 = dot, 1 = L, 2 = line, 3 = cross. Needs yellow on top. */
+function yellowCrossShape(view: CubeState): number {
+  const up = [1, 3, 5, 7].filter((i) => view.U[i] === LAST);
+  if (up.length === 4) return 3;
+  if (up.length !== 2) return 0;
+  return up[0] + up[1] === 8 ? 2 : 1; // opposite edges are 1+7 or 3+5
+}
+
+function planYellowCross(view: CubeState): StepDraft {
+  const shape = yellowCrossShape(view);
+  let best: { shape: number; setup: Move[] } | null = null;
+  for (let quarters = 0; quarters < 4; quarters++) {
+    const setup = faceTurns('U', quarters);
+    const reached = yellowCrossShape(applyMoves(view, [...setup, ...alg(YELLOW_CROSS)]));
+    if (!best || reached > best.shape) best = { shape: reached, setup };
+  }
+  const name = CROSS_SHAPES[shape];
+  const lookFor = {
+    dot: 'Only the yellow center is yellow on top: a dot.',
+    l: 'Two yellow edges and the center make an L. Turn the top until the L points to the back and the left.',
+    line: 'Two yellow edges and the center make a line. Turn the top until the line runs left to right.',
+  }[name];
+  return {
+    caseId: `yellow-cross-${name}`,
+    caseName: { dot: 'Dot', l: 'L shape', line: 'Line' }[name],
+    setupMoves: best!.setup,
+    algorithm: [...alg(YELLOW_CROSS)],
+    highlightPieces: lastLayerEdgeRefs(),
+    facts: {
+      goal: 'Make a yellow cross on top. The dot becomes an L, the L becomes a line, the line becomes the cross.',
+      lookFor,
+      why: 'These six turns flip two top edges over each time and leave the two layers below as they were.',
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------------------------
 // Detectors. Each one includes every earlier stage; all of them count a cube that is part-way
 // through the last stage as having finished the stages before it.
 // ---------------------------------------------------------------------------------------------
@@ -373,6 +416,15 @@ const STAGES: StageDefinition[] = [
     progress: middleEdgeProgress,
     plan: planMiddleEdges,
     check: { prefer: ['F', 'R', 'L'] },
+  },
+  {
+    id: 'yellow-cross',
+    name: 'Yellow cross',
+    top: LAST,
+    isComplete: yellowCrossDone,
+    progress: yellowCrossShape,
+    plan: planYellowCross,
+    check: { prefer: ['U', 'F'] },
   },
 ];
 
