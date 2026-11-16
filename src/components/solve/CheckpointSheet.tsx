@@ -9,15 +9,19 @@
  * the step's expected stickers. Unclear reading: show it again. Wrong face: which face to show.
  * Match: a block is placed and the next step loads. A mismatch closes the sheet and the solve
  * screen explains it. Without a camera the student can check by eye ("It matches").
+ *
+ * `CheckpointSheetView` is the sheet itself, driven by props, so the trainer can check a drill
+ * with it too; `CheckpointSheet` wires it to the guided solve in `useTutorStore`.
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Camera, Check, RefreshCw } from 'lucide-react';
 import type { CubeColor, Face } from '@/cube/types';
 import { COLORS } from '@/cube/constants';
 import { gripCenters } from '@/cube/grip';
-import { observeFace } from '@/tutor/checkpoint';
-import type { StepPlan } from '@/tutor/types';
+import { observeFace, type TileEdit } from '@/tutor/checkpoint';
+import type { FaceObservation, StepPlan } from '@/tutor/types';
+import type { StudentPalette } from '@/vision/palette';
 import { faceToShowNext, type CheckpointOutcome } from '@/app-shell/checkpointAdapter';
 import { BlockButton, Dialog, StickerGrid } from '@/components/ui';
 import { CameraHelp } from '@/components/camera/CameraHelp';
@@ -46,33 +50,63 @@ interface Reading {
   unsure: number[];
 }
 
-export function CheckpointSheet({ plan }: { plan: StepPlan }) {
-  const phase = useTutorStore((s) => s.phase);
-  const outcome = useTutorStore((s) => s.checkpoint);
-  const palette = useTutorStore((s) => s.profile.palette);
-  const letters = useTutorStore((s) => s.profile.settings.stickerLetters);
-  const earned = useTutorStore((s) => s.profile.stats.checkpointsPassed);
-  const { submitObservation, editTiles, confirmByHand, cancelCheckpoint, advance } = useTutorStore.getState();
+export interface CheckpointSheetViewProps {
+  plan: StepPlan;
+  /** `checking`: the camera sheet; `celebrate`: the block-placed moment; `closed`: nothing. */
+  mode: 'checking' | 'celebrate' | 'closed';
+  outcome: CheckpointOutcome | null;
+  palette: StudentPalette | null;
+  letters: boolean;
+  /** Blocks already earned, for the block-placed row. */
+  earned: number;
+  onObservation: (observation: FaceObservation) => void;
+  onEditTiles: (face: Face, edits: readonly TileEdit[]) => void;
+  onConfirmByHand: () => void;
+  onCancel: () => void;
+  /** Leaves the celebration (by itself after `CELEBRATE_MS`, or with the button). */
+  onAdvance: () => void;
+  /** Wording of the celebration. */
+  doneTitle?: string;
+  nextLabel?: string;
+}
 
-  const open = phase === 'checking' || phase === 'celebrate';
+export function CheckpointSheetView({
+  plan,
+  mode,
+  outcome,
+  palette,
+  letters,
+  earned,
+  onObservation,
+  onEditTiles,
+  onConfirmByHand,
+  onCancel,
+  onAdvance,
+  doneTitle = 'Step done',
+  nextLabel = 'Next step',
+}: CheckpointSheetViewProps) {
   const {
     videoRef,
     status: cameraStatus,
     error: cameraError,
     retry: retryCamera,
     capture,
-  } = useCheckpointCamera(phase === 'checking', palette);
+  } = useCheckpointCamera(mode === 'checking', palette);
   const [reading, setReading] = useState<Reading | null>(null);
   const [edits, setEdits] = useState<Map<number, CubeColor>>(new Map());
+  const onAdvanceRef = useRef(onAdvance);
+  useEffect(() => {
+    onAdvanceRef.current = onAdvance;
+  });
 
   // Move on by itself after the short celebration.
   useEffect(() => {
-    if (phase !== 'celebrate') return;
-    const timer = window.setTimeout(() => void useTutorStore.getState().advance(), CELEBRATE_MS);
+    if (mode !== 'celebrate') return;
+    const timer = window.setTimeout(() => onAdvanceRef.current(), CELEBRATE_MS);
     return () => window.clearTimeout(timer);
-  }, [phase]);
+  }, [mode]);
 
-  if (!open) return null;
+  if (mode === 'closed') return null;
 
   const face = askedFace(plan, outcome);
   const centers = gripCenters(plan.gripAfter);
@@ -93,7 +127,7 @@ export function CheckpointSheet({ plan }: { plan: StepPlan }) {
       unsure: result.stickers.flatMap((s, i) => (s.confidence < 0.5 ? [i] : [])),
     });
     setEdits(new Map());
-    submitObservation(observeFace(face, result.stickers));
+    onObservation(observeFace(face, result.stickers));
   };
 
   const cycleTile = (index: number) => {
@@ -105,12 +139,12 @@ export function CheckpointSheet({ plan }: { plan: StepPlan }) {
 
   const shownTiles = reading ? reading.tiles.map((c, i) => edits.get(i) ?? c) : null;
 
-  if (phase === 'celebrate') {
+  if (mode === 'celebrate') {
     const manual = outcome?.result.manual;
     return (
-      <Dialog open onClose={() => void advance()} title="Step done" size="sm" footer={
-        <BlockButton variant="primary" data-autofocus onClick={() => void advance()}>
-          Next step
+      <Dialog open onClose={onAdvance} title={doneTitle} size="sm" footer={
+        <BlockButton variant="primary" data-autofocus onClick={onAdvance}>
+          {nextLabel}
         </BlockButton>
       }>
         <div role="status">
@@ -123,13 +157,13 @@ export function CheckpointSheet({ plan }: { plan: StepPlan }) {
   return (
     <Dialog
       open
-      onClose={cancelCheckpoint}
+      onClose={onCancel}
       title="Show me your cube"
       description="Only the stickers this step changed are checked."
       size="md"
       footer={
         <>
-          <BlockButton variant="ghost" onClick={confirmByHand}>
+          <BlockButton variant="ghost" onClick={onConfirmByHand}>
             It matches
           </BlockButton>
           <BlockButton
@@ -200,7 +234,7 @@ export function CheckpointSheet({ plan }: { plan: StepPlan }) {
               <BlockButton
                 size="sm"
                 icon={<Check aria-hidden className="h-4 w-4" />}
-                onClick={() => editTiles(reading.face, [...edits].map(([index, color]) => ({ index, color })))}
+                onClick={() => onEditTiles(reading.face, [...edits].map(([index, color]) => ({ index, color })))}
               >
                 Use my fixes
               </BlockButton>
@@ -209,5 +243,31 @@ export function CheckpointSheet({ plan }: { plan: StepPlan }) {
         </div>
       )}
     </Dialog>
+  );
+}
+
+/** The checkpoint sheet of the guided solve. */
+export function CheckpointSheet({ plan }: { plan: StepPlan }) {
+  const phase = useTutorStore((s) => s.phase);
+  const outcome = useTutorStore((s) => s.checkpoint);
+  const palette = useTutorStore((s) => s.profile.palette);
+  const letters = useTutorStore((s) => s.profile.settings.stickerLetters);
+  const earned = useTutorStore((s) => s.profile.stats.checkpointsPassed);
+  const { submitObservation, editTiles, confirmByHand, cancelCheckpoint, advance } = useTutorStore.getState();
+
+  return (
+    <CheckpointSheetView
+      plan={plan}
+      mode={phase === 'checking' ? 'checking' : phase === 'celebrate' ? 'celebrate' : 'closed'}
+      outcome={outcome}
+      palette={palette}
+      letters={letters}
+      earned={earned}
+      onObservation={submitObservation}
+      onEditTiles={editTiles}
+      onConfirmByHand={confirmByHand}
+      onCancel={cancelCheckpoint}
+      onAdvance={() => void advance()}
+    />
   );
 }
