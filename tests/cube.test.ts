@@ -54,7 +54,8 @@ describe('Cube Domain & Mathematical Invariants', () => {
       const inv = invertMove(move);
 
       const afterMove = applyMove(state, move);
-      expect(isCubeSolved(afterMove)).toBe(notation === 'U' || notation.startsWith('U2') ? false : false); // scrambled
+      // Every single face turn (quarter or half) leaves a solved cube unsolved.
+      expect(isCubeSolved(afterMove), notation).toBe(false);
 
       const restored = applyMove(afterMove, inv);
       expect(isCubeSolved(restored)).toBe(true);
