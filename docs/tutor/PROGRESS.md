@@ -10,7 +10,7 @@ Checklist for `docs/tutor/GOAL.md`. Tick an item only when it is done and tested
 - [x] Lint warnings and the no-op cube test fixed
 - [x] `parseMove` rejects unknown and lowercase input
 - [x] Python scripts take the dataset path as an argument
-- [ ] Phase gate passed and pushed
+- [x] Phase gate passed and pushed
 
 ## Phase 1: Design system
 - [ ] Tokens (light + dark) in `globals.css`
