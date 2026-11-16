@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { CubeState } from '../src/cube/types';
 import { applyMoves, invertAlgorithm, parseAlgorithm } from '../src/cube/transforms';
 import { OLL_CASES, OllCase } from '../src/tutor/cases/oll';
+import { OLL_CORNER_CASES, OLL_EDGE_CASES } from '../src/tutor/cases/oll2look';
 import {
   YELLOW_TOP,
   describeOll,
@@ -144,5 +145,58 @@ describe('full OLL table', () => {
   it('no two cases are the same pattern seen from another side', () => {
     const classes = OLL_CASES.map((c) => ollClass(setUp(c)));
     expect(new Set(classes).size).toBe(OLL_CASES.length);
+  });
+});
+
+describe('full OLL table: coverage', () => {
+  /**
+   * Every yellow pattern a last layer can show, found by search from the solved cube with the
+   * 2-look algorithms and turns of the top. What an algorithm does to a pattern depends only on
+   * the pattern, so one cube per pattern is enough.
+   */
+  function reachablePatterns(): Map<string, CubeState> {
+    const generators = [
+      'U',
+      ...OLL_EDGE_CASES.map((c) => c.algorithm),
+      ...OLL_CORNER_CASES.map((c) => c.algorithm),
+    ].map((a) => parseAlgorithm(a));
+    const found = new Map<string, CubeState>([[ollPattern(YELLOW_TOP), YELLOW_TOP]]);
+    const queue = [YELLOW_TOP];
+    for (let state = queue.shift(); state; state = queue.shift()) {
+      for (const moves of generators) {
+        const next = applyMoves(state, moves);
+        const key = ollPattern(next);
+        if (found.has(key)) continue;
+        found.set(key, next);
+        queue.push(next);
+      }
+    }
+    return found;
+  }
+
+  it('has 57 cases', () => {
+    expect(OLL_CASES).toHaveLength(57);
+  });
+
+  it('covers every pattern a last layer can show exactly once, apart from the finished top', () => {
+    const patterns = reachablePatterns();
+    // 3 twists for each of 4 corners and 2 flips for each of 4 edges, a third and a half of them reachable.
+    expect(patterns.size).toBe((3 ** 4 / 3) * (2 ** 4 / 2));
+
+    const classes = new Set([...patterns.values()].map(ollClass));
+    const finished = ollClass(YELLOW_TOP);
+    expect(classes.size).toBe(58);
+    expect(classes.has(finished)).toBe(true);
+
+    const covered = new Map<string, string[]>();
+    for (const c of OLL_CASES) {
+      const key = ollClass(setUp(c));
+      covered.set(key, [...(covered.get(key) ?? []), c.id]);
+    }
+    for (const key of classes) {
+      if (key === finished) expect(covered.has(key)).toBe(false);
+      else expect(covered.get(key), key).toHaveLength(1);
+    }
+    expect([...covered.keys()].filter((key) => !classes.has(key))).toEqual([]);
   });
 });

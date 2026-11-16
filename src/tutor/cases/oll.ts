@@ -445,4 +445,174 @@ export const OLL_CASES: readonly OllCase[] = [
       'A big yellow zigzag on top. Yellow on top: the center, the left and right edges and the back-left and front-right corners. Yellow on the sides: front (middle), back (middle and right), left (front).',
     algorithm: "R' F R U R' U' F' U R",
   },
+  {
+    id: 'oll-41',
+    number: 41,
+    name: 'OLL 41 (Awkward Fish)',
+    group: 'Awkward',
+    pattern: 'x.x|..x..|.xx.x|.x.x.|.x.',
+    recognition:
+      'Two yellow edges next to each other and two yellow corners that do not make a block. Yellow on top: the center, the back and left edges and the front-left and front-right corners. Yellow on the sides: front (middle), right (middle), back (left and right).',
+    algorithm: "R U R' U R U2 R' F R U R' U' F'",
+  },
+  {
+    id: 'oll-42',
+    number: 42,
+    name: 'OLL 42 (Lefty Awkward Fish)',
+    group: 'Awkward',
+    pattern: '.x.|.x.x.|.xx.x|..x..|x.x',
+    recognition:
+      'Two yellow edges next to each other and two yellow corners that do not make a block. Yellow on top: the center, the left and front edges and the back-left and back-right corners. Yellow on the sides: front (left and right), right (middle), back (middle).',
+    algorithm: "R' U' R U' R' U2 R F R U R' U' F'",
+  },
+  {
+    id: 'oll-43',
+    number: 43,
+    name: 'OLL 43 (Anti-P)',
+    group: 'P shapes',
+    pattern: '...|x.xx.|x.xx.|x..x.|.x.',
+    recognition:
+      'A yellow P shape on top. Yellow on top: the center, the back and right edges and the back-right and front-right corners. Yellow on the sides: front (middle), left (all three).',
+    algorithm: "F' U' L' U L F",
+  },
+  {
+    id: 'oll-44',
+    number: 44,
+    name: 'OLL 44 (P)',
+    group: 'P shapes',
+    pattern: '...|.xx.x|.xx.x|.x..x|.x.',
+    recognition:
+      'A yellow P shape on top. Yellow on top: the center, the back and left edges and the back-left and front-left corners. Yellow on the sides: front (middle), right (all three).',
+    algorithm: "F U R U' R' F'",
+  },
+  {
+    id: 'oll-45',
+    number: 45,
+    name: 'OLL 45 (Suit Up)',
+    group: 'T shapes',
+    pattern: '.x.|x..x.|.xxx.|x..x.|.x.',
+    recognition:
+      'A yellow T shape on top. Yellow on top: the center, the left and right edges and the back-right and front-right corners. Yellow on the sides: front (middle), back (middle), left (back and front).',
+    algorithm: "F R U R' U' F'",
+  },
+  {
+    id: 'oll-46',
+    number: 46,
+    name: "OLL 46 (Seein' Headlights)",
+    group: 'C shapes',
+    pattern: '...|.xx.x|x.x.x|.xx.x|...',
+    recognition:
+      'A yellow C shape on top. Yellow on top: the center, the back and front edges and the back-left and front-left corners. Yellow on the sides: right (all three), left (middle).',
+    algorithm: "R' U' R' F R F' U R",
+  },
+  {
+    id: 'oll-47',
+    number: 47,
+    name: 'OLL 47 (Anti-Breakneck)',
+    group: 'Small L',
+    pattern: 'x..|..x.x|x.xx.|....x|xx.',
+    recognition:
+      'A small yellow L shape on top, with no yellow corners. Yellow on top: the center and the back and right edges. Yellow on the sides: front (left and middle), right (front and back), back (left), left (middle).',
+    algorithm: "R' U' R' F R F' R' F R F' U R",
+  },
+  {
+    id: 'oll-48',
+    number: 48,
+    name: 'OLL 48 (Breakneck)',
+    group: 'Small L',
+    pattern: '..x|x.x..|.xx.x|x....|.xx',
+    recognition:
+      'A small yellow L shape on top, with no yellow corners. Yellow on top: the center and the back and left edges. Yellow on the sides: front (middle and right), right (middle), back (right), left (back and front).',
+    algorithm: "F R U R' U' R U R' U' F'",
+  },
+  {
+    id: 'oll-49',
+    number: 49,
+    name: 'OLL 49 (Right Back Squeezy)',
+    group: 'Small L',
+    pattern: '..x|x.x..|x.xx.|x....|.xx',
+    recognition:
+      'A small yellow L shape on top, with no yellow corners. Yellow on top: the center and the back and right edges. Yellow on the sides: front (middle and right), back (right), left (all three).',
+    algorithm: "r U' r2 U r2 U r2 U' r",
+  },
+  {
+    id: 'oll-50',
+    number: 50,
+    name: 'OLL 50 (Right Front Squeezy)',
+    group: 'Small L',
+    pattern: '.xx|x....|x.xx.|x.x..|..x',
+    recognition:
+      'A small yellow L shape on top, with no yellow corners. Yellow on top: the center and the right and front edges. Yellow on the sides: front (right), back (middle and right), left (all three).',
+    algorithm: "r' U r2 U' r2 U' r2 U r'",
+  },
+  {
+    id: 'oll-51',
+    number: 51,
+    name: 'OLL 51 (Bottlecap)',
+    group: 'Line',
+    pattern: 'xx.|....x|.xxx.|....x|xx.',
+    recognition:
+      'A yellow line through the center on top, with no yellow corners. Yellow on top: the center and the left and right edges. Yellow on the sides: front (left and middle), right (front and back), back (left and middle).',
+    algorithm: "F U R U' R' U R U' R' F'",
+  },
+  {
+    id: 'oll-52',
+    number: 52,
+    name: 'OLL 52 (Rice Cooker)',
+    group: 'Line',
+    pattern: 'x..|..x.x|x.x.x|..x.x|x..',
+    recognition:
+      'A yellow line through the center on top, with no yellow corners. Yellow on top: the center and the back and front edges. Yellow on the sides: front (left), right (all three), back (left), left (middle).',
+    algorithm: "R U R' U R U' B U' B' R'",
+  },
+  {
+    id: 'oll-53',
+    number: 53,
+    name: 'OLL 53 (Frying Pan)',
+    group: 'Small L',
+    pattern: 'x.x|..x..|x.xx.|.....|xxx',
+    recognition:
+      'A small yellow L shape on top, with no yellow corners. Yellow on top: the center and the back and right edges. Yellow on the sides: front (all three), back (left and right), left (middle).',
+    algorithm: "l' U2 L U L' U' L U L' U l",
+  },
+  {
+    id: 'oll-54',
+    number: 54,
+    name: 'OLL 54 (Anti-Frying Pan)',
+    group: 'Small L',
+    pattern: 'x.x|..x..|.xx.x|.....|xxx',
+    recognition:
+      'A small yellow L shape on top, with no yellow corners. Yellow on top: the center and the back and left edges. Yellow on the sides: front (all three), right (middle), back (left and right).',
+    algorithm: "r U2 R' U' R U R' U' R U' r'",
+  },
+  {
+    id: 'oll-55',
+    number: 55,
+    name: 'OLL 55 (Highway)',
+    group: 'Line',
+    pattern: 'xxx|.....|.xxx.|.....|xxx',
+    recognition:
+      'A yellow line through the center on top, with no yellow corners. Yellow on top: the center and the left and right edges. Yellow on the sides: front (all three), back (all three).',
+    algorithm: "R' F R U R U' R2 F' R2 U' R' U R U R'",
+  },
+  {
+    id: 'oll-56',
+    number: 56,
+    name: 'OLL 56 (Streetlights)',
+    group: 'Line',
+    pattern: '.x.|x...x|.xxx.|x...x|.x.',
+    recognition:
+      'A yellow line through the center on top, with no yellow corners. Yellow on top: the center and the left and right edges. Yellow on the sides: front (middle), right (front and back), back (middle), left (back and front).',
+    algorithm: "r' U' r U' R' U R U' R' U R r' U r",
+  },
+  {
+    id: 'oll-57',
+    number: 57,
+    name: 'OLL 57 (Mummy)',
+    group: 'Corners oriented',
+    pattern: '.x.|.x.x.|.xxx.|.x.x.|.x.',
+    recognition:
+      'All four corners are yellow on top, and two edges are not. Yellow on top: the center, the left and right edges and all four corners. Yellow on the sides: front (middle), back (middle).',
+    algorithm: "R U R' U' M' U R U' r'",
+  },
 ];
