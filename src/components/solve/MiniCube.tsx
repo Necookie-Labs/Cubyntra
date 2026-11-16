@@ -9,7 +9,7 @@
 
 import React from 'react';
 import type { CubeColor, Face } from '@/cube/types';
-import { cx, stickerColor, stickerLetter } from '@/components/ui';
+import { cx, stickerColor, stickerLetter, stickerLetterClass } from '@/components/ui';
 
 const NET: Record<Face, { col: number; row: number }> = {
   U: { col: 2, row: 1 },
@@ -65,7 +65,7 @@ export function MiniCube({ centers, highlight, letters = false, className }: Min
                   style={i === 4 ? { backgroundColor: stickerColor(centers[face]) } : undefined}
                 >
                   {i === 4 && letters && (
-                    <span className="font-mono text-[8px] font-bold leading-none text-sticker-core">
+                    <span className={cx('font-mono text-[8px] font-bold leading-none', stickerLetterClass(centers[face]))}>
                       {stickerLetter(centers[face])}
                     </span>
                   )}

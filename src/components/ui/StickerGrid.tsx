@@ -10,7 +10,7 @@
 import React from 'react';
 import type { CubeColor } from '@/cube/types';
 import { cx } from './cx';
-import { stickerColor, stickerLetter } from './sticker';
+import { stickerColor, stickerLetter, stickerLetterClass } from './sticker';
 
 export interface StickerGridProps {
   /** Nine colors row-major; null draws an unknown (empty) tile. */
@@ -50,7 +50,7 @@ export const StickerGrid: React.FC<StickerGridProps> = ({
       const content = (
         <>
           {letters && color && size !== 'sm' && (
-            <span aria-hidden className="font-mono font-bold leading-none text-sticker-core">
+            <span aria-hidden className={cx('font-mono font-bold leading-none', stickerLetterClass(color))}>
               {stickerLetter(color)}
             </span>
           )}

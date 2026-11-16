@@ -15,7 +15,7 @@ import { CubeColor, CubeState, Face, ValidationIssue } from '@/cube/types';
 import { COLORS, FACES } from '@/cube/constants';
 import { StickerFlag } from '@/vision/resolveCubeColors';
 import { AlertTriangle, CheckCircle2, Info, RotateCcw, ScanLine, Sparkles } from 'lucide-react';
-import { BlockButton, Chip, stickerColor, stickerLetter } from '@/components/ui';
+import { BlockButton, Chip, cx, stickerColor, stickerLetter, stickerLetterClass } from '@/components/ui';
 
 const FACE_LABEL: Record<Face, string> = {
   U: 'Top',
@@ -234,7 +234,7 @@ export const ScanReview: React.FC<ScanReviewProps> = ({ onRescanFace, onConfirme
                   style={{ backgroundColor: stickerColor(color) }}
                 >
                   {stickerLetters && (
-                    <span aria-hidden className="font-mono text-xs font-bold leading-none text-sticker-core">
+                    <span aria-hidden className={cx('font-mono text-xs font-bold leading-none', stickerLetterClass(color))}>
                       {stickerLetter(color)}
                     </span>
                   )}

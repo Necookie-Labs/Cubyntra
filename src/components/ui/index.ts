@@ -22,5 +22,5 @@ export { SegmentedControl } from './SegmentedControl';
 export type { SegmentOption, SegmentedControlProps } from './SegmentedControl';
 export { StickerGrid } from './StickerGrid';
 export type { StickerGridProps } from './StickerGrid';
-export { stickerColor, stickerLetter } from './sticker';
+export { stickerColor, stickerLetter, stickerLetterClass } from './sticker';
 export { cx } from './cx';

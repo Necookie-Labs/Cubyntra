@@ -8,6 +8,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
+import { STICKER_LETTER_INK } from '@/lib/tokens';
 import { contrastRatio, readThemeTokens } from './helpers/contrast';
 
 const { light, dark } = readThemeTokens();
@@ -30,6 +31,8 @@ const TEXT_PAIRS: ReadonlyArray<readonly [string, string]> = [
   ['on-leaf', 'warn'],
   ['on-danger', 'danger'],
   ['sticker-white', 'sticker-core'], // camera overlays
+  // Color-blind letters, in the ink chosen for each sticker (twin, grids, mini-cube, review).
+  ...Object.entries(STICKER_LETTER_INK).map(([color, ink]) => [`sticker-${ink}`, `sticker-${color}`] as const),
 ];
 
 /**

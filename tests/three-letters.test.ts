@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { CubieMesh, LETTER_GLYPHS, STICKER_LETTER, VoxelKit, letterGeometry } from '../src/three/cubie';
 import type { CubeColor } from '../src/cube/types';
+import { STICKER_CORE_HEX, STICKER_HEX } from '../src/lib/tokens';
 
 const COLORS = Object.keys(STICKER_LETTER) as CubeColor[];
 
@@ -54,15 +55,27 @@ describe('sticker letters', () => {
     cubie.setStickerColor('F', 'orange');
     expect(cubie.letterOn('F')!.geometry).toBe(kit.letter('orange'));
     cubie.setFaded(true);
-    expect(cubie.letterOn('F')!.material).toBe(kit.letterMaterial(true));
+    expect(cubie.letterOn('F')!.material).toBe(kit.letterMaterial('orange', true));
     cubie.setFaded(false);
-    expect(cubie.letterOn('F')!.material).toBe(kit.letterMaterial(false));
+    expect(cubie.letterOn('F')!.material).toBe(kit.letterMaterial('orange', false));
+  });
+
+  it('draws dark letters on light stickers and light letters on red and blue', () => {
+    const kit = new VoxelKit();
+    const cubie = new CubieMesh({ x: 0, y: 0, z: 1 }, kit);
+    cubie.setLettersVisible(true);
+    const ink = (color: CubeColor) => {
+      cubie.setStickerColor('F', color);
+      return '#' + (cubie.letterOn('F')!.material as THREE.MeshLambertMaterial).color.getHexString().toUpperCase();
+    };
+    for (const c of ['white', 'yellow', 'orange', 'green'] as const) expect(ink(c), c).toBe(STICKER_CORE_HEX);
+    for (const c of ['red', 'blue'] as const) expect(ink(c), c).toBe(STICKER_HEX.white);
   });
 
   it('creates letter materials only when letters are used', () => {
     const kit = new VoxelKit();
     expect(kit.materials()).toHaveLength(14);
-    kit.letterMaterial();
-    expect(kit.materials()).toHaveLength(16);
+    kit.letterMaterial('red');
+    expect(kit.materials()).toHaveLength(18);
   });
 });

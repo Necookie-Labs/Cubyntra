@@ -44,7 +44,7 @@ writes `data-theme` before first paint and the header toggle cycles Light, Dark 
 | `--vx-focus` | `#1D5FB8` | `#8CC4FF` | focus ring |
 | `--vx-scrim` | moss at 70% | near-black at 60% | dialog backdrop (flat, no blur) |
 | `--vx-qr-paper` | `#FFFFFF` | same | QR quiet zone |
-| `--vx-sticker-*` | white `#F4F4EE`, yellow `#F2CF1D`, red `#C8352E`, orange `#F07A1A`, blue `#2F6CD0`, green `#1F9A4A`, core `#1B2E13` | same | cube stickers |
+| `--vx-sticker-*` | white `#F4F4EE`, yellow `#F2CF1D`, red `#C8352E`, orange `#F07A1A`, blue `#2F6CD0`, green `#24A64F`, core `#1B2E13` | same | cube stickers |
 
 Tailwind's default palette, shadows, blur and radii are switched off (`--color-*: initial` and
 friends in `@theme`), so only these tokens produce classes (`bg-panel`, `text-muted`,
@@ -110,7 +110,9 @@ In light mode the leaf fill alone is 2.59:1 against the ground, so every leaf co
 the 2px ink outline (8.75:1).
 The dark theme's outline was near-black (`#0B1306`, 1.1:1 on the dark surfaces), which left
 inputs, switches and radio cards without a visible edge; it is a sage `#6E8C5C` since Phase 10.
-The hard shadow keeps the near-black. `tests/a11y-contrast.test.ts` computes every pair here from
+The hard shadow keeps the near-black. Sticker green was `#1F9A4A`, on which neither dark nor light
+letters reached 4.5:1; the lighter `#24A64F` takes the dark letter at 4.59:1 (red and blue take
+sticker-white letters, 4.75 and 4.55). `tests/a11y-contrast.test.ts` computes every pair here from
 `globals.css` and fails below the AA thresholds.
 
 ## Consequences

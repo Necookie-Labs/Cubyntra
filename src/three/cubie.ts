@@ -14,7 +14,7 @@
 
 import * as THREE from 'three';
 import { CubeColor, CubeState, Face } from '../cube/types';
-import { STICKER_CORE_HEX, STICKER_HEX } from '../lib/tokens';
+import { STICKER_CORE_HEX, STICKER_HEX, STICKER_LETTER_INK } from '../lib/tokens';
 
 /** Edge length of a cubie body. The 0.02 gap to the next cubie shows as a dark seam. */
 export const CUBIE_SIZE = 0.98;
@@ -108,7 +108,8 @@ export class VoxelKit {
   private readonly stickersFaded = new Map<CubeColor, THREE.MeshLambertMaterial>();
   // Color-blind letters are built on first use, so a twin without them carries nothing extra.
   private readonly letters = new Map<CubeColor, THREE.BufferGeometry>();
-  private letterMaterials: { plain: THREE.MeshLambertMaterial; faded: THREE.MeshLambertMaterial } | null = null;
+  private letterMaterials: Record<'core' | 'white', { plain: THREE.MeshLambertMaterial; faded: THREE.MeshLambertMaterial }> | null =
+    null;
   private disposed = false;
 
   constructor(options: VoxelKitOptions = {}) {
@@ -141,18 +142,24 @@ export class VoxelKit {
     return geometry;
   }
 
-  /** Letters are drawn in the core color, like a printed mark on the sticker. */
-  public letterMaterial(faded = false): THREE.MeshLambertMaterial {
+  /**
+   * Letters are a printed mark on the sticker: the core color on light stickers and sticker
+   * white on red and blue, so every letter keeps 4.5:1 against its sticker.
+   */
+  public letterMaterial(color: CubeColor, faded = false): THREE.MeshLambertMaterial {
     this.letterMaterials ??= {
-      plain: flatMaterial(STICKER_CORE_HEX, null),
-      faded: flatMaterial(STICKER_CORE_HEX, this.fadedOpacity),
+      core: { plain: flatMaterial(STICKER_CORE_HEX, null), faded: flatMaterial(STICKER_CORE_HEX, this.fadedOpacity) },
+      white: { plain: flatMaterial(STICKER_HEX.white, null), faded: flatMaterial(STICKER_HEX.white, this.fadedOpacity) },
     };
-    return faded ? this.letterMaterials.faded : this.letterMaterials.plain;
+    const ink = this.letterMaterials[STICKER_LETTER_INK[color]];
+    return faded ? ink.faded : ink.plain;
   }
 
   /** Every material, for disposal and for re-upload after a lost WebGL context. */
   public materials(): THREE.Material[] {
-    const letters = this.letterMaterials ? [this.letterMaterials.plain, this.letterMaterials.faded] : [];
+    const letters = this.letterMaterials
+      ? Object.values(this.letterMaterials).flatMap((ink) => [ink.plain, ink.faded])
+      : [];
     return [this.body, this.bodyFaded, ...this.stickers.values(), ...this.stickersFaded.values(), ...letters];
   }
 
@@ -258,7 +265,10 @@ export class CubieMesh {
     this.stickerColors[face] = color;
     mesh.material = this.kit.sticker(color, this.faded);
     const letter = this.letterMeshes[face];
-    if (letter) letter.geometry = this.kit.letter(color);
+    if (letter) {
+      letter.geometry = this.kit.letter(color);
+      letter.material = this.kit.letterMaterial(color, this.faded);
+    }
   }
 
   /**
@@ -269,7 +279,7 @@ export class CubieMesh {
     for (const face of Object.keys(this.stickerMeshes) as Face[]) {
       const existing = this.letterMeshes[face];
       if (visible && !existing) {
-        const letter = new THREE.Mesh(this.kit.letter(this.stickerColors[face]!), this.kit.letterMaterial(this.faded));
+        const letter = new THREE.Mesh(this.kit.letter(this.stickerColors[face]!), this.kit.letterMaterial(this.stickerColors[face]!, this.faded));
         letter.name = 'sticker-letter';
         this.stickerMeshes[face]!.add(letter);
         this.letterMeshes[face] = letter;
@@ -293,7 +303,7 @@ export class CubieMesh {
     for (const face of Object.keys(this.stickerMeshes) as Face[]) {
       this.stickerMeshes[face]!.material = this.kit.sticker(this.stickerColors[face]!, faded);
       const letter = this.letterMeshes[face];
-      if (letter) letter.material = this.kit.letterMaterial(faded);
+      if (letter) letter.material = this.kit.letterMaterial(this.stickerColors[face]!, faded);
     }
   }
 

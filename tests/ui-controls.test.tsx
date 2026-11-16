@@ -58,6 +58,10 @@ describe('StickerGrid', () => {
     rerender(<StickerGrid tiles={tiles} label="Front face" letters />);
     expect(screen.getAllByText('W')).toHaveLength(2);
     expect(stickerLetter('orange')).toBe('O');
+    // Light letters on red and blue, dark ones elsewhere, for 4.5:1 on every sticker.
+    expect(screen.getAllByText('R')[0].className).toContain('text-sticker-white');
+    expect(screen.getByText('B').className).toContain('text-sticker-white');
+    expect(screen.getByText('G').className).toContain('text-sticker-core');
   });
 
   it('makes tiles buttons when they can be corrected', () => {

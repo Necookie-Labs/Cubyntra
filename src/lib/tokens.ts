@@ -18,11 +18,24 @@ export const STICKER_HEX: Readonly<Record<CubeColor, string>> = {
   red: '#C8352E',
   orange: '#F07A1A',
   blue: '#2F6CD0',
-  green: '#1F9A4A',
+  green: '#24A64F',
 };
 
 /** Plastic between the stickers (`--vx-sticker-core`). */
 export const STICKER_CORE_HEX = '#1B2E13';
+
+/**
+ * Ink of the color-blind letter on each sticker: the core color on the light stickers, sticker
+ * white on red and blue. Every pair reaches 4.5:1 (tests/a11y-contrast.test.ts).
+ */
+export const STICKER_LETTER_INK: Readonly<Record<CubeColor, 'core' | 'white'>> = {
+  white: 'core',
+  yellow: 'core',
+  red: 'white',
+  orange: 'core',
+  blue: 'white',
+  green: 'core',
+};
 
 /**
  * Theme-dependent tokens the twin draws guidance with. Arrows and the slot outline sit over

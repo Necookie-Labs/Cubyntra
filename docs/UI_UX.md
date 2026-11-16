@@ -51,7 +51,9 @@ All colors are CSS variables in one block of `src/app/globals.css` (`/* tokens:s
 ### 2.2 Cube Sticker Colors
 Flat and identical in both themes; use `stickerColor(color)` from `@/components/ui` or the
 `bg-sticker-*` classes. White `#F4F4EE`, yellow `#F2CF1D`, red `#C8352E`, orange `#F07A1A`,
-blue `#2F6CD0`, green `#1F9A4A`, plastic core `#1B2E13`.
+blue `#2F6CD0`, green `#24A64F`, plastic core `#1B2E13`. The color-blind letter on a sticker is
+the core color, or sticker white on red and blue (`STICKER_LETTER_INK` in `src/lib/tokens.ts`), so
+every letter reaches 4.5:1 on its sticker.
 
 ### 2.3 Typography
 - **Headings and display:** Pixelify Sans (`font-display`; `h1`–`h3` use it automatically).
