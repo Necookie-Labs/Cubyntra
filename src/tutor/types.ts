@@ -130,6 +130,109 @@ export interface GuidedSolve {
   finalState: CubeState;
 }
 
+/** One sticker as a checkpoint scan read it. */
+export interface StickerObservation {
+  color: CubeColor;
+  /** 0..1. Below the checkpoint's threshold the sticker counts as not seen. */
+  confidence: number;
+  /** True when the student set this tile by hand. */
+  edited?: boolean;
+}
+
+/**
+ * One face shown for a checkpoint. `face` is the face the student was asked to show, named in
+ * the frame of the plan's `gripAfter`; `stickers` are its nine tiles row-major in that frame's
+ * standard face layout (index 4 = center), exactly like a face of `expectedState`.
+ */
+export interface FaceObservation {
+  face: Face;
+  stickers: StickerObservation[];
+}
+
+export type StickerOutcome = 'match' | 'mismatch' | 'uncertain' | 'missing';
+
+export interface StickerResult extends StickerRef {
+  expected: CubeColor;
+  /** Null when the sticker's face was not shown. */
+  observed: CubeColor | null;
+  confidence: number;
+  outcome: StickerOutcome;
+}
+
+/** `wrong-face`: a shown face has the wrong center, so nothing else on it was compared. */
+export type CheckpointStatus = 'match' | 'mismatch' | 'uncertain' | 'wrong-face';
+
+export interface WrongFace {
+  /** The face that was asked for, and the center color it must have. */
+  asked: Face;
+  askedCenter: CubeColor;
+  /** The center color the camera saw, and the face of the expected cube that has it. */
+  shownCenter: CubeColor;
+  shown: Face;
+}
+
+export interface CheckpointResult {
+  status: CheckpointStatus;
+  /** One entry per check-spec sticker, in the plan's order. Only these decide `status`. */
+  stickerResults: StickerResult[];
+  /** 0..1: how sure the check is of `status`. */
+  confidence: number;
+  /** Set when `status` is `wrong-face`. */
+  wrongFace?: WrongFace;
+  /** Faces of the check spec that have not been shown yet. */
+  missingFaces: Face[];
+  /** Confidently read stickers on the shown faces, outside the check spec, that differ. */
+  elsewhere: StickerResult[];
+  /** True when the student confirmed by hand instead of the camera. */
+  manual: boolean;
+  /** One plain sentence for the student. */
+  message: string;
+}
+
+/** The kinds of slip the checkpoint can name (the coach's `MistakeKind`). */
+export type MistakeKind =
+  | 'wrong-direction'
+  | 'skipped-move'
+  | 'doubled-move'
+  | 'wrong-face'
+  | 'wrong-grip'
+  | 'other';
+
+/** Finer label for kind `other`. */
+export type MistakeDetail = 'stopped-early' | 'extra-repeat' | 'two-mistakes';
+
+/** One way the student may have gone wrong that fits what the checkpoint scan saw. */
+export interface LikelyMistake {
+  kind: MistakeKind;
+  detail?: MistakeDetail;
+  /** Index into the step's moves (setup then algorithm) where it happened, when it has one. */
+  moveIndex?: number;
+  /** 0..1: share of belief among all the mistakes considered. */
+  confidence: number;
+  /** Plain language, no notation: "You probably skipped move 3: turn the top to the left." */
+  description: string;
+  /** What the student most likely did, from `startState` held in the plan's `grip`. */
+  performedMoves: Move[];
+  /** The cube after `performedMoves`, as seen in the plan's `gripAfter`. */
+  resultingState: CubeState;
+  /** Log-likelihood of the observed stickers plus the log prior of this kind of slip. */
+  score: number;
+  /** Confidently read stickers that this mistake does not explain. */
+  contradictions: number;
+}
+
+export interface Diagnosis {
+  /** Ranked, most likely first. Empty when no mistake considered fits at all. */
+  likelyMistakes: LikelyMistake[];
+  /**
+   * True when the first mistake explains every confidently read sticker and no other mistake
+   * considered leads to a different cube that would look the same on the shown faces.
+   */
+  confident: boolean;
+  /** When several different cubes fit equally, the face that would best tell them apart. */
+  showNext?: Face;
+}
+
 /** A plan failed its replay check, or no plan exists for the state. Never shown as a step. */
 export class TutorPlanError extends Error {
   constructor(message: string) {
