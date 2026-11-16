@@ -12,64 +12,68 @@
 ### 1.1 Types & Interfaces (`src/cube/types.ts`)
 
 ```typescript
-export type FaceName = 'U' | 'D' | 'F' | 'B' | 'L' | 'R';
+export type CubeColor = 'white' | 'yellow' | 'green' | 'blue' | 'red' | 'orange';
+export type Face = 'U' | 'R' | 'F' | 'D' | 'L' | 'B';
+export type QuarterTurns = 1 | -1 | 2;
+export type Slice = 'M' | 'E' | 'S';
+export type RotationAxis = 'x' | 'y' | 'z';
+export type MoveKind = 'face' | 'wide' | 'slice' | 'rotation';
 
-export type ColorName = 'white' | 'yellow' | 'green' | 'blue' | 'orange' | 'red';
+// Every move also has: quarterTurns: QuarterTurns; notation: string; description: string
+export type Move =
+  | { kind: 'face'; face: Face }
+  | { kind: 'wide'; face: Face }
+  | { kind: 'slice'; slice: Slice }
+  | { kind: 'rotation'; axis: RotationAxis };
+export type CubeMove = Move; // historical name, still used by the solver, store and UI
 
-export type FaceletColor = 'U' | 'D' | 'F' | 'B' | 'L' | 'R';
-
-export type StickerGrid = [
-  [FaceletColor, FaceletColor, FaceletColor],
-  [FaceletColor, FaceletColor, FaceletColor],
-  [FaceletColor, FaceletColor, FaceletColor]
-];
-
-export interface CubeState {
-  U: StickerGrid;
-  D: StickerGrid;
-  F: StickerGrid;
-  B: StickerGrid;
-  L: StickerGrid;
-  R: StickerGrid;
-}
-
-export type MoveNotation =
-  | 'U' | "U'" | 'U2'
-  | 'D' | "D'" | 'D2'
-  | 'F' | "F'" | 'F2'
-  | 'B' | "B'" | 'B2'
-  | 'L' | "L'" | 'L2'
-  | 'R' | "R'" | 'R2';
-
-export interface ValidationResult {
-  valid: boolean;
-  errors: string[];
-  faceCounts: Record<FaceletColor, number>;
-  problemPieces?: Array<{ face: FaceName; row: number; col: number }>;
-}
+export type FaceStickers = [CubeColor, /* x9, row-major as seen from outside */];
+export interface CubeState { U: FaceStickers; R: FaceStickers; F: FaceStickers; D: FaceStickers; L: FaceStickers; B: FaceStickers }
 ```
 
-### 1.2 Transformations (`src/cube/transforms.ts`)
+### 1.2 Moves (`src/cube/transforms.ts`)
 
-- `createSolvedCube(): CubeState`  
-  Returns a pristine, fully solved 6-face cube state.
-- `rotateFace(state: CubeState, move: MoveNotation): CubeState`  
-  Applies a single discrete face rotation and returns a new immutable `CubeState`.
-- `applyMoveSequence(state: CubeState, moves: MoveNotation[]): CubeState`  
-  Applies a sequential series of rotations to a cube state.
-- `generateScramble(length?: number): MoveNotation[]`  
-  Generates a mathematically valid random scramble sequence (default: 20 moves).
-- `cubeStateToFaceletString(state: CubeState): string`  
-  Converts a 6-face grid state into standard 54-character Kociemba notation (`UUU...RRR...FFF...DDD...LLL...BBB...`).
-- `faceletStringToCubeState(str: string): CubeState`  
-  Parses a 54-character string back into a structured `CubeState`.
+- `parseMove(notation: string): Move`: face `U R F D L B`, wide `u r f d l b` / `Uw..Bw`, slices `M E S`, rotations `x y z`, each with optional `'` or `2`. Anything else throws.
+- `parseAlgorithm(alg: string): Move[]`, `formatMove(move): string`, `formatAlgorithm(moves): string` (canonical, wide moves lower case).
+- `applyMove(state, move): CubeState`, `applyMoves(state, moves): CubeState`.
+- `invertMove(move): Move`, `invertAlgorithm(moves): Move[]`.
+- `createMove(target, quarterTurns): Move`, `moveFromReference(kind, face, quarterTurns): Move` (e.g. `('slice', 'R', 1)` is `M'`).
+- `moveReferenceFace(move): Face`: the face whose clockwise defines the move's direction.
+- `moveLayers(move): { axis: 'x' | 'y' | 'z'; layers: (-1 | 0 | 1)[]; quarters: number }`: the layers a move turns and the signed quarter turns about the + axis; used by the 3D engine.
+- `isCubeSolved(state): boolean`: solved in any of the 24 orientations.
+- `cubeStateToFaceletString(state): string` / `faceletStringToCubeState(str): CubeState`: 54-character Kociemba strings; the state must be in standard orientation.
+- `cloneCubeState`, `rotateFaceClockwise`, `rotateFaceCounterClockwise`, `rotateFace180`.
+- `createSolvedCubeState(): CubeState` lives in `src/cube/constants.ts`.
 
-### 1.3 State Validation (`src/cube/validator.ts`)
+### 1.3 Orientation and Grip (`src/cube/orientation.ts`, `src/cube/grip.ts`)
 
-- `validateCubeState(state: CubeState): ValidationResult`  
-  Validates piece counts, physical piece integrity, center colors, and mathematical parity.
-- `validateFaceletString(str: string): ValidationResult`  
-  Validates a 54-character string against format and group invariants.
+- `normalizeOrientation(state): { state: CubeState; rotation: Move[] } | null`
+- `centerColors(state): Record<Face, CubeColor>`
+- `findRotation(centers, target: Partial<Record<Face, CubeColor>>): Move[] | null`
+- `translateMoveThroughRotation(move, rotation): Move` and `translateAlgorithmThroughRotation(moves, rotation): Move[]`: for any state S, `S · move · rotation = S · rotation · result`.
+- `interface Grip { top: CubeColor; front: CubeColor }`, `STANDARD_GRIP` (white top, green front).
+- `isValidGrip(grip)`, `gripOf(state): Grip`, `gripCenters(grip): Record<Face, CubeColor>`.
+- `gripRotation(from: Grip, to: Grip): Move[]`: at most two rotations.
+- `viewInGrip(state, grip): { state: CubeState; rotation: Move[] }`.
+- `translateMove(move, from: Grip, to: Grip): Move`, `translateAlgorithm(moves, from, to): Move[]`.
+
+### 1.4 Pieces (`src/cube/pieces.ts`)
+
+- `CORNER_SLOTS`, `EDGE_SLOTS`: sticker tables, shared with the validator.
+- `findEdge(state, [c1, c2]): { slot: EdgeSlot; stickers: [StickerRef, StickerRef]; orientation: 0 | 1 }`
+- `findCorner(state, [c1, c2, c3]): { slot: CornerSlot; stickers: [StickerRef, StickerRef, StickerRef]; orientation: 0 | 1 | 2 }`
+  (`stickers[i]` shows `colors[i]`; `orientation` is the slot sticker showing `c1`, 0 = U/D. Both throw if the piece does not exist.)
+- `isPieceSolved(state, colors): boolean`, `isCrossSolved(state, color)`, `isF2LSlotSolved(state, crossColor, [sideA, sideB])`, `isLayerSolved(state, color)`, `isMiddleLayerSolved(state, color)`, `f2lSlots(crossColor)`, `sideColors(color)`.
+
+### 1.5 Names and Geometry
+
+- `moveName(move): string` (`src/cube/moveNames.ts`): plain-language instruction, e.g. "Turn the right side up".
+- `src/cube/geometry.ts`: `stickerPosition`, `stickerAt`, `layerTurnPermutation`, `faceRotationMap`, `ORIENTATIONS` (the 24 orientations with their rotations).
+
+### 1.6 State Validation (`src/cube/validator.ts`)
+
+- `validateCubeState(state: CubeState): ValidationResult`
+  Normalizes orientation, then validates color counts, centers, piece integrity and parity.
 
 ---
 
@@ -150,8 +154,7 @@ export interface SolverConfig {
 
 - `solveCubeState(cubeStateOrString: CubeState | string, config?: SolverConfig): Promise<SolveResult>`  
   Computes an optimal or near-optimal move sequence using the two-phase Kociemba engine.
-- `parseAlgorithm(alg: string): CubeMove[]` and `parseMove(notation: string): CubeMove` (in `src/cube/transforms.ts`)  
-  Convert a space-delimited string (`"R U R' U'"`) into `CubeMove[]`. Only upper-case outer face turns `U R F D L B` with an optional `'` or `2` are accepted; lower-case (wide) moves, rotations, slices and any other token throw.
+- `parseAlgorithm` / `parseMove`: see section 1.2. Solutions are face turns in the frame the cube is held in.
 - `invertMove(move: MoveNotation): MoveNotation`  
   Returns the exact algebraic inverse of a face rotation.
 - `invertMoveSequence(moves: MoveNotation[]): MoveNotation[]`  

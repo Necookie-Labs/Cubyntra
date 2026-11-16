@@ -128,6 +128,13 @@ When a face rotates 90° Clockwise (CW), two transformations occur simultaneousl
 - $D[2, 5, 8] \longrightarrow F[2, 5, 8]$
 - $F[2, 5, 8] \longrightarrow U[2, 5, 8]$
 
+The six outer face turns are written out by hand in `applyClockwiseQuarterTurn`. Every other move
+(wide turns, slices, whole-cube rotations) is derived in `src/cube/geometry.ts`: each sticker is
+placed at its cubie position with its outward normal (the table in section 4), the stickers whose
+cubie lies in the turning layers are rotated a quarter turn about the axis, and the rotated
+position and normal give the destination sticker. `tests/cube-geometry.test.ts` checks that this
+rule reproduces the six hand-written face turns sticker for sticker.
+
 ---
 
 ## 6. Mathematical Invariants & Verification
@@ -145,3 +152,64 @@ Cubyntra validates all three invariant constraints:
    $$\text{sgn}(\sigma_{\text{corners}}) = \text{sgn}(\sigma_{\text{edges}})$$
 
 Any state violating these invariants is physically unsolvable without disassembly.
+
+---
+
+## 7. Move Notation
+
+`Move` (alias `CubeMove`) in `src/cube/types.ts` is a union on `kind`. Every move has
+`quarterTurns` (`1` clockwise, `-1` counter-clockwise, `2` half turn), a canonical `notation` and a
+technical `description`. "Clockwise" is always as seen from outside the face the move follows.
+
+| Kind | Notation | Turns | Follows |
+| :--- | :--- | :--- | :--- |
+| `face` | `U R F D L B` | one outer layer | itself |
+| `wide` | `u r f d l b` or `Uw Rw Fw Dw Lw Bw` | the outer layer and the middle layer next to it | its face |
+| `slice` | `M`, `E`, `S` | the middle layer between L/R, U/D, F/B | `M` → L, `E` → D, `S` → F |
+| `rotation` | `x`, `y`, `z` | the whole cube | `x` → R, `y` → U, `z` → F |
+
+Each takes an optional `'` or `2`. `parseMove` stores the canonical form (`Rw'` becomes `r'`);
+`formatMove` writes it. Identities checked in `tests/cube-moves.test.ts`: `x = R M' L'`,
+`y = U E' D'`, `z = F S B'`, `r = R M'`, `u = U E'`, `f = F S`, every move undone by its inverse,
+order 4 for quarter turns and 2 for half turns, 1,000 seeded random algorithms undone by their
+inverse, and hand-written sticker permutations for `M E S x y z` on a cube whose stickers are
+labelled with their own positions.
+
+`moveName(move)` (`src/cube/moveNames.ts`) gives a plain-language instruction for a student
+holding the cube with the front facing them, e.g. `R` "Turn the right side up", `U` "Turn the top
+to the left", `M` "Turn the middle layer between left and right down", `y` "Turn the whole cube to
+the left", `R2` "Turn the right side twice". A test checks each direction word against where a
+sticker actually travels.
+
+---
+
+## 8. Orientation and Grip
+
+Slices and rotations move centers, so a logical state can be held in any of the 24 orientations.
+
+- `isCubeSolved` accepts a solved cube in any orientation, but not a mirrored center layout.
+- `normalizeOrientation(state)` (`src/cube/orientation.ts`) turns the state so white is on U and
+  green on F, returning the state and the rotation used (at most two of `x y z`), or `null` when
+  the centers are impossible. `validateCubeState` and `solveCube` normalize first; the solver
+  then rewrites its solution with `translateAlgorithmThroughRotation` so it applies to the state
+  as held. `cubeStateToFaceletString` assumes standard orientation.
+- A **grip** (`src/cube/grip.ts`) is `{ top, front }` center colors. Notation is relative to the
+  grip: `R` is whatever face is on the student's right. `gripRotation(from, to)` gives the
+  regrip as rotations, `viewInGrip(state, grip)` shows the state as held, and
+  `translateMove(move, from, to)` rewrites a move for another grip (with white on top `R` is the
+  red side; after flipping to yellow on top, same front, that side is `L`).
+
+---
+
+## 9. Pieces
+
+`src/cube/pieces.ts` holds the corner and edge sticker tables (shared with the validator). Corner
+stickers are listed U/D first, then counter-clockwise; edges U/D first (F/B for middle edges).
+
+- `findEdge(state, [c1, c2])` and `findCorner(state, [c1, c2, c3])` return the slot (`'UF'`,
+  `'DFR'`, ...), where each requested color sits, and the orientation (which slot sticker shows
+  `c1`).
+- `isPieceSolved(state, colors)`: each sticker of the piece is on the face whose center matches.
+  Checks are relative to the centers, so they hold in any orientation.
+- `isCrossSolved(state, color)`, `isF2LSlotSolved(state, crossColor, [sideA, sideB])`,
+  `isLayerSolved(state, color)`, `isMiddleLayerSolved(state, color)`, and `f2lSlots(crossColor)`.
