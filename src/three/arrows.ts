@@ -34,16 +34,20 @@ export class MoveArrow {
     const radius = 1.15;
     const startAngle = 0.2;
     const sweep = quarterTurns === 2 ? Math.PI * 0.95 : Math.PI * 0.55;
+    // Half turns are drawn clockwise, matching how applyMove performs them (two clockwise quarters).
     const isClockwise = quarterTurns === 1 || quarterTurns === 2;
 
+    // orientToFace points the local +Z axis out of the face, so the local XY plane is seen from
+    // outside the cube. Seen from +Z, a clockwise arc has a decreasing angle: the end angle is
+    // start - sweep and aClockwise must be true (EllipseCurve then sweeps -sweep radians).
     const curve = new THREE.EllipseCurve(
       0,
       0,
       radius,
       radius,
       startAngle,
-      startAngle + (isClockwise ? sweep : -sweep),
-      !isClockwise,
+      startAngle + (isClockwise ? -sweep : sweep),
+      isClockwise,
       0
     );
 

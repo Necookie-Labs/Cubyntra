@@ -86,10 +86,10 @@ To guide users through solving moves physically, Cubyntra renders animated 3D di
    |      U      |
 ```
 
-- **Geometry**: Parametric arc curve (`THREE.QuadraticBezierCurve3`) extruded with `THREE.TubeGeometry`, terminating in a conical arrow tip (`THREE.ConeGeometry`).
-- **Dynamic Placement**: Projected at a normal offset of $+0.8$ units from the center of the active face.
-- **Rotation Sense**: The arrow arc curve automatically flips based on clockwise (`U`), counter-clockwise (`U'`), or double-turn (`U2`) move specifications.
-- **Pulsing Animation**: Subtle emissive shader pulse synchronizing with playback tempo.
+- **Geometry**: Circular arc (`THREE.EllipseCurve`, radius 1.15) extruded with `THREE.TubeGeometry`, terminating in a conical arrow tip (`THREE.ConeGeometry`) aligned with the direction of travel. A quarter turn sweeps about 0.55π, a half turn about 0.95π.
+- **Dynamic Placement**: `orientToFace` places the arc 1.75 units from the cube centre along the face's outward normal and rotates it so its local $+Z$ axis points out of the face. The arc's local XY plane is therefore always seen from outside the cube.
+- **Rotation Sense**: Seen from outside the face, the arc sweeps **clockwise** for `X` and `X2` (half turns are drawn clockwise, matching `applyMove`, which performs them as two clockwise quarters) and **counter-clockwise** for `X'`. Because local $+Z$ is the outward normal, clockwise means a decreasing angle: the curve ends at `start - sweep` with `aClockwise = true`. `tests/arrows.test.ts` measures the signed sweep of the arc in world space around each face's outward normal for all six faces.
+- **Style**: A flat, unlit `MeshBasicMaterial` (no pulsing or emissive animation).
 
 ---
 
