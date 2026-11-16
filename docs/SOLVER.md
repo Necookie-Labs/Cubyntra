@@ -2,14 +2,16 @@
 
 **Product**: Cubyntra  
 **Organization**: Necookie Labs  
-**Status**: Implemented & Tested  
+**Status**: Implemented (2.0.0)  
 **Module**: `src/solver/`
 
 ---
 
 ## 1. Executive Summary
 
-Cubyntra requires a deterministic, sub-second Rubik's Cube solving engine executing entirely within the client's browser without native binary dependencies or server-side computation. The solver consumes a validated 54-facelet representation of the cube and produces an optimal or near-optimal sequence of face rotations expressed in Half Turn Metric (HTM) notation.
+The solver is Herbert Kociemba's two-phase algorithm from the `rubik-solver` package, run in the browser without native binaries or server-side computation. It consumes a validated 54-facelet cube and produces a near-optimal sequence of face turns in Half Turn Metric (HTM).
+
+In the tutor (2.0) its role is narrow: `confirmReview` in the scan store validates the scanned cube and solves it in the worker, and the result is kept in the scan store. **No tutor step comes from this solver**: every move the student is shown is planned by the deterministic tutor engine ([ADR-012](ADR/012-deterministic-tutor-engine.md), [METHODS.md](tutor/METHODS.md)), which also runs in this module's worker (§4.4). Timer scrambles come from `src/learn/scramble.ts`, not from `generateRandomScramble`.
 
 ---
 
@@ -106,9 +108,10 @@ The solver accepts a 54-character string with indices 0–53 ordered by facelet 
 
 ### 4.3 Simulation & Solution Verification
 Cubyntra implements a mathematical verification engine in `src/solver/solver.ts`:
-1. `solveCubeState(faceletString)` executes the two-phase search.
-2. The resulting move sequence is applied to a simulated cube model starting from the scanned state via `applyMoveSequence()`.
-3. If the resulting state is not identical to `SOLVED_CUBE_STATE`, the solve is rejected as invalid before presenting to the user.
+1. `solveCube(state)` rejects a state that fails `validateCubeState`, and returns no moves for a solved cube.
+2. It turns the state to standard orientation (`normalizeOrientation`), serializes it with `cubeStateToFaceletString` and runs the two-phase search.
+3. The solution is parsed (`parseAlgorithm`), translated back into the frame the cube is held in, and applied to the original state with `applyMoves`.
+4. Unless `isCubeSolved` holds for the result, the solve is returned as `success: false` with an error.
 
 ### 4.4 Web Worker
 Building the Kociemba tables takes a few seconds and a search can take tens of milliseconds, so
@@ -125,9 +128,9 @@ both run in a Web Worker and the 3D twin never stutters.
   |---|---|---|
   | `init` | none | `{ ready: true }` (tables built) |
   | `solve` | `{ state: CubeState }` | `SolveResult` |
-  | `tutor.plan` | `{ state, method, grip?, stepIndex? }` | `StepPlan \| null` (`planNextStep`; null when solved) |
-  | `tutor.progress` | `{ state, method }` | `TutorProgress` |
-  | `tutor.guidedSolve` | `{ state, method, grip? }` | `GuidedSolve` (`runGuidedSolve`) |
+  | `tutor.plan` | `{ state, method, grip?, stepIndex?, options? }` | `StepPlan \| null` (`planNextStep`; null when solved) |
+  | `tutor.progress` | `{ state, method, options? }` | `TutorProgress` |
+  | `tutor.guidedSolve` | `{ state, method, grip?, options? }` | `GuidedSolve` (`runGuidedSolve`) |
 
   The tutor jobs call the tutor engine (`src/tutor/`, [METHODS.md](tutor/METHODS.md)); a
   `TutorPlanError` becomes an `ok: false` reply. Step plans are plain data (states, moves,
@@ -143,8 +146,9 @@ both run in a Web Worker and the 3D twin never stutters.
 - **Fallback**: where `Worker` is undefined (tests, server rendering) or the worker fails to load
   (`error` / `messageerror`), the client runs the same handlers on the main thread, re-running any
   request that was waiting.
-- **Use**: the store solves with `solveInWorker(state)`; the home page calls `warmUpSolver()` on
-  mount so the tables are ready by the time a scan finishes.
+- **Use**: the scan store solves with `solveInWorker(state)`; the tutor store plans with
+  `planStepInWorker`, and Home reads progress with `tutorProgressInWorker`. `warmUpSolver()` is
+  exported but nothing calls it at present, so the first scan builds the tables.
 
 `tests/solver-worker.test.ts` covers the handlers, the worker entry point, the client with a fake
 worker (concurrent replies matched by id, errors, fallback after a crash) and the main-thread
@@ -153,24 +157,24 @@ clone both ways, errors, fallback); `tests/store-solver-client.test.ts` checks t
 
 ---
 
-## 5. Performance Benchmarks
+## 5. Performance
 
-Tested on standard browser hardware (Chromium V8, Apple WebKit):
-
-| Benchmark Scenario | Moves | Execution Time (ms) | Memory Alloc |
-|:---|:---:|:---:|:---:|
-| Superflip Position | 20 | 48 ms | < 2.4 MB |
-| Random 20-move Scramble | 21 | 18 ms | < 1.1 MB |
-| T-Permutation | 14 | 8 ms | < 0.5 MB |
-| Already Solved Cube | 0 | < 1 ms | 0 KB |
+No benchmark is part of the test suite, so this document gives no timing figures. What is tested
+(`tests/solver.test.ts`): a solved cube gives 0 moves; a short scramble, a medium scramble (Sune
+plus J-perm) and a random scramble are solved and the result verified solved; an invalid cube is
+rejected before the search. Kociemba solutions are typically 18–22 HTM moves; the tutor's guided
+solves are much longer by design ([METHODS.md](tutor/METHODS.md) §8.1: 155.8 turns on average for
+the beginner's method, 75.7 for CFOP 2-look).
 
 ---
 
 ## 6. Error Handling & Edge Cases
 
-1. **Unsolvable Parity**: If edge flip sum, corner twist sum, or permutation parity is invalid, the solver rejects execution and returns human-readable diagnostic errors:
-   - `INVALID_CORNER_TWIST`
-   - `INVALID_EDGE_FLIP`
-   - `ODD_PERMUTATION_PARITY`
-2. **Duplicate/Missing Facelets**: Handled prior to solver invocation by `src/cube/validator.ts`.
-3. **Execution Timeout**: Capped at 5,000ms. If search exceeds threshold, fallback alert triggers.
+1. **Invalid cube**: `solveCube` returns `success: false` with the validator's messages. The
+   validator's issue codes include `INVALID_COLOR_COUNT`, `INVALID_CENTERS`,
+   `INVALID_CORNER_COLORS`, `INVALID_EDGE_COLORS`, `CORNER_TWIST_PARITY`, `EDGE_FLIP_PARITY`
+   and `PERMUTATION_PARITY`.
+2. **Unreachable orientation or a search failure**: returned as `success: false` with the error
+   message; the scan store shows the error state.
+3. **No timeout**: the search is not time-limited; it runs in the worker, so a slow search does
+   not block the page.
