@@ -4,7 +4,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { checkReplyMoves, extractMoveTokens } from '../src/coach/guard';
+import { checkReplyMoves, extractMoveTokens, relayableLength } from '../src/coach/guard';
 import { allowedMoves } from '../src/coach/facts';
 
 const tokens = (text: string) => extractMoveTokens(text).map((t) => t.canonical);
@@ -25,14 +25,50 @@ describe('extractMoveTokens', () => {
     ]);
   });
 
-  it('finds moves inside brackets, quotes and lists', () => {
-    expect(tokens("Try (R U R' U'), then 'F' and \"B2\".")).toEqual(['R', 'U', "R'", "U'", 'F', 'B2']);
+  it('finds moves inside brackets, lists and backticks', () => {
+    expect(tokens("Try (R U R' U'), then `F` and \"B2\".")).toEqual(['R', 'U', "R'", "U'", 'F', 'B2']);
   });
 
-  it('catches a lone face letter at the end of a sentence', () => {
-    expect(tokens('Then turn F.')).toEqual(['F']);
+  it('counts a bare lower-case move only next to other notation', () => {
+    expect(tokens("Do r U r' now")).toEqual(['r', 'U', "r'"]);
+    expect(tokens('Point x at the slot')).toEqual([]);
   });
 
+  // Text that names moves: every listed token must be found, in order.
+  it.each<[string, string[]]>([
+    ["R U R' U'", ['R', 'U', "R'", "U'"]],
+    ['R U R U', ['R', 'U', 'R', 'U']],
+    ['Do R U.', ['R', 'U']],
+    ['Then R, U, F.', ['R', 'U', 'F']],
+    ['Try [R U] twice.', ['R', 'U']],
+    ['(F R)', ['F', 'R']],
+    ['Finish with B2', ['B2']],
+    ['Do R2 instead.', ['R2']],
+    ["Just U'.", ["U'"]],
+    ['L2 is a half turn.', ['L2']],
+    ['Use Rw here.', ['r']],
+    ["Use Fw' here.", ["f'"]],
+    ['A quick M2 helps.', ['M2']],
+    ['Turn y2 first.', ['y2']],
+    ["Rotate with x' first.", ["x'"]],
+    ['Then turn F.', ['F']],
+    ['Do B now.', ['B']],
+    ['Try D and see.', ['D']],
+    ['Press `R` once.', ['R']],
+    ['Turn the top once (U).', ['U']],
+    ['Then the front [F].', ['F']],
+    ['Lowercase `r` is wide.', ['r']],
+    ['`R U R`', ['R', 'U', 'R']],
+    ["R U R' U' R' F R F'", ['R', 'U', "R'", "U'", "R'", 'F', 'R', "F'"]],
+    ['R’ U′ F´', ["R'", "U'", "F'"]],
+    ['r U x', ['r', 'U', 'x']],
+    ["M' U M", ["M'", 'U', 'M']],
+    ['E S', ['E', 'S']],
+  ])('finds the moves in "%s"', (text, expected) => {
+    expect(tokens(text)).toEqual(expected);
+  });
+
+  // Ordinary prose: no move tokens at all.
   it.each([
     'Make a U-turn with the top.',
     'I like R&B music.',
@@ -41,20 +77,38 @@ describe('extractMoveTokens', () => {
     'This is the F2L stage of CFOP and a 3x3 cube.',
     'Use the L shape or the U perm.',
     'Two edges make an L with the center, so the L points to the front.',
+    'The dot becomes an L, the L becomes a line, the line becomes the cross.',
     'The Ua perm and the H perm move edges.',
     'A b c, x marks the spot.',
     'Born in the U.S.A.',
     'Look at the 3D model.',
-    "Do (R U R' U') x2.",
+    'If that fails, go to plan B.',
+    'Look at the F face first.',
+    'Hold the cube so the R side faces you.',
+    'The R and L sides stay still.',
+    'Corner D is the one at the bottom.',
+    'Grade: B. Nice work.',
+    'Option E is the safest.',
+    'Point x at the slot.',
+    'Plot y against time.',
+    'The x and y axes are fine.',
+    'Is it piece F or piece B? Look again.',
+    'The letters F, then nothing.',
+    'Turn the top so the L is at the back.',
+    'This is the U case.',
+    'An S shape appears.',
+    'Ask your friend M about it.',
+    'Name: L. Simple.',
   ])('does not flag ordinary words in "%s"', (text) => {
-    const found = tokens(text);
-    if (text.includes("(R U R' U')")) expect(found).toEqual(['R', 'U', "R'", "U'"]);
-    else expect(found).toEqual([]);
+    expect(tokens(text)).toEqual([]);
   });
 
-  it('counts a bare lower-case move only next to other notation', () => {
-    expect(tokens("Do r U r' now")).toEqual(['r', 'U', "r'"]);
-    expect(tokens('Point x at the slot')).toEqual([]);
+  it('reads a repeat count after a bracket as a count, not a rotation', () => {
+    expect(tokens("Do (R U R' U') x2.")).toEqual(['R', 'U', "R'", "U'"]);
+  });
+
+  it('still reads a stray backtick after a letter as a prime', () => {
+    expect(tokens('Do R` now.')).toEqual(["R'"]);
   });
 });
 
@@ -75,6 +129,27 @@ describe('checkReplyMoves', () => {
     expect(result.offending.map((t) => t.canonical)).toEqual(["U'", 'F']);
   });
 
+  it.each([
+    'If that fails, go to plan B.',
+    'Look at the F face, then the L side.',
+    'The dot becomes an L, the L becomes a line.',
+  ])('accepts prose with a lone capital: "%s"', (text) => {
+    expect(checkReplyMoves(text, SUNE).ok).toBe(true);
+  });
+
+  it.each([
+    ["Do R U R' U' to finish.", ["U'"]],
+    ['Then do R2.', ['R2']],
+    ['Next: F R.', ['F']],
+    ['Turn F now.', ['F']],
+    ['Press `B` first.', ['B']],
+    ["Try (L') once.", ["L'"]],
+  ])('rejects invented notation in "%s"', (text, offending) => {
+    const result = checkReplyMoves(text, SUNE);
+    expect(result.ok).toBe(false);
+    expect(result.offending.map((t) => t.canonical)).toEqual(offending);
+  });
+
   it('rejects a changed amount of an allowed face', () => {
     expect(checkReplyMoves('Do R2 instead.', SUNE).ok).toBe(false);
   });
@@ -89,5 +164,20 @@ describe('checkReplyMoves', () => {
   it('treats Rw and r as the same move', () => {
     const allowed = allowedMoves({ setupMoves: '', algorithm: "f R U R' U' f'" });
     expect(checkReplyMoves("Do Fw R U R' U' Fw'.", allowed).ok).toBe(true);
+  });
+});
+
+describe('relayableLength', () => {
+  it.each<[string, string]>([
+    ['Look at the corner', 'Look at the '],
+    ['Look at the F ', 'Look at the '],
+    ['Look at the F face ', 'Look at the F face '],
+    ["Do R U R' ", "Do R U R' "],
+    ['Then (F ', 'Then ('],
+    ['Plan B', 'Plan '],
+    ['Line one\nline', 'Line one\n'],
+    ["I'd go ", "I'd go "],
+  ])('shows "%s" up to "%s"', (text, shownPart) => {
+    expect(text.slice(0, relayableLength(text))).toBe(shownPart);
   });
 });

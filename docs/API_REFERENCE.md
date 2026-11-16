@@ -292,13 +292,21 @@ See [ADR-014](ADR/014-claude-coach.md). Protected routes need the header `x-cuby
 
 ```typescript
 // Facts (src/coach/facts.ts)
-buildCoachFacts(plan: StepPlan, hintLevel: 1 | 2 | 3, attempts?: AttemptRecord[], diagnosis?: CoachDiagnosis): CoachFacts
+buildCoachFacts(plan: StepPlan, hintLevel: 1 | 2 | 3, attempts?: AttemptRecord[], diagnosis?: Diagnosis): CoachFacts
 parseCoachFacts(input: unknown): { ok: true; value: CoachFacts } | { ok: false; error: string }
+projectDiagnosis(diagnosis: Diagnosis, step): CoachDiagnosisFacts | undefined  // what Claude sees
+allowedMoves(facts): Set<string>   // step moves + moves named in the top diagnosis description
+describeMoves(notation: string): string[]   // ["R = turn the right side up", ...]
 
-// What the Phase 5 checkpoint builder fills (src/coach/types.ts)
-interface CoachDiagnosis { likelyMistakes: { kind: MistakeKind; moveIndex?: number; confidence?: number }[] }
-type MistakeKind = 'wrong-direction' | 'skipped-move' | 'doubled-move' | 'wrong-face' | 'wrong-grip' | 'other'
+// Diagnosis comes from the tutor (src/tutor/types.ts: Diagnosis, LikelyMistake, MistakeKind).
+// Only this projection is sent (src/coach/types.ts):
+interface CoachDiagnosisFacts {
+  likelyMistakes: { kind: MistakeKind; detail?: MistakeDetail; moveIndex?: number; confidence: number; description?: string }[]  // at most 3
+  confident: boolean
+  showNext?: string   // a side in words, e.g. "the right side"
+}
 interface AttemptRecord { result: 'matched' | 'mismatch' | 'unsure'; mistakes?: MistakeKind[] }
+// CoachFacts also carries moveWords?: string[] at hint level 3 (recomputed by the server).
 
 // Client hook (src/coach/useCoach.ts)
 useCoach({ plan, token, attempts?, diagnosis?, endpoint? }): {
@@ -308,6 +316,7 @@ useCoach({ plan, token, attempts?, diagnosis?, endpoint? }): {
 
 // Guardrail and templates
 checkReplyMoves(text: string, allowed: Set<string>, names?: string[]): { ok, tokens, offending }
+relayableLength(text: string): number   // how much of a streaming reply may be shown now
 templateText(facts: CoachFacts): string
 
 // Server only (src/lib/localAuth.ts)

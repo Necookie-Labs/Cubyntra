@@ -20,33 +20,69 @@ private off the laptop.
 
 ### 1. Model and request
 - `@anthropic-ai/sdk`, model `claude-haiku-5-5`, `client.messages.stream(...)`.
-- `output_config: { effort: "low" }`, `max_tokens: 400`. No `temperature` / `top_p` / `top_k`
-  (the current API rejects them) and no `thinking` field (Haiku 5.5 thinks adaptively by default).
-- System prompt: one fixed text (`src/coach/systemPrompt.ts`, about 18,000 characters, roughly
-  4,500 tokens) with the curriculum for both methods, stage-by-stage teaching notes, the tone for
+- `thinking: { type: "disabled" }`, `output_config: { effort: "low" }`, `max_tokens: 400`.
+  Haiku 5.5 thinks adaptively by default and thinking tokens would eat into the 400-token reply
+  budget (a cut-off reply becomes a template), so thinking is turned off; Haiku 5.5 accepts
+  disabled thinking at effort `high` or below. No `temperature` / `top_p` / `top_k` (the current
+  API rejects them).
+- System prompt: one fixed text (`src/coach/systemPrompt.ts`, about 19,800 characters, roughly
+  4,900 tokens) with the curriculum for both methods, stage-by-stage teaching notes, the tone for
   ages 10+, the hint levels and the rules. It is sent as a text block with
   `cache_control: { type: "ephemeral" }`. It contains nothing per request (a test hashes it and
   rejects dates and ids) so the prefix stays cached; it is well above the minimum cacheable size.
-- User message: a compact facts JSON (`src/coach/facts.ts`): method, stage, case, hint level,
-  grip, setup moves, algorithm, repeat unit, goal / look-for / why text from the engine, up to five
-  earlier attempts and an optional diagnosis `{ likelyMistakes: [{ kind, moveIndex?, confidence? }] }`
-  that the Phase 5 checkpoint builder fills. No cube state, no images.
+- User message: a compact facts JSON (`src/coach/facts.ts`) built from the tutor's `StepPlan`:
+  method, stage id and name, case id and name, hint level, grip, setup moves, algorithm, repeat
+  unit, the plan's own `facts.goal` / `lookFor` / `why`, up to five earlier attempts and, at hint
+  level 3 only, `moveWords`: one plain-language line per taught move (`R = turn the right side
+  up`, from `src/cube/moveNames.ts`; the server recomputes it from the notation). No cube state,
+  no images.
+- Diagnosis: `useCoach` and `buildCoachFacts` take the tutor's own `Diagnosis` /
+  `LikelyMistake` (`src/tutor/types.ts`). Only a compact projection is sent:
+  `{ likelyMistakes: [{ kind, detail?, moveIndex?, confidence, description? }] (at most 3),
+  confident, showNext? }`, with confidence rounded to two decimals and `showNext` in words
+  ("the right side"). `performedMoves`, `resultingState`, `score` and `contradictions` stay in
+  the browser.
 - Hint levels: 1 = what to look for, 2 = why it works, 3 = the exact moves.
 
 ### 2. Claude never decides moves
 - The prompt forbids inventing, changing or reordering moves and asks for words, not single
   letters, when naming sides or shapes.
 - `src/coach/guard.ts` extracts every move-notation token (face, wide, slice and rotation turns
-  with `'`, `2`, sequences, curly primes) and rejects the reply if any token is not in the step's
-  setup, algorithm or repeat unit. Words such as "U-turn", "R&B", "I", "F2L", "L shape",
-  "U perm" and the step's own case name are not tokens.
-- Text is relayed to the student word by word only after the guard has seen it, so a rejected
-  move is normally never displayed. On rejection the reply is replaced by the template.
+  with `'`, `2`, `w`, curly primes) and rejects the reply if any token is not allowed. Words such
+  as "U-turn", "R&B", "I", "F2L", "L shape", "U perm" and the step's own case and stage names
+  are not tokens.
+- A bare single letter counts as a move only in move-like context: in a run of two or more move
+  tokens separated by spaces, commas or brackets (with at least one capital or suffixed token),
+  with a suffix (`R2`, `U'`, `Rw`), inside backticks, alone in brackets ("(F)"), or right after
+  "do", "then", "turn" or "try". So "R U R' U'" and a single invented "R2" are caught, while
+  "plan B", "the F face" and "the L becomes a line" are prose. The cost: a lone invented capital
+  in plain prose ("look at F") passes; it names a side, not a sequence to perform.
+- Allowed moves: the step's setup, algorithm and repeat unit, plus moves named in the top
+  diagnosed mistake's description. Descriptions are checked when the facts are built: the top
+  mistake's description may name step moves or moves the student most likely did (its
+  `performedMoves`); a lower-ranked description may name only step moves. A description that
+  breaks this is dropped (the kind stays); the server also rejects a lower description that
+  names a move outside the step. The tutor writes descriptions in words, so in practice they
+  carry no notation.
+- Text is relayed to the student only after the guard has seen it: up to the last whitespace,
+  and a trailing bare letter is held back until the next word shows whether it starts a run of
+  moves. A rejected move is normally never displayed. On rejection the reply is replaced by the
+  template.
 
 ### 3. Templates and fallbacks
-`src/coach/templates.ts` holds deterministic text for every stage (`src/coach/stages.ts`) and
-every case in the F2L, 2-look OLL and 2-look PLL tables, plus the engine's own cases, at every
-hint level. Templates only quote moves from the facts. They are served:
+`src/coach/templates.ts` builds deterministic text at every hint level from the plan's own
+facts: level 1 the goal and what to look for, level 2 the case and stage names and why it works,
+level 3 the grip, the setup and algorithm (or repeat unit) and each move's plain-language name.
+A tip about the last mistake comes first (the tutor's description when the diagnosis is
+confident, otherwise a tip for the kind, plus the side to show next). Because the text comes
+from the facts, any stage or case the tutor produces gets a template, including ones the coach
+has never seen (for example full OLL/PLL cases).
+
+`src/coach/stages.ts` adds teaching notes per stage. The stage list (ids, names, order) is taken
+from the tutor's `METHODS`, not copied; notes are looked up by `method:stageId`, then by stage
+family (`oll…`, `pll…`), and a stage without notes still gets the facts-based template. Tests
+check that every stage in `METHODS` has notes and a template at levels 1-3, and that every note
+names a real stage. Templates only quote moves from the facts. They are served:
 - in **mock** mode (no `ANTHROPIC_API_KEY`),
 - in **capped** mode (monthly cap reached),
 - when the reply fails the guardrail, ends with `stop_reason` `refusal` (Haiku has no server-side
@@ -91,12 +127,13 @@ step changes.
 ## Consequences
 
 - The tutor is fully usable without a key; adding a key only changes the wording of hints.
-- A guardrail that is strict on purpose: an unusual phrase with a lone capital letter (for
-  example "plan B") makes the coach fall back to the template. That is safe, and
-  `npm run coach:eval` reports how often it happens.
+- The guardrail is strict about sequences and suffixed moves but lets a lone capital in prose
+  through; `npm run coach:eval` reports how often replies still fall back. The eval draws its 50
+  situations from real guided solves of seeded scrambles (both methods, every stage, all hint
+  levels), six of them with a diagnosis made by `diagnoseMistake` after an injected slip.
 - Loopback detection by headers can be fooled by a program on the home network that forges
   `Host: localhost`; the token protects spend, not secrets, and Phase 8 moves the phone to the
   pairing QR.
-- The beginner's stage ids in `src/coach/stages.ts` follow `docs/tutor/GOAL.md` and must be kept
-  in step with the engine when the beginner's method lands (unknown ids still get templates built
-  from the plan's facts).
+- Stage ids and names have one source, the tutor's `METHODS`. A new stage needs a note in
+  `STAGE_TIPS` (or matches a family) to pass the coverage test; until then it still gets the
+  facts-based template.

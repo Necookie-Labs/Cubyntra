@@ -2,65 +2,17 @@
  * Cubyntra - Coach Templates
  * Necookie Labs (c) 2026
  *
- * Deterministic hint text for every stage and case, at every hint level. Served in mock mode (no
- * API key), when the monthly cap is reached, and whenever Claude's reply is refused, cut off,
- * fails the move guardrail or errors. Templates only ever name moves from the facts, so they
- * always pass the guardrail.
+ * Deterministic hint text for any step at every hint level. Served in mock mode (no API key),
+ * when the monthly cap is reached, and whenever Claude's reply is refused, cut off, fails the
+ * move guardrail or errors. The text is built from the plan's own facts (goal, lookFor, why,
+ * case and stage names, setup and algorithm moves), so it works for any stage or case the tutor
+ * produces, including ones the coach has never heard of. Stage notes only fill gaps. Templates
+ * only ever name moves from the facts, so they always pass the guardrail.
  */
 
-import { F2L_CASES } from '../tutor/cases/f2l';
-import { OLL_CORNER_CASES, OLL_EDGE_CASES } from '../tutor/cases/oll2look';
-import { PLL_CORNER_CASES, PLL_EDGE_CASES } from '../tutor/cases/pll2look';
+import { describeMoves, taughtMoves } from './facts';
 import { stageNote } from './stages';
 import { CoachFacts, MistakeKind } from './types';
-
-export interface CaseNote {
-  name: string;
-  /** What the student sees for this case. */
-  recognition: string;
-}
-
-/** Cases the engine produces outside the F2L / OLL / PLL tables. */
-const ENGINE_CASES: Record<string, CaseNote> = {
-  cross: {
-    name: 'White cross',
-    recognition: 'Find the white edges and where each one belongs on the bottom.',
-  },
-  'f2l-extract-corner': {
-    name: 'Free a stuck corner',
-    recognition: 'The white corner is stuck in the wrong slot. Take it out to the top first.',
-  },
-  'f2l-extract-edge': {
-    name: 'Free a stuck edge',
-    recognition: 'The edge is stuck in the wrong slot. Take it out to the top first.',
-  },
-  'auf-u': { name: 'Line up the top', recognition: 'The top is finished; one turn lines it up.' },
-  "auf-u'": { name: 'Line up the top', recognition: 'The top is finished; one turn lines it up.' },
-  'auf-u2': { name: 'Line up the top', recognition: 'The top is finished; a half turn lines it up.' },
-  'yellow-corner-twist-2': {
-    name: 'Twist a corner (2 rounds)',
-    recognition: 'The front-right top corner shows yellow on the right side.',
-  },
-  'yellow-corner-twist-4': {
-    name: 'Twist a corner (4 rounds)',
-    recognition: 'The front-right top corner shows yellow on the front.',
-  },
-  'yellow-corners-align': {
-    name: 'Line up the top',
-    recognition: 'The whole top is yellow; one more turn of the top finishes the cube.',
-  },
-};
-
-/** Every case the coach has a dedicated note for: the case tables plus the engine's own cases. */
-export const CASE_NOTES: Readonly<Record<string, CaseNote>> = Object.freeze({
-  ...Object.fromEntries(
-    [...F2L_CASES, ...OLL_EDGE_CASES, ...OLL_CORNER_CASES, ...PLL_CORNER_CASES, ...PLL_EDGE_CASES].map((c) => [
-      c.id,
-      { name: c.name, recognition: c.recognition },
-    ])
-  ),
-  ...ENGINE_CASES,
-});
 
 const MISTAKE_TIPS: Record<MistakeKind, string> = {
   'wrong-direction': 'Last time one turn probably went the wrong way. Watch the arrow for each turn.',
@@ -71,6 +23,12 @@ const MISTAKE_TIPS: Record<MistakeKind, string> = {
   other: 'The last try did not match. Undo back to the start of the step and try again slowly.',
 };
 
+function sentence(text: string): string {
+  const t = text.trim();
+  if (!t) return '';
+  return /[.!?]$/.test(t) ? t : `${t}.`;
+}
+
 function gripSentence(facts: CoachFacts): string {
   return `Hold the cube with ${facts.grip.top} on top and ${facts.grip.front} facing you.`;
 }
@@ -79,57 +37,72 @@ function movesSentence(facts: CoachFacts): string {
   const parts: string[] = [];
   if (facts.setupMoves) parts.push(`First line it up: ${facts.setupMoves}.`);
   if (facts.repeat) {
-    parts.push(`Then do ${facts.repeat.unit}, ${facts.repeat.times} times in a row.`);
+    parts.push(`${facts.setupMoves ? 'Then do' : 'Do'} ${facts.repeat.unit}, ${facts.repeat.times} times in a row.`);
   } else {
     parts.push(`${facts.setupMoves ? 'Then do' : 'Do'}: ${facts.algorithm}.`);
   }
   return parts.join(' ');
 }
 
+/** "In words: R = turn the right side up, U = turn the top to the left." */
+function wordsSentence(facts: CoachFacts): string {
+  const words = facts.moveWords?.length ? facts.moveWords : describeMoves(taughtMoves(facts));
+  return words.length ? `In words: ${words.join(', ')}.` : '';
+}
+
 function mistakeSentence(facts: CoachFacts): string | null {
-  const top = facts.diagnosis?.likelyMistakes[0]?.kind;
-  if (top) return MISTAKE_TIPS[top];
+  const diagnosis = facts.diagnosis;
+  const top = diagnosis?.likelyMistakes[0];
+  if (diagnosis && top) {
+    // The tutor's own words ("Move 3 is ... You probably turned it the other way.") when sure.
+    const said = diagnosis.confident && top.description ? sentence(top.description) : MISTAKE_TIPS[top.kind];
+    const show = !diagnosis.confident && diagnosis.showNext ? ` If it still does not match, show ${diagnosis.showNext} to the camera.` : '';
+    return said + show;
+  }
   const last = facts.attempts.at(-1);
   if (last?.result === 'mismatch') return MISTAKE_TIPS[last.mistakes?.[0] ?? 'other'];
   return null;
 }
 
-/** True when the stage has its own teaching notes (otherwise the plan's facts are used alone). */
+function caseSentence(facts: CoachFacts): string {
+  const caseName = facts.caseName.trim();
+  const stageName = facts.stageName.trim();
+  if (!caseName || caseName.toLowerCase() === stageName.toLowerCase()) {
+    return stageName ? `This step is part of ${stageName}.` : '';
+  }
+  return stageName ? `This is ${caseName}, part of ${stageName}.` : `This is ${caseName}.`;
+}
+
+/** True when the stage has teaching notes of its own (otherwise the plan's facts are used alone). */
 export function hasStageTemplate(method: CoachFacts['method'], stage: string): boolean {
   return stageNote(method, stage) !== undefined;
 }
 
-/** True when the case has its own recognition note. */
-export function hasCaseTemplate(caseId: string): boolean {
-  return Object.prototype.hasOwnProperty.call(CASE_NOTES, caseId);
-}
-
 /**
  * The template reply for a hint request. Level 1: what to look for. Level 2: why it works.
- * Level 3: the exact moves. A tip about the last mistake comes first when there is one.
+ * Level 3: the exact moves, each with its plain-language name. A tip about the last mistake
+ * comes first when there is one.
  */
 export function templateText(facts: CoachFacts): string {
   const stage = stageNote(facts.method, facts.stage);
-  const caseNote = hasCaseTemplate(facts.caseId) ? CASE_NOTES[facts.caseId] : undefined;
   const lines: string[] = [];
   const mistake = mistakeSentence(facts);
   if (mistake) lines.push(mistake);
 
   if (facts.hintLevel === 1) {
-    lines.push(facts.goal);
-    lines.push(stage?.lookTip ?? 'Look at the pieces lit up on the cube.');
-    const look = caseNote?.recognition ?? facts.lookFor;
-    if (look !== stage?.lookTip) lines.push(look);
+    lines.push(sentence(facts.goal));
+    lines.push(sentence(facts.lookFor) || stage?.lookTip || 'Look at the pieces lit up on the cube.');
+    lines.push('Can you spot it?');
   } else if (facts.hintLevel === 2) {
-    lines.push(`This is ${caseNote?.name ?? facts.caseName}, part of ${facts.stageName}.`);
-    lines.push(facts.why);
-    if (stage && stage.whyTip !== facts.why) lines.push(stage.whyTip);
+    lines.push(caseSentence(facts));
+    lines.push(sentence(facts.why) || stage?.whyTip || sentence(facts.goal));
   } else {
     lines.push(gripSentence(facts));
     lines.push(movesSentence(facts));
+    lines.push(wordsSentence(facts));
     lines.push('Then show the cube to the camera to check.');
   }
-  return lines.join(' ');
+  return lines.filter(Boolean).join(' ');
 }
 
 /** Short notices shown with a template reply. */
