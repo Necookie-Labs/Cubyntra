@@ -85,6 +85,8 @@ export interface CubyntraStore {
   setPlaying: (isPlaying: boolean) => void;
   setPlaybackSpeed: (speed: number) => void;
   resetToScramble: () => void;
+  /** Jumps to a move position (-1 = the scramble) without animating; pauses. */
+  seekToMove: (index: number) => void;
   resetAll: () => void;
 }
 
@@ -426,6 +428,19 @@ export const useCubyntraStore = create<CubyntraStore>((set, get) => ({
   setPlaying: (isPlaying: boolean) => set({ isPlaying }),
 
   setPlaybackSpeed: (playbackSpeed: number) => set({ playbackSpeed }),
+
+  seekToMove: (index) => {
+    const { solution, originalScrambleState } = get();
+    if (!solution || !solution.moves.length) return;
+    const last = solution.moves.length - 1;
+    const target = Math.max(-1, Math.min(last, Math.trunc(index)));
+    set({
+      currentMoveIndex: target,
+      cubeState: applyMoves(originalScrambleState, solution.moves.slice(0, target + 1)),
+      isPlaying: false,
+      appState: target === last ? 'solved' : target < 0 ? 'solution_ready' : 'solving',
+    });
+  },
 
   resetToScramble: () => {
     const { originalScrambleState } = get();
