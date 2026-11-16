@@ -139,7 +139,10 @@ own full-screen camera layout.
 ### 3.3 Scan (`/scan`)
 The six-face webcam scan (`CameraScanner`) and the review (`ScanReview`, letters on tiles when
 the color-blind option is on). On confirm the student palette is built from the raw samples
-(`buildStudentPalette`), saved to the profile and a guided solve starts on `/solve`. Errors: the
+(`buildStudentPalette`), saved to the profile and a guided solve starts on `/solve` with the
+method chosen on Home ("Solve another" included). Only "Rescan the cube" (or "Scan again" after a
+failed plan) during a solve sets `rescanRequested`: that scan replaces the solve's cube and the same
+step is planned again in the worker; a solved rescan counts as a finished solve. Errors: the
 camera panel explains how to allow the camera ("Camera not working?"); an unreadable cube shows
 lighting and glare tips with Scan again and Use a demo cube.
 

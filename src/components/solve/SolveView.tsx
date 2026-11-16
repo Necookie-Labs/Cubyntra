@@ -56,6 +56,7 @@ function NoSolve() {
 function PlanError() {
   const message = useTutorStore((s) => s.errorMessage);
   const loadPlan = useTutorStore((s) => s.loadPlan);
+  const requestRescan = useTutorStore((s) => s.requestRescan);
   return (
     <PageContainer width="md">
       <Panel role="alert" className="flex flex-col gap-4 p-6 pb-7">
@@ -72,7 +73,8 @@ function PlanError() {
           <BlockButton variant="primary" onClick={() => void loadPlan()} icon={<RefreshCw aria-hidden className="h-4 w-4" />}>
             Try again
           </BlockButton>
-          <BlockLink href="/scan" icon={<ScanLine aria-hidden className="h-4 w-4" />}>
+          {/* A rescan of this solve's cube: the solve plans again from it. */}
+          <BlockLink href="/scan" onClick={requestRescan} icon={<ScanLine aria-hidden className="h-4 w-4" />}>
             Scan again
           </BlockLink>
         </div>

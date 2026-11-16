@@ -48,7 +48,7 @@ import {
   checkWithEdits,
   confirmCheckpointByHand,
   faceToShowNext,
-  replanAfterRescan,
+  holdRescanned,
   type CheckpointOutcome,
 } from '@/app-shell/checkpointAdapter';
 import { APP_TOKEN_HEADER } from '@/app-shell/appToken';
@@ -77,6 +77,11 @@ export interface TutorStore {
   errorMessage: string | null;
   /** The highest coach hint asked for on the stage in progress (recorded for mastery). */
   stageHint: HintUse;
+  /**
+   * Set only by "Rescan the cube" during a solve: the next confirmed scan replaces the cube of
+   * this solve. Any other scan (Solve another, Scan my cube) starts a new solve.
+   */
+  rescanRequested: boolean;
 
   setToken: (token: string | null) => void;
   loadProfile: () => Promise<void>;
@@ -99,8 +104,10 @@ export interface TutorStore {
   continueFromDiagnosis: () => void;
   /** Back to the camera, keeping what was shown, to show the face the diagnosis asks for. */
   showNextFace: () => void;
-  /** A full rescan taken during this solve: plan again from the scanned cube. */
-  replanFromRescan: (scanned: CubeState) => void;
+  /** The student asked to rescan the whole cube in the middle of this solve. */
+  requestRescan: () => void;
+  /** A full rescan taken during this solve: plan again (in the worker) from the scanned cube. */
+  replanFromRescan: (scanned: CubeState) => Promise<void>;
   /** The student holds the cube differently (e.g. relayed from the paired device): re-plan. */
   setGrip: (grip: Grip) => Promise<void>;
   /** A checkpoint verdict reached on the paired device for the current step. */
@@ -161,6 +168,7 @@ const SESSION_RESET = {
   checkpoint: null,
   errorMessage: null,
   stageHint: 0 as HintUse,
+  rescanRequested: false,
 };
 
 /** The learner settings that pick a method's variant (only CFOP's last layer so far). */
@@ -285,6 +293,17 @@ export const useTutorStore = create<TutorStore>((set, get) => {
     return startedAt ? [{ op: 'clearCurrentSolve', startedAt }] : [];
   };
 
+  /** The cube is solved: close the saved solve and count it. */
+  const finishSolve = () => {
+    commit(
+      ...clearSolveOp(),
+      { op: 'incrementStats', solvesCompleted: 1 },
+      { op: 'setLastSolveAt', at: now() },
+      { op: 'addActiveDay', day: today() }
+    );
+    set({ phase: 'solved', plan: null, rescanRequested: false });
+  };
+
   /**
    * Runs a checkpoint check from a click handler. Recovery already turns a planner error into a
    * rescan; anything else unexpected must not leave the student stuck on the camera sheet, so it
@@ -398,13 +417,7 @@ export const useTutorStore = create<TutorStore>((set, get) => {
         // A newer solve may have started while this one planned.
         if (get().cube !== cube) return;
         if (!plan) {
-          commit(
-            ...clearSolveOp(),
-            { op: 'incrementStats', solvesCompleted: 1 },
-            { op: 'setLastSolveAt', at: now() },
-            { op: 'addActiveDay', day: today() }
-          );
-          set({ phase: 'solved' });
+          finishSolve();
           return;
         }
         set({ plan, phase: 'step' });
@@ -496,31 +509,50 @@ export const useTutorStore = create<TutorStore>((set, get) => {
       set({ phase: 'checking' });
     },
 
-    replanFromRescan: (scanned) => {
+    requestRescan: () => {
+      const { method, cube, phase } = get();
+      if (!method || !cube || phase === 'solved') return;
+      set({ rescanRequested: true });
+    },
+
+    replanFromRescan: async (scanned) => {
       const { method, plan, grip, stepIndex, profile } = get();
       if (!method) return;
-      const replan = replanAfterRescan(
-        scanned,
-        method,
-        plan?.gripAfter ?? grip ?? undefined,
-        stepIndex,
-        methodOptionsFor(method, profile.settings)
-      );
-      if (!replan.ok) {
-        set({ cube: scanned, plan: null, phase: 'error', errorMessage: replan.reason });
+      const held = holdRescanned(scanned, plan?.gripAfter ?? grip ?? undefined);
+      if (!held.ok) {
+        set({ cube: scanned, plan: null, phase: 'error', errorMessage: held.reason, rescanRequested: false });
         return;
       }
       set({
-        cube: replan.state,
-        grip: replan.grip,
-        plan: replan.plan,
-        phase: replan.plan ? 'step' : 'solved',
+        cube: held.state,
+        grip: held.grip,
+        plan: null,
+        phase: 'loading',
         attempts: [],
         checkpoint: null,
         observations: [],
         errorMessage: null,
+        rescanRequested: false,
       });
       persistSolve();
+      let next: StepPlan | null;
+      try {
+        next = await planStep(held.state, method, held.grip, stepIndex, methodOptionsFor(method, profile.settings));
+      } catch (error) {
+        if (get().cube !== held.state) return;
+        set({
+          phase: 'error',
+          errorMessage:
+            error instanceof Error && error.name === 'TutorPlanError'
+              ? error.message
+              : 'Something went wrong while planning the next step. Try again.',
+        });
+        return;
+      }
+      // A newer solve may have started while this one planned.
+      if (get().cube !== held.state) return;
+      if (!next) finishSolve();
+      else set({ plan: next, phase: 'step' });
     },
 
     setGrip: async (next) => {

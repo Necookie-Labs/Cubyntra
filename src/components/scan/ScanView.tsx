@@ -7,8 +7,10 @@
  * Full scan of the student's cube: six faces with this device's camera, or with the paired
  * phone (only colors travel, ADR-015), then the review. When the scan
  * is confirmed the student's color palette is built from the raw samples (for checkpoint
- * scans later), saved, and a guided solve starts on /solve with the default method. The demo
- * scramble from the scanner takes the same path without a palette.
+ * scans later), saved, and a guided solve starts on /solve with the default method, unless the
+ * student asked to rescan the cube in the middle of a solve (`rescanRequested`): then that solve
+ * plans again from the scan. The demo scramble from the scanner takes the same path without a
+ * palette.
  */
 
 import React, { useEffect, useRef } from 'react';
@@ -69,9 +71,10 @@ export function ScanView() {
         console.warn('[Cubyntra] Could not build the color palette:', error);
       }
     }
-    // A rescan in the middle of a solve plans again from the scanned cube (same method, same
-    // grip, same step count); otherwise a new solve starts with the default method.
-    if (tutor.method && tutor.cube) tutor.replanFromRescan(scan.originalScrambleState);
+    // Only "Rescan the cube" during a solve plans again from the scanned cube (same method,
+    // grip and step count). Any other scan, "Solve another" included, starts a new solve with
+    // the method chosen on Home. Both plan in the worker.
+    if (tutor.rescanRequested && tutor.method && tutor.cube) void tutor.replanFromRescan(scan.originalScrambleState);
     else void tutor.startSolve(scan.originalScrambleState, tutor.profile.settings.methodDefault);
     router.push('/solve');
   }, [appState, router]);

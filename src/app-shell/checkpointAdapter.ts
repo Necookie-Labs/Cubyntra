@@ -9,17 +9,18 @@
  * - on a mismatch `diagnoseMistake` ranks the slips that fit the shown faces and
  *   `decideRecovery` says whether to resume (a corrective step or a fresh plan from the cube the
  *   student most likely has) or to rescan (after, optionally, showing one more face);
- * - after a full rescan in the middle of a solve, `replanFromScan` plans from the scanned cube.
+ * - after a full rescan in the middle of a solve, `holdRescanned` turns the scanned cube to the
+ *   student's grip (the store plans from it in the worker; `replanAfterRescan` does both at once).
  */
 
 import type { CubeState, Face } from '@/cube/types';
 import type { Grip } from '@/cube/grip';
 import { applyTileEdits, confirmManually, verifyCheckpoint, type TileEdit } from '@/tutor/checkpoint';
 import { diagnoseMistake } from '@/tutor/diagnose';
-import { decideRecovery, replanFromScan, type Recovery, type ScanReplan } from '@/tutor/recovery';
+import { decideRecovery, holdScanned, replanFromScan, type Recovery, type ScanHold, type ScanReplan } from '@/tutor/recovery';
 import type { CheckpointResult, Diagnosis, FaceObservation, MethodId, MethodOptions, StepPlan } from '@/tutor/types';
 
-export type { Recovery, ResumePlan, ScanReplan } from '@/tutor/recovery';
+export type { Recovery, ResumePlan, ScanHold, ScanReplan } from '@/tutor/recovery';
 
 export interface CheckpointOutcome {
   result: CheckpointResult;
@@ -61,6 +62,14 @@ export function replanAfterRescan(
   options: MethodOptions = {}
 ): ScanReplan {
   return replanFromScan(scanned, method, grip, stepIndex, options);
+}
+
+/**
+ * A full rescan taken in the middle of a solve, turned to the grip the student last held (the
+ * store then plans from it in the worker).
+ */
+export function holdRescanned(scanned: CubeState, grip: Grip | undefined): ScanHold {
+  return holdScanned(scanned, grip);
 }
 
 /** The diagnosis to hand the coach (useCoach projects it), or undefined when there is none. */

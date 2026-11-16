@@ -4,7 +4,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { FACES } from '../src/cube/constants';
+import { FACES, createSolvedCubeState } from '../src/cube/constants';
 import { applyMoves, invertMove } from '../src/cube/transforms';
 import { viewInGrip } from '../src/cube/grip';
 import { planNextStep } from '../src/tutor';
@@ -128,9 +128,40 @@ describe('useTutorStore', () => {
   it('plans again from a mid-solve rescan', async () => {
     await store().startSolve(scramble, 'cfop');
     const plan = store().plan!;
-    store().replanFromRescan(plan.expectedState);
+    await store().replanFromRescan(plan.expectedState);
     expect(store().phase).toBe('step');
     expect(store().plan!.startState).toEqual(viewInGrip(plan.expectedState, plan.gripAfter).state);
+  });
+
+  it('plans a mid-solve rescan in the worker', async () => {
+    await store().startSolve(scramble, 'cfop');
+    const plan = store().plan!;
+    planMock.mockClear();
+    await store().replanFromRescan(plan.expectedState);
+    expect(planMock).toHaveBeenCalledTimes(1);
+    expect(planMock.mock.calls[0][3]).toBe(plan.stepIndex);
+  });
+
+  it('counts a solve when the mid-solve rescan shows a solved cube', async () => {
+    await store().startSolve(scramble, 'beginner');
+    const before = store().profile.stats.solvesCompleted;
+    store().requestRescan();
+    expect(store().rescanRequested).toBe(true);
+    await store().replanFromRescan(createSolvedCubeState());
+    expect(store().phase).toBe('solved');
+    expect(store().profile.stats.solvesCompleted).toBe(before + 1);
+    expect(store().profile.currentSolve).toBeNull();
+    expect(store().rescanRequested).toBe(false);
+  });
+
+  it('asks for a rescan only while a solve is open', async () => {
+    store().requestRescan();
+    expect(store().rescanRequested).toBe(false);
+    await store().startSolve(scramble, 'beginner');
+    store().requestRescan();
+    expect(store().rescanRequested).toBe(true);
+    await store().startSolve(scramble, 'cfop');
+    expect(store().rescanRequested).toBe(false);
   });
 
   it('re-plans when the paired device reports a new grip', async () => {

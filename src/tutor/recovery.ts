@@ -219,6 +219,21 @@ export type ScanReplan =
     }
   | { ok: false; reason: string };
 
+export type ScanHold = { ok: true; state: CubeState; grip: Grip } | { ok: false; reason: string };
+
+/**
+ * The scanned cube turned to the grip the student should hold it in (`preferredGrip` when it is
+ * a real grip, otherwise as scanned). Cheap: planning from it is left to the caller (the app
+ * plans in the worker).
+ */
+export function holdScanned(scanned: CubeState, preferredGrip?: Grip): ScanHold {
+  if (!normalizeOrientation(scanned)) {
+    return { ok: false, reason: 'The scanned centers do not form a cube. Scan all six faces again.' };
+  }
+  const grip = preferredGrip && isValidGrip(preferredGrip) ? preferredGrip : gripOf(scanned);
+  return { ok: true, state: viewInGrip(scanned, grip).state, grip };
+}
+
 /**
  * Plans again from a fresh full scan. The scan may store the cube in any orientation; it is
  * turned to `preferredGrip` (normally the grip the student was last told to hold) when given,
@@ -233,12 +248,10 @@ export function replanFromScan(
   stepIndex = 0,
   options: MethodOptions = {}
 ): ScanReplan {
-  if (!normalizeOrientation(scanned)) {
-    return { ok: false, reason: 'The scanned centers do not form a cube. Scan all six faces again.' };
-  }
-  const grip = preferredGrip && isValidGrip(preferredGrip) ? preferredGrip : gripOf(scanned);
+  const held = holdScanned(scanned, preferredGrip);
+  if (!held.ok) return held;
+  const { state, grip } = held;
   try {
-    const state = viewInGrip(scanned, grip).state;
     return { ok: true, state, grip, plan: planNextStep(state, method, grip, stepIndex, options) };
   } catch (error) {
     if (error instanceof TutorPlanError) return { ok: false, reason: error.message };

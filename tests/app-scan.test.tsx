@@ -144,6 +144,43 @@ describe('Scan', () => {
     expect(useTutorStore.getState().method).toBe('beginner');
   });
 
+  it('"Solve another" after a finished solve starts a new solve with the method chosen on Home', async () => {
+    const profile = defaultStudentProfile();
+    profile.settings.methodDefault = 'cfop';
+    await useTutorStore.getState().startSolve(createSolvedCubeState(), 'beginner');
+    expect(useTutorStore.getState().phase).toBe('solved');
+    useTutorStore.setState({ profile: { ...useTutorStore.getState().profile, settings: profile.settings } });
+    useCubyntraStore.getState().resetAll();
+    render(<ScanView />);
+    await act(async () => {
+      await useCubyntraStore.getState().loadMockScramble();
+    });
+    await flush();
+    const tutor = useTutorStore.getState();
+    expect(nav.push).toHaveBeenCalledWith('/solve');
+    expect(tutor.method).toBe('cfop');
+    expect(tutor.stepIndex).toBe(0);
+    expect(tutor.phase).toBe('step');
+  });
+
+  it('plans the open solve again only after "Rescan the cube"', async () => {
+    const tutorStart = useTutorStore.getState();
+    await tutorStart.startSolve(createSolvedCubeState(), 'cfop');
+    // A solve in progress at step 3 of CFOP.
+    useTutorStore.setState({ phase: 'mismatch', stepIndex: 3, cube: createSolvedCubeState(), grip: { top: 'white', front: 'green' } });
+    useTutorStore.getState().requestRescan();
+    useCubyntraStore.getState().resetAll();
+    render(<ScanView />);
+    await act(async () => {
+      await useCubyntraStore.getState().loadMockScramble();
+    });
+    await flush();
+    const tutor = useTutorStore.getState();
+    expect(tutor.method).toBe('cfop');
+    expect(tutor.stepIndex).toBe(3);
+    expect(tutor.rescanRequested).toBe(false);
+  });
+
   it('names colors in the review with letters, never by the swatch alone', () => {
     useCubyntraStore.getState().resetAll();
     const profile = defaultStudentProfile();

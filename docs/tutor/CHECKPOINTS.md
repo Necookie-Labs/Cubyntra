@@ -137,6 +137,8 @@ Result: `Diagnosis { likelyMistakes: LikelyMistake[]; confident: boolean; showNe
 - `replanFromScan(scanned, method, preferredGrip?)` → plans from a full rescan held in any of the
   24 orientations, turned to the grip the student was last told to hold when given. The caller
   validates the scan first; this only checks that the centers form a cube.
+  `holdScanned(scanned, preferredGrip?)` is its first half (the turn to the grip, no planning):
+  the app uses it and plans the step in the worker.
 
 ## 7. Measured results
 

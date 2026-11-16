@@ -58,6 +58,7 @@ function FaceFixer({ face, tiles, wrong, letters }: { face: Face; tiles: CubeCol
 export function MismatchPanel() {
   const router = useRouter();
   const outcome = useTutorStore((s) => s.checkpoint);
+  const requestRescan = useTutorStore((s) => s.requestRescan);
   const observations = useTutorStore((s) => s.observations);
   const letters = useTutorStore((s) => s.profile.settings.stickerLetters);
   const { replayStep, continueFromDiagnosis, confirmByHand, showNextFace } = useTutorStore.getState();
@@ -111,7 +112,13 @@ export function MismatchPanel() {
             Show the {FACE_WORD[showNext]} face too
           </BlockButton>
         )}
-        <BlockButton onClick={() => router.push('/scan')} icon={<ScanLine aria-hidden className="h-4 w-4" />}>
+        <BlockButton
+          onClick={() => {
+            requestRescan();
+            router.push('/scan');
+          }}
+          icon={<ScanLine aria-hidden className="h-4 w-4" />}
+        >
           Rescan the cube
         </BlockButton>
         <BlockButton variant="ghost" onClick={confirmByHand}>
