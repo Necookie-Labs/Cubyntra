@@ -5,7 +5,8 @@ Thank you for your interest in contributing to **Cubyntra**, an open-source proj
 ## Development Principles
 
 - **Correctness First**: Never sacrifice mathematical or algorithmic accuracy for visual polish.
-- **Privacy by Design**: All computer vision operations remain strictly client-side. No frame uploads.
+- **Privacy by Design**: Computer vision runs in the tab that owns the camera; no image leaves the device that captured it. Sync sends states only.
+- **The Engine Picks Every Move**: Tutor steps come from `src/tutor/`; the Claude coach only explains them.
 - **Micro-Commits & Clean Git History**: Small, well-scoped commits adhering to Conventional Commits.
 - **Synchronized Documentation**: Every architectural, CV, or solver change must be reflected in the `/docs` directory.
 
@@ -13,7 +14,7 @@ Thank you for your interest in contributing to **Cubyntra**, an open-source proj
 
 ### Prerequisites
 
-- Node.js 20+ (Node.js 22 or 24 recommended)
+- Node.js 20.9+ (CI uses Node.js 22)
 - npm 10+
 
 ### Setup
@@ -30,7 +31,7 @@ npm install
 npm run dev
 ```
 
-Visit `http://localhost:3000` to interact with Cubyntra.
+Visit `https://localhost:3000` and accept the one-time certificate warning (`npm run dev` serves HTTPS so a phone camera works). No API key is needed: without `ANTHROPIC_API_KEY` the coach uses its built-in templates.
 
 ## Branching & Pull Request Workflow
 
@@ -71,5 +72,9 @@ If your change touches:
 - Solver heuristics or integration -> update `docs/SOLVER.md`
 - 3D rendering or animations -> update `docs/THREE_D_ENGINE.md`
 - Architecture or state management -> update `docs/ARCHITECTURE.md` and `docs/SYSTEM_DESIGN.md`
+- Tutor methods, case tables or checkpoints -> update `docs/tutor/METHODS.md` or `docs/tutor/CHECKPOINTS.md`
+- Coach, sync, profile or routes -> update `docs/API_REFERENCE.md` and `docs/SECURITY_PRIVACY.md`
+- Screens or design tokens -> update `docs/UI_UX.md`
+- A new architectural decision -> add an ADR in `docs/ADR/` and list it in `docs/ADR/README.md`
 
 Documentation and test coverage are required for all non-trivial PRs.
