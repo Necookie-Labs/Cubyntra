@@ -3,13 +3,13 @@
 Checklist for `docs/tutor/GOAL.md`. Tick an item only when it is done and tested.
 
 ## Phase 0: Stabilize
-- [ ] Arrow direction fixed, with a six-face test
-- [ ] `next` / `eslint-config-next` on latest 16.x; audit clean (no critical/high)
-- [ ] Edge-gradient bracket bug fixed, with a parity test against the Python formula
-- [ ] Orange/red hue boundary fixed, with tests
-- [ ] Lint warnings and the no-op cube test fixed
-- [ ] `parseMove` rejects unknown and lowercase input
-- [ ] Python scripts take the dataset path as an argument
+- [x] Arrow direction fixed, with a six-face test
+- [x] `next` / `eslint-config-next` on latest 16.x; audit clean (no critical/high)
+- [x] Edge-gradient bracket bug fixed, with a parity test against the Python formula
+- [x] Orange/red hue boundary fixed, with tests
+- [x] Lint warnings and the no-op cube test fixed
+- [x] `parseMove` rejects unknown and lowercase input
+- [x] Python scripts take the dataset path as an argument
 - [ ] Phase gate passed and pushed
 
 ## Phase 1: Design system
