@@ -2,19 +2,19 @@
 
 **Product**: Cubyntra  
 **Organization**: Necookie Labs  
-**Status**: Implemented & Tested  
-**Module**: `src/three/` and `src/components/cube/`
+**Status**: Implemented (2.0.0)  
+**Module**: `src/three/`, `src/twin/`, `src/components/cube/` and `src/components/twin/`
 
 ---
 
 ## 1. Overview & Architectural Goals
 
-The Cubyntra 3D engine provides an interactive, mathematically faithful digital twin of the physical Rubik's Cube. It executes in client-side WebGL via Three.js.
+The Cubyntra 3D engine provides an interactive, mathematically faithful digital twin of the student's cube, rendered in the browser with Three.js (WebGL). In the tutor it is the teaching twin on Solve and Trainer (grip camera, spotlight, move chips, playback, "after" preview; section 6) and the scramble view on Timer.
 
 ### Core Engineering Invariants
 1. **Visual Follows Model**: Three.js is strictly a rendering projection. The logical cube state in `src/cube/` is the single source of truth.
 2. **Zero Floating-Point Accumulation Drift**: Repeated matrix multiplications during continuous face turns inevitably degrade floating-point orthogonality without rigorous snapping. All layer rotations round cubie coordinates to integer space $\{-1, 0, 1\}$ upon animation completion.
-3. **Smooth 60 FPS Interpolation**: Smooth easing transitions between move states.
+3. **Eased turns**: each turn is interpolated with easing at the display's frame rate; under reduced motion turns are cut short.
 4. **Context Loss Resilience**: The loop pauses when the WebGL context is lost and the twin is rebuilt from the logical state when it returns (section 9).
 5. **Flat Voxel Look**: Flat colors from the design tokens, no gloss, gradients or glow ([ADR-011](ADR/011-voxel-design-system.md)).
 
@@ -73,7 +73,7 @@ Directly rotating individual cubies along world axes creates non-affine shearing
 ### 3.2 Move Queue & Playback
 - `animateMove(move, targetState, durationMs)` queues the turn and resolves when that turn has been snapped. Turns are never dropped, however fast they are requested.
 - `requestSync(state)` repaints immediately when idle. While turns are queued it stores the state and applies it once the queue drains, so colors never jump to a post-move state mid-turn.
-- `SolveControls` plays a solution as an async loop: advance the store, await the turn, rest, repeat. At 1x a turn takes 300 ms plus a 250 ms rest, and both scale with speed. Next and Previous animate too; Previous plays the inverse turn.
+- Algorithms are played by the `PlaybackController` (section 3.3), which awaits each turn before the next; stepping back plays the inverse turn.
 
 Verified in `tests/three-motion.test.ts` by driving the real engine frame by frame and reading the state back from cubie geometry and from material colors, for every face, wide, slice and rotation move and for queued mixed sequences (and their inverses) at 144 Hz.
 
