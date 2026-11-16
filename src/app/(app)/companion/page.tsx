@@ -43,7 +43,8 @@ import { FaceGuide } from '@/components/companion/FaceGuide';
 import { CaptureCoach, hasSeenCaptureCoach } from '@/components/companion/CaptureCoach';
 import { PairCodeDialog } from '@/components/companion/PairCodeDialog';
 import { PhoneStepCard } from '@/components/companion/PhoneStepCard';
-import { BlockButton, IconButton, Panel, cx, stickerColor } from '@/components/ui';
+import { BlockButton, IconButton, Panel, cx, stickerColor, stickerLetter, stickerLetterClass } from '@/components/ui';
+import { useTutorStore } from '@/stores/useTutorStore';
 import {
   AlertCircle,
   Camera,
@@ -115,6 +116,7 @@ function CompanionScannerContent() {
   // The coach shows once per device. The server renders it as already seen, and the client
   // corrects that after hydration. `coachOverride` records the user opening or closing it.
   const coachSeen = useSyncExternalStore(noSubscription, hasSeenCaptureCoach, () => true);
+  const letters = useTutorStore((s) => s.profile.settings.stickerLetters);
   const [coachOverride, setCoachOverride] = useState<boolean | null>(null);
   const showCoach = coachOverride ?? !coachSeen;
 
@@ -463,6 +465,7 @@ function CompanionScannerContent() {
             expectedColor={currentStep.centerColor}
             liveColors={liveColors}
             squareRef={squareRef}
+            letters={letters}
           />
 
           <div className="h-10 shrink-0 flex items-center">
@@ -535,10 +538,19 @@ function CompanionScannerContent() {
                       )}
                       style={{ backgroundColor: stickerColor(step.centerColor) }}
                     >
-                      {status === 'accepted' && (
+                      {status === 'accepted' ? (
                         <span className="grid place-items-center w-4 h-4 bg-leaf border-2 border-line">
                           <Check className="w-3 h-3 text-on-leaf" strokeWidth={4} />
                         </span>
+                      ) : (
+                        letters && (
+                          <span
+                            aria-hidden
+                            className={cx('font-mono text-xs font-bold leading-none', stickerLetterClass(step.centerColor))}
+                          >
+                            {stickerLetter(step.centerColor)}
+                          </span>
+                        )
                       )}
                     </span>
                   </button>

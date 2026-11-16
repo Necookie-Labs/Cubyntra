@@ -346,8 +346,8 @@ class names rather than measured.
 - The scan review's unfolded net uses 24px tiles on phones (four faces side by side do not fit
   at 44px). They meet the WCAG 2.2 AA minimum (24px), and the "tiles need a look" button and the
   keyboard reach every tile.
-- The phone camera overlays (reticle, live dots, face list) show colors without letters; the
-  step card names the face in words.
+- The phone camera overlays (reticle center, live dots, face list) carry the color's letter
+  when Letters on stickers is on; the step card names the face in words.
 - The 3D twin is a picture for screen readers: the step is told by the stage header, the coach
   notes and the named move chips.
 - Contrast is AA by token pair; the twin's lit faces are shaded per direction, so on-screen
