@@ -24,6 +24,7 @@ import { MoveArrow } from './arrows';
 import { PlaybackController } from './playback';
 import { GripAnimator, gripQuaternion } from './gripCamera';
 import { GhostCube } from './ghost';
+import { ContextLossGuard } from './contextLoss';
 import { isSpotlit, SlotOutline, spotlightKeys, type PiecePosition, type SpotlightPiece } from './spotlight';
 import { TWIN_THEME_HEX, type ThemeName } from '../lib/tokens';
 
@@ -129,6 +130,8 @@ export class CubeEngine {
   private prefersReducedMotion = false;
   private isDisposed = false;
   private animationFrameId: number | null = null;
+  // Pauses the loop while the WebGL context is gone and rebuilds when it returns.
+  private contextGuard: ContextLossGuard | null = null;
 
   // Layer turns are serialized through a queue and advanced by the single render loop.
   private moveQueue: QueuedMove[] = [];
@@ -207,6 +210,10 @@ export class CubeEngine {
 
     // 8. Event Listeners
     this.attachEventListeners();
+    this.contextGuard = new ContextLossGuard(this.renderer.domElement, {
+      onLost: () => this.handleContextLost(),
+      onRestored: () => this.handleContextRestored(),
+    });
 
     // 9. Start Render Loop. The timer is deliberately not connected to the Page Visibility
     // API: it would report zero elapsed time whenever document.hidden is true, which freezes
@@ -538,8 +545,44 @@ export class CubeEngine {
     window.addEventListener('resize', this.onWindowResize);
   }
 
-  private renderLoop(timestamp?: number): void {
+  /**
+   * The GPU context is gone: stop rendering, and finish every queued turn at once (snapped,
+   * with its logical target state) so nobody awaiting a turn waits for a context that may never
+   * return.
+   */
+  private handleContextLost(): void {
+    if (this.animationFrameId !== null) cancelAnimationFrame(this.animationFrameId);
+    this.animationFrameId = null;
+    if (this.activeTween) this.finishTween(this.activeTween);
+    while (this.moveQueue.length > 0) {
+      this.beginNextMove();
+      if (this.activeTween) this.finishTween(this.activeTween);
+    }
+  }
+
+  /**
+   * The context is back. WebGLRenderer re-creates its own GL state; every material is marked for
+   * recompilation so geometry and programs are uploaded again, then the twin is repainted from
+   * the logical state and the loop restarts.
+   */
+  private handleContextRestored(): void {
     if (this.isDisposed) return;
+    this.scene.traverse((obj) => {
+      if (obj instanceof THREE.Mesh) {
+        for (const m of Array.isArray(obj.material) ? obj.material : [obj.material]) m.needsUpdate = true;
+      }
+    });
+    this.kit.invalidate();
+    this.ghost.invalidate();
+    this.syncWithCubeState(this.pendingSync ?? this.shownState);
+    this.pendingSync = null;
+    this.applySpotlight();
+    this.resize();
+    if (this.animationFrameId === null) this.renderLoop();
+  }
+
+  private renderLoop(timestamp?: number): void {
+    if (this.isDisposed || this.contextGuard?.isLost()) return;
 
     this.timer.update(timestamp);
     const dt = Math.min(this.timer.getDelta(), MAX_FRAME_DELTA_S);
@@ -594,9 +637,10 @@ export class CubeEngine {
   public dispose(): void {
     this.isDisposed = true;
     this.playback.dispose();
-    if (this.animationFrameId) {
+    if (this.animationFrameId !== null) {
       cancelAnimationFrame(this.animationFrameId);
     }
+    this.contextGuard?.dispose();
 
     // Never leave a caller awaiting a turn that will not render.
     this.activeTween?.resolve();
