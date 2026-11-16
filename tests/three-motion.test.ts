@@ -455,6 +455,60 @@ describe('CubeEngine spotlight', () => {
   });
 });
 
+describe('CubeEngine grip framing', () => {
+  const rootOf = (engine: Engine) => (engine as unknown as { rootCubeGroup: THREE.Group }).rootCubeGroup;
+  const gripOf = (engine: Engine) => (engine as unknown as { gripAnimator: { current: THREE.Quaternion } }).gripAnimator;
+  /** Where the cube group sends a direction of its own frame, with the orbit view removed. */
+  const gripView = (engine: Engine, v: THREE.Vector3) => {
+    const orbit = new THREE.Quaternion().setFromEuler((engine as unknown as { currentRotation: THREE.Euler }).currentRotation);
+    return v.clone().applyQuaternion(orbit.invert().multiply(rootOf(engine).quaternion));
+  };
+
+  it('animates a regrip so the grip top color ends up and its front color faces the viewer', () => {
+    const engine = makeEngine();
+    pumpFrames(1);
+    engine.setGrip({ top: 'yellow', front: 'red' });
+    pumpFrames(2);
+    const mid = gripView(engine, new THREE.Vector3(0, -1, 0));
+    expect(mid.distanceTo(new THREE.Vector3(0, 1, 0))).toBeGreaterThan(0.01); // still turning
+    pumpFrames(120);
+    // Yellow is the D center and red the R center of the solved twin.
+    expect(gripView(engine, new THREE.Vector3(0, -1, 0)).distanceTo(new THREE.Vector3(0, 1, 0))).toBeLessThan(1e-9);
+    expect(gripView(engine, new THREE.Vector3(1, 0, 0)).distanceTo(new THREE.Vector3(0, 0, 1))).toBeLessThan(1e-9);
+    expect(engine.getGrip()).toEqual({ top: 'yellow', front: 'red' });
+    engine.dispose();
+  });
+
+  it('resolves the grip against the state after queued turns', async () => {
+    const engine = makeEngine();
+    const [x] = parseAlgorithm('x');
+    const after = applyMoves(createSolvedCubeState(), [x]);
+    void engine.animateMove(x, after);
+    engine.setGrip({ top: 'white', front: 'green' });
+    await runUntilIdle(engine);
+    pumpFrames(120);
+    // After x, white sits on the B side of the twin's frame and green on U.
+    expect(gripView(engine, new THREE.Vector3(0, 0, -1)).distanceTo(new THREE.Vector3(0, 1, 0))).toBeLessThan(1e-9);
+    expect(gripView(engine, new THREE.Vector3(0, 1, 0)).distanceTo(new THREE.Vector3(0, 0, 1))).toBeLessThan(1e-9);
+    engine.dispose();
+  });
+
+  it('regrips instantly under reduced motion', () => {
+    vi.stubGlobal('window', {
+      devicePixelRatio: 1,
+      matchMedia: () => ({ matches: true }),
+      addEventListener() {},
+      removeEventListener() {},
+    });
+    const engine = makeEngine();
+    engine.setGrip({ top: 'yellow', front: 'green' });
+    expect(gripOf(engine).current.angleTo(new THREE.Quaternion())).toBeCloseTo(Math.PI, 9);
+    engine.setGrip(null);
+    expect(gripOf(engine).current.angleTo(new THREE.Quaternion())).toBeLessThan(1e-9);
+    engine.dispose();
+  });
+});
+
 describe('CubeEngine resources', () => {
   it('disposes the shared voxel geometries and materials with the engine', () => {
     const engine = makeEngine();

@@ -14,11 +14,15 @@
 
 import * as THREE from 'three';
 import { CubeMove, CubeState } from '../cube/types';
+import { createSolvedCubeState } from '../cube/constants';
+import { centerColors } from '../cube/orientation';
+import type { Grip } from '../cube/grip';
 import { moveLayers } from '../cube/transforms';
 import type { Layer } from '../cube/geometry';
 import { CubieMesh, VoxelKit } from './cubie';
 import { MoveArrow } from './arrows';
 import { PlaybackController } from './playback';
+import { GripAnimator, gripQuaternion } from './gripCamera';
 import { isSpotlit, SlotOutline, spotlightKeys, type PiecePosition, type SpotlightPiece } from './spotlight';
 import { TWIN_THEME_HEX, type ThemeName } from '../lib/tokens';
 
@@ -112,6 +116,12 @@ export class CubeEngine {
   // Geometries and materials shared by all 27 cubies (disposed with the engine).
   private kit: VoxelKit;
   private theme: ThemeName = 'light';
+  // Logical state the twin is showing (or will show once queued turns finish).
+  private shownState: CubeState = createSolvedCubeState();
+  // How the student holds the cube; the cube group is turned to match before the orbit view.
+  private grip: Grip | null = null;
+  private gripAnimator: GripAnimator;
+  private orbitQuaternion = new THREE.Quaternion();
   // Teaching aids: lit positions (null = all lit) and the target-slot outline.
   private spotlight: ReadonlySet<string> | null = null;
   private slotOutline: SlotOutline;
@@ -147,6 +157,7 @@ export class CubeEngine {
     if (typeof window !== 'undefined' && window.matchMedia) {
       this.prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     }
+    this.gripAnimator = new GripAnimator(this.prefersReducedMotion);
 
     // 1. Scene & Root Groups
     this.scene = new THREE.Scene();
@@ -242,6 +253,7 @@ export class CubeEngine {
    * Synchronizes visual sticker colors with a logical CubeState.
    */
   public syncWithCubeState(state: CubeState): void {
+    this.shownState = state;
     for (const cubie of this.cubies) {
       const pos = cubie.group.position;
       const x = Math.round(pos.x);
@@ -308,6 +320,30 @@ export class CubeEngine {
     this.theme = theme;
     this.moveArrow.setColor(TWIN_THEME_HEX[theme].ink);
     this.slotOutline.setColor(TWIN_THEME_HEX[theme].focus);
+  }
+
+  /**
+   * Turns the twin so it is seen the way the student holds the cube: `grip.top` color up,
+   * `grip.front` color toward the viewer, then the usual three-quarter view so U, F and R are
+   * visible. Changing the grip animates the regrip (instant under reduced motion). The grip is
+   * resolved against the state the twin is showing, or will show once queued turns finish.
+   * Null returns to the plain view.
+   */
+  public setGrip(grip: Grip | null): void {
+    this.grip = grip;
+    this.gripAnimator.setTarget(grip ? gripQuaternion(centerColors(this.latestState()), grip) : new THREE.Quaternion());
+  }
+
+  public getGrip(): Grip | null {
+    return this.grip;
+  }
+
+  /** The state after every queued turn and pending repaint. */
+  private latestState(): CubeState {
+    if (this.moveQueue.length > 0) return this.moveQueue[this.moveQueue.length - 1].targetState;
+    if (this.pendingSync) return this.pendingSync;
+    if (this.activeTween) return this.activeTween.targetState;
+    return this.shownState;
   }
 
   /**
@@ -548,7 +584,10 @@ export class CubeEngine {
     this.currentRotation.y += (this.targetRotation.y - this.currentRotation.y) * k;
     this.currentDistance += (this.targetDistance - this.currentDistance) * k;
 
-    this.rootCubeGroup.rotation.copy(this.currentRotation);
+    // Grip first (top color up, front color forward), then the orbit / three-quarter view.
+    this.gripAnimator.update(dt);
+    this.orbitQuaternion.setFromEuler(this.currentRotation);
+    this.rootCubeGroup.quaternion.multiplyQuaternions(this.orbitQuaternion, this.gripAnimator.current);
 
     // Subtle floating bob
     if (!this.prefersReducedMotion) {
