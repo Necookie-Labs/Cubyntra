@@ -16,6 +16,11 @@ export interface CubeVisualizerProps {
   activeMove?: CubeMove | null;
   className?: string;
   showControls?: boolean;
+  /**
+   * Called with the engine once it is mounted and with null when it is disposed, for
+   * components that drive the teaching aids (e.g. the teaching twin).
+   */
+  onEngineChange?: (engine: CubeEngine | null) => void;
 }
 
 export interface CubeVisualizerRef {
@@ -35,12 +40,16 @@ function pageTheme(): 'light' | 'dark' {
 }
 
 export const CubeVisualizer = forwardRef<CubeVisualizerRef, CubeVisualizerProps>(
-  function CubeVisualizer({ state, activeMove, className = '', showControls = true }, ref) {
+  function CubeVisualizer({ state, activeMove, className = '', showControls = true, onEngineChange }, ref) {
     const containerRef = useRef<HTMLDivElement>(null);
     const engineRef = useRef<CubeEngine | null>(null);
     const [isFullscreen, setIsFullscreen] = useState(false);
 
     const initialStateRef = useRef(state);
+    const onEngineChangeRef = useRef(onEngineChange);
+    useEffect(() => {
+      onEngineChangeRef.current = onEngineChange;
+    });
 
     useEffect(() => {
       if (!containerRef.current) return;
@@ -58,10 +67,12 @@ export const CubeVisualizer = forwardRef<CubeVisualizerRef, CubeVisualizerProps>
         engine.resize();
       });
       resizeObserver.observe(containerRef.current);
+      onEngineChangeRef.current?.(engine);
 
       return () => {
         themeObserver.disconnect();
         resizeObserver.disconnect();
+        onEngineChangeRef.current?.(null);
         engine.dispose();
         engineRef.current = null;
       };
