@@ -36,13 +36,22 @@ import { BlockButton, Chip, Panel, cx } from '@/components/ui';
 import { PageContainer, PageHeader, PageSection } from '@/components/shell/Page';
 
 const noSubscription = () => () => {};
-let firstScramble: string | null = null;
-/** One random scramble per page load, drawn in the browser only (the server shows none). */
-const readFirstScramble = () => (firstScramble ??= formatAlgorithm(generateScramble()));
+const noScramble = () => null;
+let testScramble: string | null = null;
 
-/** Lets tests start from a known scramble. */
+/** Lets tests start every visit from a known scramble (null: random again). */
 export function setFirstScrambleForTests(scramble: string | null): void {
-  firstScramble = scramble;
+  testScramble = scramble;
+}
+
+/**
+ * The first scramble of this visit: a new random one each time the timer opens, drawn in the
+ * browser only (the server, and so hydration, shows none) and kept for the life of the screen.
+ */
+function useFirstScramble(): string | null {
+  const [box] = useState<{ value: string | null }>(() => ({ value: null }));
+  const read = useCallback(() => (box.value ??= testScramble ?? formatAlgorithm(generateScramble())), [box]);
+  return useSyncExternalStore(noSubscription, read, noScramble);
 }
 
 const CUE_TEXT: Record<InspectionCue, string> = {
@@ -81,7 +90,7 @@ export function TimerView() {
   const letters = useTutorStore((s) => s.profile.settings.stickerLetters);
   const { addTimerSolve, setLastTimerPenalty, deleteLastTimerSolve } = useTutorStore.getState();
 
-  const initial = useSyncExternalStore(noSubscription, readFirstScramble, () => null);
+  const initial = useFirstScramble();
   const [override, setOverride] = useState<string | null>(null);
   const scramble = override ?? initial;
   const [machine, setMachine] = useState<TimerMachine>(INITIAL_TIMER);

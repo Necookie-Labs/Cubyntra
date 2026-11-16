@@ -53,6 +53,26 @@ const solve = (seconds: number, penalty: TimerSolve['penalty'] = 'none'): TimerS
 });
 
 describe('Timer', () => {
+  it('draws a new first scramble every time the timer opens', () => {
+    setFirstScrambleForTests(null);
+    const seen = new Set<string>();
+    for (let visit = 0; visit < 3; visit++) {
+      const { unmount } = render(<TimerView />);
+      const first = screen.getByLabelText('Scramble moves').textContent!;
+      expect(first.trim().length).toBeGreaterThan(10);
+      seen.add(first);
+      unmount();
+    }
+    expect(seen.size).toBe(3);
+  });
+
+  it('shows no scramble in the server render, so hydration matches', async () => {
+    setFirstScrambleForTests(null);
+    const { renderToString } = await import('react-dom/server');
+    const html = renderToString(<TimerView />);
+    expect(html).not.toMatch(/[URFDLB]['2]? [URFDLB]/);
+  });
+
   it('shows the scramble as notation and on the twin', () => {
     render(<TimerView />);
     expect(screen.getByLabelText('Scramble moves').textContent).toBe("R U R' U'");
