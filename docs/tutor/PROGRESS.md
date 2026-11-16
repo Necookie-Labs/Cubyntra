@@ -22,13 +22,13 @@ Checklist for `docs/tutor/GOAL.md`. Tick an item only when it is done and tested
 - [ ] Phase gate passed and pushed
 
 ## Phase 2: Cube engine extensions
-- [ ] Rotations x y z
-- [ ] Wide moves and slices M E S
-- [ ] Grip model
-- [ ] Piece queries
-- [ ] Plain-language move names
-- [ ] Property tests
-- [ ] 3D engine animates the new moves
+- [x] Rotations x y z
+- [x] Wide moves and slices M E S
+- [x] Grip model
+- [x] Piece queries
+- [x] Plain-language move names
+- [x] Property tests
+- [x] 3D engine animates the new moves
 - [ ] Phase gate passed and pushed
 
 ## Phase 3: Tutor engine
