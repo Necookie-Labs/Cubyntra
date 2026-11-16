@@ -19,6 +19,7 @@ import { MobilePairingModal } from '@/components/sync/MobilePairingModal';
 import { CompanionScanPanel } from '@/components/sync/CompanionScanPanel';
 import { ScanReview } from '@/components/review/ScanReview';
 import { CompanionSyncProvider, useCompanion } from '@/sync/CompanionSyncProvider';
+import { usePlaybackSync } from '@/sync/usePlaybackSync';
 import { BlockButton, Chip, Panel, stickerColor } from '@/components/ui';
 import { CubeColor } from '@/cube/types';
 import { Camera, Sparkles, Shield, Cpu, Layers, Smartphone } from 'lucide-react';
@@ -76,6 +77,8 @@ function Workspace() {
   } = useCubyntraStore();
   const companion = useCompanion();
   const { disconnect: disconnectPhone, requestRescan, confirmScan } = companion;
+  // A paired phone mirrors the solve and can play, pause and step it.
+  usePlaybackSync(companion);
 
   const visualizerRef = useRef<CubeVisualizerRef>(null);
 
