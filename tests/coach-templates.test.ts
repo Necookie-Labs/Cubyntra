@@ -10,8 +10,9 @@ import { describe, expect, it } from 'vitest';
 import { F2L_CASES } from '../src/tutor/cases/f2l';
 import { OLL_CORNER_CASES, OLL_EDGE_CASES } from '../src/tutor/cases/oll2look';
 import { PLL_CORNER_CASES, PLL_EDGE_CASES } from '../src/tutor/cases/pll2look';
-import { CFOP_METHOD } from '../src/tutor/methods/cfop';
-import { COACH_STAGES } from '../src/coach/stages';
+import { METHODS } from '../src/tutor/api';
+import { MethodId } from '../src/tutor/types';
+import { COACH_STAGES, STAGE_TIPS, stageNote } from '../src/coach/stages';
 import { CASE_NOTES, hasCaseTemplate, hasStageTemplate, templateText } from '../src/coach/templates';
 import { checkReplyMoves } from '../src/coach/guard';
 import { allowedMoves } from '../src/coach/facts';
@@ -41,10 +42,41 @@ function expectGoodTemplate(facts: CoachFacts) {
 }
 
 describe('coach templates', () => {
-  it('has stage notes for every CFOP stage the engine defines', () => {
-    for (const stage of CFOP_METHOD.stages) {
-      expect(hasStageTemplate('cfop', stage.id), stage.id).toBe(true);
+  it('has teaching notes and templates at every hint level for every stage the tutor defines', () => {
+    for (const method of Object.keys(METHODS) as MethodId[]) {
+      for (const stage of METHODS[method].stages) {
+        expect(hasStageTemplate(method, stage.id), `${method}:${stage.id}`).toBe(true);
+        for (const hintLevel of HINT_LEVELS) {
+          expectGoodTemplate({ ...SAMPLE_FACTS, method, stage: stage.id, stageName: stage.name, hintLevel });
+        }
+      }
     }
+  });
+
+  it('takes stage ids and names from the tutor, not a copy', () => {
+    const tutorStages = (Object.keys(METHODS) as MethodId[]).flatMap((m) =>
+      METHODS[m].stages.map((s) => ({ method: m, id: s.id, name: s.name }))
+    );
+    expect(COACH_STAGES.map(({ method, id, name }) => ({ method, id, name }))).toEqual(tutorStages);
+    for (const key of Object.keys(STAGE_TIPS)) {
+      const [method, id] = key.split(':') as [MethodId, string];
+      expect(METHODS[method].stages.some((s) => s.id === id), key).toBe(true);
+    }
+  });
+
+  it('uses family notes for last-layer stages it does not know by id', () => {
+    expect(stageNote('cfop', 'oll-full')?.lookTip).toMatch(/yellow/);
+    expect(stageNote('cfop', 'pll-full')?.whyTip).toMatch(/top pieces/);
+    expect(stageNote('cfop', 'mystery')).toBeUndefined();
+  });
+
+  it('builds a generic template from the plan facts for an unknown stage', () => {
+    const facts = { ...SAMPLE_FACTS, method: 'cfop' as const, stage: 'one-look-zz', stageName: 'Zebra stage', caseId: 'zz-07', caseName: 'Zebra seven' };
+    expect(hasStageTemplate('cfop', facts.stage)).toBe(false);
+    expect(expectGoodTemplate({ ...facts, hintLevel: 1 })).toContain(facts.lookFor);
+    expect(expectGoodTemplate({ ...facts, hintLevel: 2 })).toContain('Zebra seven');
+    expect(expectGoodTemplate({ ...facts, hintLevel: 2 })).toContain(facts.why);
+    expect(expectGoodTemplate({ ...facts, hintLevel: 3 })).toContain(facts.algorithm);
   });
 
   it('covers every stage at every hint level', () => {
