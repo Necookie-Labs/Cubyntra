@@ -159,17 +159,37 @@ No environment map, contact shadow, shadow maps or tone mapping: the twin sits o
 
 `tests/three-spotlight.test.ts`, `tests/three-ghost.test.ts` and the spotlight, outline and preview cases in `tests/three-motion.test.ts` cover these.
 
+### 6.4 Teaching Twin (`src/twin/`, `src/components/twin/`)
+The teaching twin puts one tutor step plan ([METHODS.md](tutor/METHODS.md) section 1.1) on the engine and keeps the aids above in step with playback.
+
+**Mapping** (`src/twin/mapping.ts`, pure). A plan's states are stored as the student holds the cube (`startState` in `grip`, `expectedState` in `gripAfter`) and the twin shows exactly those states, so the twin's logical frame is the plan's frame:
+- `piecePosition(state, piece)`: a center by the face its color is on; an edge or corner at the cubie of the first sticker `findEdge` / `findCorner` returns (`stickerPosition`). `spotlightPositions(state, pieces)` maps every highlighted piece, ready for `setSpotlight`.
+- `slotPosition(state, targetSlot)`: the cubie between the centers of the slot's colors (sum of their face normals), for `setSlotOutline`. Throws if the colors do not meet at one cubie.
+- `checkpointFaces(plan, shown?)`: each checkpoint face (named in `gripAfter`) with its center color and where that center is on the twin showing `shown` (default `expectedState`, where every face maps to itself).
+
+**Controller** (`src/twin/teaching.ts`, `TeachingTwinController`). Pure logic over a `TeachingSurface` (the engine's `playback`, `setGrip`, `getGrip`, `setSpotlight`, `setSlotOutline`, `setGhostState`, `setMoveArrow`; `CubeEngine` implements it).
+- `show(plan)` pauses, then `playback.load(plan.startState, [...setupMoves, ...algorithm])` and awaits `whenIdle()`: the turn in flight lands, commands queued for the old step are dropped and the start state is painted before the grip is set, so the grip is resolved against the new state. Rapid `show` calls keep only the last plan. `show(null)` clears the aids.
+- Leading `x` / `y` / `z` setup moves are regrips. They play as animated whole-cube turns (all 27 cubies), so the regrip is shown, not jumped. After each move the controller sets the grip to the one the shown state is held in (`gripOf(state)`), so once the step has played `engine.getGrip()` is `plan.gripAfter` and the twin shows `expectedState`.
+- After each move the spotlight is recomputed for the highlighted pieces where they now are (the engine spotlight marks positions), and the slot outline for the target slot's centers. The arrow follows the move in focus (`focusMove`: the move turning, inverted while stepping back, else the next one).
+- `setGhostVisible(on)` shows `expectedState` in the "after" preview.
+- `onStepPlayed(plan)` fires each time the last move finishes turning forward (by play or step), not on a seek.
+
+**React**. `useTeachingTwin(engine, plan, { onStepPlayed?, showGhost? })` returns `{ snapshot, ghost, setGhost }`; one controller per engine, `show(plan)` on every plan change. `<TeachingTwin plan onStepPlayed? showGhost? plainLanguage? />` composes `CubeVisualizer` (whose `onEngineChange` hands over the engine), `PlaybackControls`, an "After" toggle and `MoveChips` (choosing a chip seeks to before that move; `plainLanguage` starts the "In words" toggle on).
+
+**Tests**. `tests/twin-mapping.test.ts` checks every edge, corner and center of scrambled cubes, in other grips too, against the cubie the engine has really turned there (colors read from geometry). `tests/twin-teaching.test.ts` plays a whole seeded guided solve with each method on the real engine through the playback controller and, after every step, checks that the logical state, the painted colors and the colors rebuilt from cubie geometry equal `expectedState`, that the grip is `gripAfter` and that the lit cubies and the outline are the plan's pieces and slot; it also covers `play()` with a regrip, switching plans mid-turn and the preview. `tests/twin-teaching-hook.test.tsx` and `tests/twin-teaching-twin.test.tsx` cover the hook and the component.
+
 ---
 
 ## 7. React Components (`src/components/`)
-- `cube/CubeVisualizer`: mounts the engine, follows the page theme (`<html data-theme>`, watched with a `MutationObserver`) and exposes `getEngine()` on its ref for the teaching aids above.
+- `cube/CubeVisualizer`: mounts the engine, follows the page theme (`<html data-theme>`, watched with a `MutationObserver`) and exposes `getEngine()` on its ref for the teaching aids above; `onEngineChange(engine | null)` reports the engine on mount and before it is disposed.
 - `twin/MoveChips`: one chip per move; the current one is highlighted (`aria-current="step"`), finished ones dimmed, each named with `moveName()` for screen readers; an "In words" toggle spells out the current move.
 - `twin/PlaybackControls`: step back, play / pause, step forward, 0.5x and loop, built from `IconButton` and `BlockButton`. Controlled; bind it to `engine.playback` with `usePlayback(controller)`.
+- `twin/TeachingTwin` and `twin/useTeachingTwin`: one tutor step on the twin (section 6.4).
 
 ---
 
 ## 8. Solver Worker
-Building the Kociemba tables and searching run in a Web Worker so the twin never stutters; see [SOLVER.md](SOLVER.md) section 4.4.
+Building the Kociemba tables, searching and tutor planning (`tutor.plan`, `tutor.progress`, `tutor.guidedSolve`) run in a Web Worker so the twin never stutters; see [SOLVER.md](SOLVER.md) section 4.4.
 
 ---
 
