@@ -77,10 +77,13 @@ export function CoachPanel({
         className="flex flex-col gap-2 empty:hidden"
       >
         {coach.status === 'loading' && (
-          <span className="vx-loader" aria-label="The coach is thinking">
-            <span />
-            <span />
-            <span />
+          <span className="flex items-center gap-3">
+            <span aria-hidden className="vx-loader">
+              <span />
+              <span />
+              <span />
+            </span>
+            <span className="text-sm text-muted">The coach is thinking…</span>
           </span>
         )}
         {coach.text && (

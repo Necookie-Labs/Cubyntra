@@ -72,8 +72,9 @@ export function MismatchPanel() {
   }
 
   return (
-    <Panel as="section" role="alert" aria-labelledby="mismatch-title" className="vx-place flex flex-col gap-4 bg-danger-soft">
-      <div className="flex flex-col gap-1">
+    <Panel as="section" aria-labelledby="mismatch-title" className="vx-place flex flex-col gap-4 bg-danger-soft">
+      {/* The result is announced politely; the ways forward below are not part of the message. */}
+      <div role="status" className="flex flex-col gap-1">
         <h2 id="mismatch-title" className="text-xl leading-tight text-ink">
           Not quite yet
         </h2>

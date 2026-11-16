@@ -165,8 +165,10 @@ describe('Solve', () => {
     render(<SolveView />);
     await flush();
     expect(useTutorStore.getState().phase).toBe('mismatch');
-    const alert = screen.getByRole('alert');
-    expect(within(alert).getByRole('heading', { name: 'Not quite yet' })).toBeTruthy();
+    const alert = screen.getByRole('region', { name: 'Not quite yet' });
+    // The result is a polite live region; the buttons sit outside it.
+    expect(within(alert).getByRole('status').textContent).toMatch(/^Not quite yet/);
+    expect(within(within(alert).getByRole('status')).queryAllByRole('button')).toHaveLength(0);
     for (const name of ['Replay the step', 'Rescan the cube', 'It actually matches']) {
       expect(within(alert).getByRole('button', { name })).toBeTruthy();
     }
@@ -182,6 +184,8 @@ describe('Solve', () => {
     await flush();
     const hints = screen.getByRole('group', { name: 'Hints' });
     fireEvent.click(within(hints).getByRole('button', { name: /Show the moves/ }));
+    // While the coach works, the polite region says so in words.
+    expect(screen.getByText('The coach is thinking…').closest('[aria-live="polite"]')).not.toBeNull();
     await flush();
     expect(useTutorStore.getState().stageHint).toBe(3);
   });

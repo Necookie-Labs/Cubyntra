@@ -338,11 +338,13 @@ export function TrainerView() {
             </ol>
 
             {mismatch && (
-              <div role="alert" className="flex flex-col gap-3 border-2 border-warn-edge bg-warn-soft p-3">
-                <p className="text-sm font-bold text-ink">Not solved yet.</p>
-                <p className="text-sm text-ink">
-                  {mismatch.diagnosis?.likelyMistakes[0]?.description ?? mismatch.result.message}
-                </p>
+              <div className="flex flex-col gap-3 border-2 border-warn-edge bg-warn-soft p-3">
+                <div role="status" className="flex flex-col gap-3">
+                  <p className="text-sm font-bold text-ink">Not solved yet.</p>
+                  <p className="text-sm text-ink">
+                    {mismatch.diagnosis?.likelyMistakes[0]?.description ?? mismatch.result.message}
+                  </p>
+                </div>
                 <div className="flex flex-wrap gap-2">
                   <BlockButton size="sm" icon={<RotateCcw aria-hidden className="h-4 w-4" />} onClick={() => setCheck('checking')}>
                     Check again
