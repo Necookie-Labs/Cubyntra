@@ -2,7 +2,7 @@
 
 **Product**: Cubyntra  
 **Organization**: Necookie Labs  
-**Status**: Active  
+**Status**: Active (2.0.0)  
 **Scope**: Developer Environment Setup, Workflows, and Tooling
 
 ---
@@ -42,9 +42,9 @@ open https://localhost:3000
 | `npm run start` | Serves compiled production bundle locally |
 | `npm run lint` | Runs ESLint over all TypeScript and React files |
 | `npm run typecheck` | Validates strict TypeScript types across the codebase |
-| `npm run test` | Runs all 35 Vitest unit and integration tests |
+| `npm run test` | Runs the Vitest suite (1,353 tests in 147 files; 1,000 tutor scrambles per method) |
 | `npm run test:watch`| Runs Vitest in interactive watch mode |
-| `npm run test:coverage` | Generates detailed code coverage metrics |
+| `npm run test:tutor-soak` | Runs the tutor scramble suite at 10,000 scrambles per method and variant (about 95 s) |
 | `npm run docs:pdf` | Compiles documentation into PDF artifacts in `docs/pdf/` |
 | `npm run coach:eval` | Runs 50 real step situations (guided solves of seeded scrambles) through the coach and writes `data/coach-eval-report.md` (calls Claude only with a key; see §5) |
 
@@ -52,32 +52,35 @@ open https://localhost:3000
 
 ## 3. Directory Layout & Architecture Boundaries
 
-- **`src/cube/`**: Pure logical domain models (faces, stickers, rotations, invariants, validation). No DOM or Three.js dependencies.
-- **`src/vision/`**: Camera capture, 3x3 sampling grid, HSV/CIELAB conversion, center calibration, temporal stability.
-- **`src/solver/`**: Herbert Kociemba two-phase solving algorithm and move sequence parsing.
-- **`src/tutor/`**: Deterministic tutor engine: beginner's method and CFOP as data, step plans replayed on the logical cube. No DOM, Three.js or React imports. See `docs/tutor/METHODS.md`.
+- **`src/cube/`**: Pure logical domain models (moves of every kind, grip, pieces, orientation, validation, move names). No DOM or Three.js dependencies.
+- **`src/tutor/`**: Deterministic tutor engine: beginner's method and CFOP as data, case tables, step plans replayed on the logical cube, checkpoint verification, mistake diagnosis and recovery. No DOM, Three.js or React imports. See `docs/tutor/METHODS.md` and `docs/tutor/CHECKPOINTS.md`.
+- **`src/learn/`**: Trainer sets and drills, Leitner boxes, mastery, streaks, timer rules and scrambles. Pure.
+- **`src/vision/`**: Camera capture, reticle sampling, HSV/CIELAB conversion, ML cube check, capture quality, 54-tile resolution, the student palette and checkpoint face reading.
+- **`src/solver/`**: Kociemba two-phase solver and the Web Worker (with its typed client) that also runs the tutor jobs.
 - **`src/twin/`**: Teaching twin logic: step-plan pieces, slots and checkpoint faces as twin positions, and the controller that plays a plan on the engine with its aids. See `docs/THREE_D_ENGINE.md` section 6.4.
-- **`src/three/`**: Three.js rendering, 27-cubie construction, layer rotation animations, directional arrows, camera controls.
-- **`src/stores/`**: Zustand store (`useCubyntraStore`) coordinating UI flow and scan/solve states.
-- **`src/components/`**: Modular React components (Scanner, Visualizer, Controls, Debugger, Background).
-- **`docs/`**: Comprehensive engineering documentation and architectural decision records (ADRs).
-- **`tests/`**: Automated unit, integration, and property tests.
-- **`scripts/`**: Engineering automation and PDF generator scripts.
+- **`src/three/`**: Three.js rendering: voxel cubies, layer turns with integer snapping, arrows, grip camera, spotlight, "after" preview, playback, context-loss recovery.
+- **`src/coach/`**: Claude coach: facts, system prompt, templates and case notes, guardrail, spend tracking, the SSE relay and the `useCoach` hook.
+- **`src/sync/`**: Phone ↔ laptop pairing and state-only sync (ADR-015).
+- **`src/app-shell/`**: Shell glue: app token, checkpoint adapter, navigation, wake lock, install prompt, progress summaries.
+- **`src/lib/`**: Tokens, theme, the `data/` directory, the app secret, the streaming body cap, and the student profile schema, file and operations.
+- **`src/stores/`**: Zustand stores: `useCubyntraStore` (scan) and `useTutorStore` (guided solve, profile, trainer and timer).
+- **`src/components/`**: React UI: `ui/` kit, `shell/`, and one folder per screen or feature (`home/`, `scan/`, `camera/`, `review/`, `solve/`, `twin/`, `trainer/`, `timer/`, `progress/`, `pair/`, `companion/`, `settings/` ...).
+- **`src/app/`**: Next.js routes: `(app)/` screens (including `companion/`), `api/` (auth, coach, session, student), `manifest.ts`.
+- **`docs/`**: Engineering documentation and architectural decision records (ADRs).
+- **`tests/`**: Automated unit, integration, property and accessibility tests (`tests/helpers/` for fakes and fixtures).
+- **`scripts/`**: Dev certificate, coach eval, icon and PDF generators, and the ML dataset and training scripts.
 
 ---
 
 ## 4. Development & Debugging Utilities
 
 ### 4.1 Developing Without a Physical Cube
-1. **Interactive Scramble**: Click the "Random Scramble" button on the UI to scramble the virtual 3D cube model.
-2. **Mock Vision Feeds**: Use the built-in synthetic frame generator in `src/vision/mock.ts` to simulate webcam inputs with controlled lighting noise and slight color shifts for automated testing.
+1. **Demo cube**: **Try a demo cube** on Home starts a guided solve from one of three fixed scrambles (`src/app-shell/demoCube.ts`); the scanner's **Use demo cube** loads a fixed mock scan (`loadMockScramble`) through the same review and solve path.
+2. **Mock scans**: `src/vision/mock.ts` builds scanned faces from any cube state (`createMockScannedFaces`, `getScrambledMockScan`) for tests; there is no synthetic video feed.
+3. **Synthetic photos**: `tests/helpers/syntheticCube.ts` renders checkpoint photos with controlled lighting and noise for the checkpoint tests.
 
 ### 4.2 Computer Vision Debugging
-- Toggle the **CV Debugger Drawer** at the bottom of the scanner view.
-- Real-time inspector shows:
-  - Sampled RGB, HSV, and CIELAB tuples for each of the 9 cells.
-  - Active color assignment and Euclidean $\Delta E$ distance to the closest calibrated reference swatch.
-  - Consecutive stable frame counter (0 to 10).
+There is no debugging panel in the UI (the old CV Debugger was removed with the single-page app). Use the vision tests (`tests/vision*.test.ts`, `tests/checkpoint-synthetic.test.ts` with `CHECKPOINT_REPORT=report.json`) or read `currentClassification` from `useCubyntraStore` in a test or a temporary log (the store is not exposed on `window`).
 
 ---
 
@@ -151,7 +154,7 @@ the situation list only).
 
 ---
 
-## 6. App Shell, Profile and PWA (Phase 7)
+## 6. App Shell, Profile and PWA
 
 ### 6.1 Screens
 `npm run dev`, then open `https://localhost:3000`. The screens are `/` (home), `/scan`, `/solve`,
@@ -160,7 +163,7 @@ cube to hand, use **Try a demo cube** on the home screen or the scanner's demo b
 
 ### 6.2 The student profile
 The profile lives in `data/student.json` (git-ignored) and is read and written through
-`GET`/`PUT /api/student` with the `x-cubyntra-token` header (§5.3). Writes are atomic and capped at
+`GET /api/student` and `PATCH /api/student` (small merge operations, never a whole profile) with the `x-cubyntra-token` header (§5.3). Writes are atomic and capped at
 128 KB (profile version 2; a version 1 file is migrated when read); a file that fails validation is moved to `data/student.json.bad` and a fresh profile is
 used. Delete `data/student.json` to start over as a new student.
 
