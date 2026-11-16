@@ -151,8 +151,8 @@ Vector Index | Feature Name              | Domain Significance
 8            | nonCubeColorPenalty       | Proportion of patches failing valid cube plastic criteria
 9            | cubePaletteDiversity      | Number of distinct cube colors present in the grid (1 to 6)
 10           | luminanceUniformity       | Ratio of minimum to maximum cell luminance
-11           | edgeGradientHorizontal    | Sobel-derived horizontal boundary gradient
-12           | edgeGradientVertical      | Sobel-derived vertical boundary gradient
+11           | edgeGradientHorizontal    | Luminance steps across the top row: min(1, (|l0-l1| + |l1-l2|) / 255)
+12           | edgeGradientVertical      | Luminance steps down the left column: min(1, (|l0-l3| + |l3-l6|) / 255)
 13           | skinLikelihoodCenter      | Skin probability of central patch (Row 1, Col 1)
 14           | skinLikelihoodCorners     | Average skin probability of the 4 corner patches
 15           | skinLikelihoodEdges       | Average skin probability of the 4 edge patches

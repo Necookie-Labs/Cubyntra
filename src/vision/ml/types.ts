@@ -15,8 +15,8 @@ export interface CubeMLFeatures {
   nonCubeColorPenalty: number;     // [0, 1] - Fraction of patches failing valid cube plastic criteria
   cubePaletteDiversity: number;    // [0, 1] - Normalized number of distinct cube colors in the 3x3 grid (1-6)
   luminanceUniformity: number;     // [0, 1] - Ratio of min to max cell luminance
-  edgeGradientHorizontal: number;  // [0, 1] - Sobel horizontal boundary score
-  edgeGradientVertical: number;    // [0, 1] - Sobel vertical boundary score
+  edgeGradientHorizontal: number;  // [0, 1] - luminance steps across the top row (see edgeGradient)
+  edgeGradientVertical: number;    // [0, 1] - luminance steps down the left column (see edgeGradient)
   skinLikelihoodCenter: number;    // [0, 1] - Skin probability of the central patch
   skinLikelihoodCorners: number;   // [0, 1] - Average skin probability of the 4 corner patches
   skinLikelihoodEdges: number;     // [0, 1] - Average skin probability of the 4 edge patches

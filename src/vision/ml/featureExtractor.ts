@@ -8,6 +8,15 @@ import { computeRegionSkinFraction } from './skinModel';
 import { CubeMLFeatures } from './types';
 
 /**
+ * Luminance step score across three neighbouring cells (a | b | c), each luminance in [0, 255].
+ * Both differences are scaled to [0, 1] before summing, then clamped to 1. Mirrors
+ * `edge_grad_h` / `edge_grad_v` in `scripts/extract_dataset_features.py`.
+ */
+export function edgeGradient(a: number, b: number, c: number): number {
+  return Math.min(1.0, Math.abs(a - b) / 255 + Math.abs(b - c) / 255);
+}
+
+/**
  * Extracts normalized 18-dimensional feature vector from an active canvas ROI and sticker samples.
  */
 export function extractCubeFeatures(
@@ -154,14 +163,8 @@ export function extractCubeFeatures(
   const luminanceUniformity = maxLum > 0 ? minLum / maxLum : 1.0;
 
   // 7. Edge Gradients (Difference across boundary cells)
-  const edgeGradientHorizontal = Math.min(
-    1.0,
-    Math.abs(luminances[0] - luminances[1]) + Math.abs(luminances[1] - luminances[2]) / 255
-  );
-  const edgeGradientVertical = Math.min(
-    1.0,
-    Math.abs(luminances[0] - luminances[3]) + Math.abs(luminances[3] - luminances[6]) / 255
-  );
+  const edgeGradientHorizontal = edgeGradient(luminances[0], luminances[1], luminances[2]);
+  const edgeGradientVertical = edgeGradient(luminances[0], luminances[3], luminances[6]);
 
   // 8. Regional Skin Likelihoods
   const skinLikelihoodCenter = cellSkinProbs[4] ?? 0;
