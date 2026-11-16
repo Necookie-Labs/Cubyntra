@@ -1,112 +1,78 @@
-# Cubyntra Production Deployment Guide
+# Cubyntra Deployment Guide
 
 **Product**: Cubyntra  
 **Organization**: Necookie Labs  
-**Status**: Implemented  
-**Scope**: Hosting, Build Configuration, and HTTPS Requirements
+**Status**: Implemented (2.0.0)  
+**Scope**: Running Cubyntra on the student's laptop. Hosting is out of scope.
 
 ---
 
-## 1. Prerequisites
+## 1. Where Cubyntra Runs
 
-- **Node.js**: v20.x or higher LTS
-- **Package Manager**: npm v10.x or higher (or pnpm / yarn)
-- **HTTPS Enforcement**: Required for WebRTC camera access (`getUserMedia`) on all non-localhost domains.
+Cubyntra is a **localhost-only** app ([`docs/tutor/GOAL.md`](tutor/GOAL.md), locked decisions):
+one Next.js server on the student's laptop, opened in the laptop's browser and, optionally, on a
+phone on the same Wi-Fi. There is no hosted deployment, no container image and no cloud
+configuration, and none is planned. The design depends on it:
+
+- the profile, coach usage and app secret are files in `data/` next to the code;
+- the app token is handed out only to requests addressed to `localhost` / `127.0.0.1` / `[::1]`
+  (a reverse proxy would add forwarding headers and the laptop would be refused);
+- the sync relay keeps sessions in the memory of one long-running server process and uses
+  long-lived event streams, so it would not work on multi-instance serverless hosting.
 
 ---
 
-## 2. Build & Verification Commands
+## 2. Prerequisites
 
+- **Node.js** 20.9 or newer (the `next` 16 requirement; CI uses Node 22) and npm.
+- Network access for the first `npm run dev` / `npm run build` (fonts are fetched once by
+  `next/font`).
+- Optional: `ANTHROPIC_API_KEY` in `.env.local` for the live coach ([DEVELOPMENT.md](DEVELOPMENT.md) §5).
+
+---
+
+## 3. The Two Ways to Run It
+
+### 3.1 Development server (recommended for daily use with a phone)
 ```bash
-# Install dependencies
+npm install
+npm run dev     # HTTPS on 0.0.0.0:3000, self-signed certificate in .certs/
+```
+Open `https://localhost:3000` on the laptop and `https://<laptop-ip>:3000` on the phone (Pair
+shows the address and a QR code). Each device shows a one-time certificate warning. HTTPS is what
+lets the phone open its camera. To install the PWA on the phone or to remove the warning, trust
+the certificate on the phone ([DEVELOPMENT.md](DEVELOPMENT.md) §6.4).
+
+### 3.2 Production build on the laptop
+```bash
 npm ci
-
-# Run test suite
-npm run test
-
-# Run TypeScript type check
-npm run typecheck
-
-# Run ESLint validation
-npm run lint
-
-# Compile production bundle
+npm run lint && npm run typecheck && npm test   # optional checks
 npm run build
-
-# Start local production server
-npm run start -p 3000
+npm start       # next start: plain HTTP on port 3000
 ```
+`npm start` serves **plain HTTP**. The laptop works fully at `http://localhost:3000` (the camera
+is allowed on `localhost`), but a phone at `http://<laptop-ip>:3000` cannot open its camera, so
+phone scanning and checkpoint photos on the phone need `npm run dev`.
 
 ---
 
-## 3. Deployment Targets
+## 4. Data and Secrets on the Laptop
 
-> **Phone pairing needs one long-running server.** Scan sessions live in a single process's memory and use long-lived Server-Sent Events. Phone pairing works with `next dev`, `next start` or the container below. It does not work on multi-instance serverless hosting, where requests can land on different instances. See [ADR-010](ADR/010-desktop-side-analysis-and-global-color-resolution.md).
+| Path | What | Notes |
+|:---|:---|:---|
+| `data/student.json` | Profile, palette, progress, saved solve | Delete to start over as a new student |
+| `data/coach-usage.json` | Coach token counts and cost per month | No reply text |
+| `data/app-secret` | Per-install app token | Delete to sign every paired device out |
+| `.env.local` | `ANTHROPIC_API_KEY`, `COACH_MONTHLY_CAP_USD` | Server only; never `NEXT_PUBLIC_` |
+| `.certs/` | Dev HTTPS key and certificate | Regenerated when network addresses change |
 
-### 3.1 Vercel (Recommended)
-Because Cubyntra is built on Next.js 15+ App Router, deployment to Vercel provides automatic HTTPS, edge CDN caching for Three.js assets, and zero-configuration routing:
-
-1. Connect `https://github.com/Necookie-Labs/Cubyntra.git` to Vercel.
-2. Framework Preset: **Next.js**.
-3. Build Command: `npm run build`.
-4. Output Directory: `.next`.
-5. HTTPS is provisioned automatically with TLS certificates, satisfying camera security requirements.
-
-### 3.2 Docker / Self-Hosted Container
-For self-hosted production deployments, use this multi-stage `Dockerfile`:
-
-```dockerfile
-# Stage 1: Build dependencies
-FROM node:20-alpine AS builder
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci
-COPY . .
-RUN npm run test
-RUN npm run build
-
-# Stage 2: Production runner
-FROM node:20-alpine AS runner
-WORKDIR /app
-ENV NODE_ENV=production
-ENV PORT=3000
-
-COPY --from=builder /app/package*.json ./
-COPY --from=builder /app/.next ./.next
-COPY --from=builder /app/public ./public
-COPY --from=builder /app/node_modules ./node_modules
-
-EXPOSE 3000
-CMD ["npm", "run", "start"]
-```
+All of these are git-ignored. Back up `data/` to keep a student's progress.
 
 ---
 
-## 4. Reverse Proxy & SSL / TLS Configuration
+## 5. Out of Scope
 
-When deploying behind NGINX or Caddy, ensure TLS 1.3 is enabled and HTTP is redirected to HTTPS:
-
-```nginx
-server {
-    listen 80;
-    server_name cubyntra.necookie.com;
-    return 301 https://$host$request_uri;
-}
-
-server {
-    listen 443 ssl http2;
-    server_name cubyntra.necookie.com;
-
-    ssl_certificate /etc/letsencrypt/live/cubyntra.necookie.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/cubyntra.necookie.com/privkey.pem;
-
-    location / {
-        proxy_pass http://127.0.0.1:3000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_cache_bypass $http_upgrade;
-    }
-}
-```
+Vercel or other hosting, Docker images, reverse proxies, TLS certificates from a public CA,
+multiple students or accounts. If any of these is ever wanted it needs its own decision record:
+the loopback token check, the in-memory relay and the local data files would all have to change
+([SECURITY_PRIVACY.md](SECURITY_PRIVACY.md) §6.3).
