@@ -83,14 +83,13 @@
 /* tokens:end */
 
 @theme inline {
-  /* Legacy surface names, kept until every component is on the voxel tokens. */
-  --color-background: var(--vx-ground);
-  --color-foreground: var(--vx-ink);
-  --color-page: var(--vx-ground);
-  --color-raised: var(--vx-panel);
-  --color-overlay: var(--vx-panel);
-  --color-inset: var(--vx-well);
-  --color-on-accent: var(--vx-on-leaf);
+  /* Only the voxel tokens exist: Tailwind's default palette, shadows and radii are switched off. */
+  --color-*: initial;
+  --shadow-*: initial;
+  --inset-shadow-*: initial;
+  --drop-shadow-*: initial;
+  --blur-*: initial;
+  --radius-*: initial;
 
   --color-ground: var(--vx-ground);
   --color-panel: var(--vx-panel);
@@ -297,9 +296,9 @@ h3 {
 .vx-loader > span:nth-child(2) { animation-delay: 300ms; }
 .vx-loader > span:nth-child(3) { animation-delay: 600ms; }
 
-.vx-place, .cb-rise { animation: vx-place 200ms steps(3, end) both; }
-.vx-pop, .cb-turn-in { animation: vx-pop 240ms var(--ease-place) both; }
-.vx-flash, .cb-flash { animation: vx-flash 180ms steps(3, end) both; }
+.vx-place { animation: vx-place 200ms steps(3, end) both; }
+.vx-pop { animation: vx-pop 240ms var(--ease-place) both; }
+.vx-flash { animation: vx-flash 180ms steps(3, end) both; }
 
 @media (prefers-reduced-motion: reduce) {
   *,
