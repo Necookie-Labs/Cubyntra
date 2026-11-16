@@ -3,26 +3,29 @@
 **Product**: Cubyntra  
 **Organization**: Necookie Labs  
 
-This directory contains records of key architectural and engineering decisions made during the design and development of Cubyntra. Each ADR documents the context, alternatives considered, decision outcome, and consequences.
+This directory contains records of key architectural and engineering decisions made during the design and development of Cubyntra. Each ADR documents the context, alternatives considered, decision outcome, and consequences. An ADR is not rewritten when a later one changes it: the later ADR says what it supersedes, amends or restores, and the earlier one notes it in its status.
 
 ---
 
 ## Index of Architectural Decision Records
 
-| ADR ID | Title | Status | Date |
-|:---:|:---|:---:|:---:|
-| [ADR-001](001-client-side-processing.md) | Client-Side Only Processing vs Server-Side Offloading | Accepted | 2026-09 |
-| [ADR-002](002-cube-state-model.md) | Logical 54-Facelet Cube State Model vs 26-Piece Entity Model | Accepted | 2026-09 |
-| [ADR-003](003-computer-vision-strategy.md) | Guided Reticle Sampling with CIELAB Delta-E vs Deep Learning Object Detection | Accepted | 2026-09 |
-| [ADR-004](004-solver-selection.md) | Deterministic Kociemba Two-Phase Engine vs Optimal IDA* / Korf Solver | Accepted | 2026-09 |
-| [ADR-005](005-threejs-rendering.md) | Three.js Digital Twin with Drift-Free Orthonormal Snapping | Accepted | 2026-09 |
-| [ADR-006](006-ml-cube-detection-face-rejection.md) | Client-Side Machine Learning Cube Presence & Face Rejection Pipeline | Accepted | 2026-09 |
-| [ADR-007](007-empirical-dataset-gamut-gating.md) | Empirical Dataset Color Profiling & Strict Non-Cube Gamut Gating | Accepted | 2026-09 |
-| [ADR-008](008-speedcube-pbr-geometry-digital-twin.md) | High-Precision Speedcube Physical Geometry & PBR Digital Twin | Visual direction superseded by ADR-011 | 2026-09 |
-| [ADR-009](009-mobile-companion-qr-pairing.md) | Mobile Companion Scanner with Ephemeral QR Pairing & Center-Sticker Calibration | Amended by ADR-010, ADR-015 | 2026-09 |
-| [ADR-010](010-desktop-side-analysis-and-global-color-resolution.md) | Desktop-Side Photo Analysis & Global 54-Sticker Color Resolution | Transport amended by ADR-015 | 2026-09 |
-| [ADR-011](011-voxel-design-system.md) | Voxel Design System: Flat Tokens, Blocks and Enforced Style Rules | Accepted | 2026-11 |
-| [ADR-012](012-deterministic-tutor-engine.md) | Deterministic Tutor Engine, Claude as Explainer Only | Accepted | 2026-11 |
-| [ADR-013](013-checkpoint-verification.md) | Checkpoint Verification, Mistake Diagnosis and Recovery | Accepted | 2026-11 |
-| [ADR-014](014-claude-coach.md) | Claude Coach: Haiku 5.5 Explanations with a Move Guardrail, Templates and a Spend Cap | Accepted | 2026-11 |
-| [ADR-015](015-state-only-sync.md) | State-Only Phone ↔ Laptop Sync: Authenticated Pairing, No Pixels Leave the Device | Accepted | 2026-11 |
+| ADR ID | Title | Status | Relations | Date |
+|:---:|:---|:---|:---|:---:|
+| [ADR-001](001-client-side-processing.md) | Client-Side Only Processing vs Server-Side Offloading | Accepted (narrowed by ADR-010, restored by ADR-015) | | 2026-09 |
+| [ADR-002](002-cube-state-model.md) | Logical 54-Facelet Cube State Model vs 26-Piece Entity Model | Accepted | | 2026-09 |
+| [ADR-003](003-computer-vision-strategy.md) | Guided Reticle Sampling with CIELAB Delta-E vs Deep Learning Object Detection | Accepted | | 2026-09 |
+| [ADR-004](004-solver-selection.md) | Deterministic Kociemba Two-Phase Engine vs Optimal IDA* / Korf Solver | Accepted | | 2026-09 |
+| [ADR-005](005-threejs-rendering.md) | Three.js Digital Twin with Drift-Free Orthonormal Snapping | Accepted | | 2026-09 |
+| [ADR-006](006-ml-cube-detection-face-rejection.md) | Client-Side Machine Learning Cube Presence & Face Rejection Pipeline | Accepted | | 2026-09 |
+| [ADR-007](007-empirical-dataset-gamut-gating.md) | Empirical Dataset Color Profiling & Strict Non-Cube Gamut Gating | Accepted | Builds on ADR-006 | 2026-09 |
+| [ADR-008](008-speedcube-pbr-geometry-digital-twin.md) | High-Precision Speedcube Physical Geometry & PBR Digital Twin | Superseded by ADR-011 (its drift-free snapping still stands) | | 2026-09 |
+| [ADR-009](009-mobile-companion-qr-pairing.md) | Mobile Companion Scanner with Ephemeral QR Pairing & Center-Sticker Calibration | Accepted (amended by ADR-010, ADR-015) | | 2026-09 |
+| [ADR-010](010-desktop-side-analysis-and-global-color-resolution.md) | Desktop-Side Photo Analysis & Global 54-Sticker Color Resolution | Accepted (transport and privacy sections amended by ADR-015) | Amends ADR-001, ADR-009 | 2026-09 |
+| [ADR-011](011-voxel-design-system.md) | Voxel Design System: Flat Tokens, Blocks and Enforced Style Rules | Accepted | Supersedes the visual direction of ADR-008 | 2026-11 |
+| [ADR-012](012-deterministic-tutor-engine.md) | Deterministic Tutor Engine, Claude as Explainer Only | Accepted | Related: ADR-002, ADR-004 | 2026-11 |
+| [ADR-013](013-checkpoint-verification.md) | Checkpoint Verification, Mistake Diagnosis and Recovery | Accepted | Related: ADR-003, ADR-010, ADR-012 | 2026-11 |
+| [ADR-014](014-claude-coach.md) | Claude Coach: Haiku 5.5 Explanations with a Move Guardrail, Templates and a Spend Cap | Accepted | Related: ADR-001, ADR-012 | 2026-11 |
+| [ADR-015](015-state-only-sync.md) | State-Only Phone ↔ Laptop Sync: Authenticated Pairing, No Pixels Leave the Device | Accepted | Amends ADR-009, ADR-010; restores ADR-001 | 2026-11 |
+
+The decisions in force for the 2.0 tutor are ADR-001 (as restored), 002–007, 009–010 (as
+amended) and 011–015. The plan they implement is [`docs/tutor/GOAL.md`](../tutor/GOAL.md).

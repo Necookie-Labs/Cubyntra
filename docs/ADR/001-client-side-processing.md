@@ -1,7 +1,7 @@
 # ADR-001: Client-Side Only Processing vs Server-Side Offloading
 
 **Date**: 2026-09  
-**Status**: Accepted  
+**Status**: Accepted (narrowed by [ADR-010](010-desktop-side-analysis-and-global-color-resolution.md) on 2026-09-29, restored by [ADR-015](015-state-only-sync.md) on 2026-11-17; see the amendments below)  
 **Deciders**: Necookie Labs Core Engineering Team
 
 ---
