@@ -117,6 +117,16 @@ describe('Solve', () => {
     expect(screen.getByRole('heading', { name: 'No solve in progress' })).toBeTruthy();
   });
 
+  it('keeps one page heading while it waits and once solved', () => {
+    useTutorStore.setState({ profileStatus: 'loading' });
+    const { unmount } = render(<SolveView />);
+    expect(screen.getAllByRole('heading', { level: 1 }).map((h) => h.textContent)).toEqual(['Solve']);
+    unmount();
+    useTutorStore.setState({ profileStatus: 'ready', phase: 'solved', method: 'beginner' });
+    render(<SolveView />);
+    expect(screen.getAllByRole('heading', { level: 1 }).map((h) => h.textContent)).toEqual(['Solved']);
+  });
+
   it('resumes the saved solve and lays out header, twin, coach and "I did it"', async () => {
     const profile = sampleProfile();
     profile.currentSolve!.state = scrambledState(5, 3);

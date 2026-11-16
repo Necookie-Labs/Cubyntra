@@ -398,6 +398,8 @@ function CompanionScannerContent() {
 
       {/* Top bar: a solid strip, so it reads over any scene */}
       <header className="relative z-30 shrink-0 flex items-center justify-between gap-3 px-4 pt-[max(0.5rem,env(safe-area-inset-top))] pb-2 bg-panel border-b-2 border-line">
+        {/* The shell's <main> wraps this screen; the viewfinder needs no visible title. */}
+        <h1 className="sr-only">Phone camera</h1>
         <div className="flex items-center gap-2 min-w-0">
           <span
             className={cx(
@@ -434,7 +436,7 @@ function CompanionScannerContent() {
 
       {/* Guidance + reticle */}
       {cameraStatus === 'streaming' && !isAllComplete && (
-        <main className="relative z-20 flex-1 min-h-0 flex flex-col items-center justify-center gap-4 px-4 pointer-events-none">
+        <div className="relative z-20 flex-1 min-h-0 flex flex-col items-center justify-center gap-4 px-4 pointer-events-none">
           <section
             key={currentStep.face}
             className="vx-panel vx-place flex items-center gap-3 w-full max-w-sm p-3 pb-4"
@@ -478,7 +480,7 @@ function CompanionScannerContent() {
               </p>
             )}
           </div>
-        </main>
+        </div>
       )}
 
       {(cameraStatus !== 'streaming' || isAllComplete) && <div className="flex-1" aria-hidden />}

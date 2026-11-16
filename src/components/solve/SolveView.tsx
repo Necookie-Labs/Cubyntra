@@ -81,11 +81,22 @@ function PlanError() {
   );
 }
 
+/** A wait on the solve screen: still one heading for the page. */
+function SolveBusy({ label }: { label: string }) {
+  return (
+    <>
+      <h1 className="sr-only">Solve</h1>
+      <Busy label={label} />
+    </>
+  );
+}
+
 function Solved() {
   const method = useTutorStore((s) => s.method);
   const solves = useTutorStore((s) => s.profile.stats.solvesCompleted);
   return (
     <PageContainer width="md">
+      <h1 className="sr-only">Solved</h1>
       <Panel role="status" className="vx-place flex flex-col items-center gap-4 p-8 text-center">
         <BlockPlaced earned={Math.max(0, solves - 1)} title="Solved!" detail={method ? `${METHOD_INFO[method].name}, every step checked.` : undefined} />
         <div className="flex flex-wrap justify-center gap-3">
@@ -131,12 +142,12 @@ export function SolveView() {
   }, [profileLoaded, phase, hasSaved]);
 
   if (phase === 'idle') {
-    if (!profileLoaded || hasSaved) return <Busy label="Loading your cube" />;
+    if (!profileLoaded || hasSaved) return <SolveBusy label="Loading your cube" />;
     return <NoSolve />;
   }
   if (phase === 'error') return <PlanError />;
   if (phase === 'solved') return <Solved />;
-  if (phase === 'loading' || !plan) return <Busy label="Planning the next step" />;
+  if (phase === 'loading' || !plan) return <SolveBusy label="Planning the next step" />;
 
   const stepKey = `${plan.method}-${plan.stepIndex}-${plan.caseId}`;
   const mismatch = phase === 'mismatch';
