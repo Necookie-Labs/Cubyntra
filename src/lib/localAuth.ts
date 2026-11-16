@@ -10,8 +10,9 @@
  * The laptop's own browser fetches the secret from `GET /api/auth/token`, which only answers
  * requests addressed to a loopback host. Next.js route handlers do not expose the client's
  * socket address, so "loopback" is judged from the request headers: the Host must be
- * localhost / 127.0.0.1 / [::1], no proxy headers may be present, and a browser Origin, if
- * any, must be loopback too. A phone on the network reaches the laptop by its LAN address, so
+ * localhost / 127.0.0.1 / [::1], the `x-forwarded-*` headers Next.js adds must name a loopback
+ * client and host (other proxy headers are refused), and a browser Origin, if any, must be
+ * loopback too. A phone on the network reaches the laptop by its LAN address, so
  * its Host is never loopback. Limitation: a program on the LAN that forges `Host: localhost`
  * could still read the secret; the phone gets it from the pairing QR instead (Phase 8).
  */
@@ -76,13 +77,33 @@ function hostnameOf(host: string): string {
   return trimmed.replace(/:\d+$/, '');
 }
 
-const PROXY_HEADERS = ['x-forwarded-for', 'x-forwarded-host', 'x-real-ip', 'forwarded'];
+const PROXY_HEADERS = ['x-real-ip', 'forwarded'];
+
+const LOOPBACK_ADDRESSES = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
+
+/**
+ * The Next.js server itself fills `x-forwarded-for` (the socket's remote address) and
+ * `x-forwarded-host` (the Host) on every request it hands to a route, so their presence alone
+ * does not mean a proxy. They are accepted only when every hop is a loopback address and the
+ * forwarded host is loopback too; anything else (a real proxy, a LAN client) is refused.
+ */
+function forwardedIsLoopback(req: Request): boolean {
+  const forwardedFor = req.headers.get('x-forwarded-for');
+  if (forwardedFor !== null) {
+    const hops = forwardedFor.split(',').map((h) => h.trim().toLowerCase());
+    if (!hops.every((h) => LOOPBACK_ADDRESSES.has(h))) return false;
+  }
+  const forwardedHost = req.headers.get('x-forwarded-host');
+  if (forwardedHost !== null && !LOOPBACK_HOSTS.has(hostnameOf(forwardedHost))) return false;
+  return true;
+}
 
 /** True when the request was addressed to this machine's loopback interface (see header). */
 export function isLoopbackRequest(req: Request): boolean {
   const host = req.headers.get('host');
   if (!host || !LOOPBACK_HOSTS.has(hostnameOf(host))) return false;
   if (PROXY_HEADERS.some((h) => req.headers.has(h))) return false;
+  if (!forwardedIsLoopback(req)) return false;
   const origin = req.headers.get('origin');
   if (origin) {
     try {
