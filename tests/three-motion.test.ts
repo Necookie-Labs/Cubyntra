@@ -27,7 +27,7 @@ vi.mock('three', async (importOriginal) => {
   return { ...actual, WebGLRenderer: FakeRenderer };
 });
 
-const { CubeEngine, snapQuaternionToCubeGroup } = await import('../src/three/engine');
+const { CubeEngine, REDUCED_MOTION_TURN_MS, snapQuaternionToCubeGroup } = await import('../src/three/engine');
 const ghostModule = await import('../src/three/ghost');
 
 type Engine = InstanceType<typeof CubeEngine>;
@@ -357,6 +357,26 @@ describe('CubeEngine layer turns', () => {
     void engine.animateMove(move, target);
     await runUntilIdle(engine);
     expect(readStateFromGeometry(engine)).toEqual(target);
+    engine.dispose();
+  });
+
+  it('cuts turns short under reduced motion, and follows the setting live', async () => {
+    const engine = makeEngine();
+    const [r] = parseAlgorithm('R');
+    const framesFor = async () => {
+      let frames = 0;
+      void engine.animateMove(r, applyMoves(createSolvedCubeState(), [r]));
+      for (; frames < 1000 && engine.isBusy(); frames++) pumpFrames(1);
+      await Promise.resolve();
+      return frames;
+    };
+    expect(await framesFor()).toBeGreaterThan(12); // 280 ms at 60 Hz
+    engine.setReducedMotion(true);
+    expect(engine.isMotionReduced()).toBe(true);
+    expect(await framesFor()).toBeLessThanOrEqual(Math.ceil(REDUCED_MOTION_TURN_MS / (1000 / 60)) + 1);
+    expect(allTransformsExact(engine)).toBe(true);
+    engine.setReducedMotion(false);
+    expect(await framesFor()).toBeGreaterThan(12);
     engine.dispose();
   });
 

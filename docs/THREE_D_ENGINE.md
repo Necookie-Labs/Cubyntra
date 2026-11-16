@@ -139,10 +139,16 @@ To guide users through solving moves physically, Cubyntra renders animated 3D di
 `engine.setGrip(grip: Grip | null)` shows the twin the way the student holds the cube (`Grip` from `src/cube/grip.ts`): the face whose center is `grip.top` up, the face whose center is `grip.front` toward the viewer, then the usual three-quarter orbit view on top so U, F and R are visible.
 - `gripQuaternion(centers, grip)` is the exact rotation (one of the 24 cube orientations) taking those two faces to +Y and +Z. It is resolved against the state the twin will show once queued turns finish.
 - The cube group's orientation is `orbit * grip`. Only the group turns; cubie transforms stay snapped in the cube's own frame, so a regrip cannot introduce drift. The layer pivot lives inside the group, so turns stay aligned with the cube.
-- Changing the grip eases to the new orientation (`GripAnimator`, about 0.4 s, landing exactly on the target). Under `prefers-reduced-motion` the regrip is instant. `setGrip(null)` returns to the plain view.
+- Changing the grip eases to the new orientation (`GripAnimator`, about 0.4 s, landing exactly on the target). Under reduced motion (see below) the regrip is instant. `setGrip(null)` returns to the plain view.
 
 ### 5.2 Lighting & Stage
 No environment map, contact shadow, shadow maps or tone mapping: the twin sits on the flat panel and well of `CubeVisualizer`, lit only by the flat-tone rig in section 2. A small idle bob (0.06 units) runs unless reduced motion is requested.
+
+**Reduced motion.** `CubeVisualizer` calls `engine.setReducedMotion()` with the OS
+`prefers-reduced-motion` setting or the student's own Reduce motion setting (`<html data-motion="reduce">`),
+and again whenever either changes. Reduced, the twin has no idle bob, regrips instantly and every
+quarter turn takes at most `REDUCED_MOTION_TURN_MS` (80 ms; half turns 120 ms), so a played step
+reads as a sequence of snaps.
 
 ---
 

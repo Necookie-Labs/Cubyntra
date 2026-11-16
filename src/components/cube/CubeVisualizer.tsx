@@ -36,6 +36,12 @@ export interface CubeVisualizerRef {
   getEngine: () => CubeEngine | null;
 }
 
+/** Reduced motion: the OS setting, or the student's own (<html data-motion="reduce">). */
+function motionReduced(): boolean {
+  if (document.documentElement.dataset.motion === 'reduce') return true;
+  return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
+}
+
 /** The theme the page is showing, from <html data-theme> (see src/lib/theme.ts). */
 function pageTheme(): 'light' | 'dark' {
   return document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light';
@@ -63,10 +69,20 @@ export const CubeVisualizer = forwardRef<CubeVisualizerRef, CubeVisualizerProps>
       engineRef.current = engine;
       engine.syncWithCubeState(initialStateRef.current);
 
-      // Arrows and outlines follow the page theme; it can change while the twin is on screen.
+      // Arrows and outlines follow the page theme, and turns the motion setting; both can
+      // change while the twin is on screen. Older engines (and test doubles) may lack motion.
+      const applyMotion = () => {
+        if (typeof engine.setReducedMotion === 'function') engine.setReducedMotion(motionReduced());
+      };
       engine.setTheme(pageTheme());
-      const themeObserver = new MutationObserver(() => engine.setTheme(pageTheme()));
-      themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+      applyMotion();
+      const themeObserver = new MutationObserver(() => {
+        engine.setTheme(pageTheme());
+        applyMotion();
+      });
+      themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'data-motion'] });
+      const motionQuery = window.matchMedia?.('(prefers-reduced-motion: reduce)');
+      motionQuery?.addEventListener?.('change', applyMotion);
 
       const resizeObserver = new ResizeObserver(() => {
         engine.resize();
@@ -76,6 +92,7 @@ export const CubeVisualizer = forwardRef<CubeVisualizerRef, CubeVisualizerProps>
 
       return () => {
         themeObserver.disconnect();
+        motionQuery?.removeEventListener?.('change', applyMotion);
         resizeObserver.disconnect();
         onEngineChangeRef.current?.(null);
         engine.dispose();

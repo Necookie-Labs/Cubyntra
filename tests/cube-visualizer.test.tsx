@@ -11,6 +11,7 @@ class FakeEngine {
   syncWithCubeState = vi.fn();
   requestSync = vi.fn();
   setTheme = vi.fn();
+  setReducedMotion = vi.fn();
   setMoveArrow = vi.fn();
   resize = vi.fn();
   resetCamera = vi.fn();
@@ -63,6 +64,23 @@ describe('CubeVisualizer', () => {
       await new Promise((r) => setTimeout(r, 0));
     });
     expect(engine.setTheme).toHaveBeenLastCalledWith('light');
+  });
+
+  it('reduces the twin motion with the OS setting or the student setting, live', async () => {
+    delete document.documentElement.dataset.motion;
+    render(<CubeVisualizer state={createSolvedCubeState()} />);
+    const engine = instances[0];
+    expect(engine.setReducedMotion).toHaveBeenLastCalledWith(false);
+    await act(async () => {
+      document.documentElement.dataset.motion = 'reduce';
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    expect(engine.setReducedMotion).toHaveBeenLastCalledWith(true);
+    delete document.documentElement.dataset.motion;
+    cleanup();
+    vi.stubGlobal('matchMedia', (q: string) => ({ matches: q.includes('reduce'), addEventListener() {}, removeEventListener() {} }));
+    render(<CubeVisualizer state={createSolvedCubeState()} />);
+    expect(instances[1].setReducedMotion).toHaveBeenLastCalledWith(true);
   });
 
   it('exposes the engine through the ref and disposes it on unmount', () => {

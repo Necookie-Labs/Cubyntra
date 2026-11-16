@@ -5,7 +5,7 @@
  * Implements:
  * - 27 voxel cubies with flat Lambert colors from the design tokens (ADR-011)
  * - A fixed light rig that gives each face direction its own flat tone
- * - Subtle floating idle animation (off under reduced motion)
+ * - Subtle floating idle animation (off under reduced motion, which also shortens turns)
  * - Drift-free face, wide, slice and whole-cube turns with integer matrix snapping
  * - Dynamic 3D move arrows
  * - Camera controls & reset
@@ -47,6 +47,8 @@ interface ActiveTween {
 
 // A backgrounded tab or a long GC pause must not fast-forward a turn in one frame.
 const MAX_FRAME_DELTA_S = 0.1;
+/** Longest a quarter turn may take under reduced motion: short enough to read as a snap. */
+export const REDUCED_MOTION_TURN_MS = 80;
 
 // Exponential damping rate for orbit/zoom, chosen to match the original fixed
 // 0.12-per-frame smoothing at 60 Hz while behaving identically at any refresh rate.
@@ -292,6 +294,20 @@ export class CubeEngine {
    * Draws a letter (W Y R O B G) on every sticker, or removes them. Letters follow repaints
    * and turns, so they always name the sticker's current color.
    */
+  /**
+   * Reduced motion (the OS setting or the student's own): no idle bob, instant regrips and
+   * turns cut to REDUCED_MOTION_TURN_MS. The twin follows changes while it is on screen.
+   */
+  public setReducedMotion(reduced: boolean): void {
+    this.prefersReducedMotion = reduced;
+    this.gripAnimator.setReducedMotion(reduced);
+    if (reduced) this.rootCubeGroup.position.y = 0;
+  }
+
+  public isMotionReduced(): boolean {
+    return this.prefersReducedMotion;
+  }
+
   public setStickerLetters(visible: boolean): void {
     this.stickerLetters = visible;
     for (const cubie of this.cubies) cubie.setLettersVisible(visible);
@@ -392,6 +408,7 @@ export class CubeEngine {
     // Face turns, wide turns, slices and whole-cube rotations all reduce to "these layers along
     // this axis, by this many quarter turns" (see moveLayers in src/cube/transforms).
     const { quarterTurns } = next.move;
+    const quarterMs = this.prefersReducedMotion ? Math.min(next.durationMs, REDUCED_MOTION_TURN_MS) : next.durationMs;
     const spec = moveLayers(next.move);
     const component = spec.axis === 'x' ? 0 : spec.axis === 'y' ? 1 : 2;
     const cubies = this.cubies.filter((c) =>
@@ -415,7 +432,7 @@ export class CubeEngine {
       totalAngle,
       elapsedMs: 0,
       // Half turns travel twice as far; give them proportionally more time.
-      durationMs: quarterTurns === 2 ? next.durationMs * 1.5 : next.durationMs,
+      durationMs: quarterTurns === 2 ? quarterMs * 1.5 : quarterMs,
       cubies,
       targetState: next.targetState,
       resolve: next.resolve,
