@@ -2,7 +2,7 @@
 
 **Product**: Cubyntra  
 **Organization**: Necookie Labs  
-**Status**: Implemented  
+**Status**: Implemented (2.0.0)  
 **Module**: `src/components/`, `src/app/`
 
 ---
@@ -89,11 +89,11 @@ is cut to 0.01 ms and blocks no longer lift on hover (see §5.2).
 
 ---
 
-## 3. Screens and Navigation (Phase 7)
+## 3. Screens and Navigation
 
 The tutor is one app shell (`src/components/shell/AppShell.tsx`) around eight screens, in the
-`src/app/(app)/` route group. The phone companion (`/companion`) stays outside the group with its
-own full-screen camera layout.
+`src/app/(app)/` route group. The phone companion (`/companion`) is in the group too, but full
+screen with its own camera layout and no navigation.
 
 ### 3.1 Navigation map
 
@@ -355,19 +355,19 @@ class names rather than measured.
 
 ---
 
-## 6. Phone Scanning & Review ([ADR-010](ADR/010-desktop-side-analysis-and-global-color-resolution.md))
+## 6. Phone Scanning & Review ([ADR-010](ADR/010-desktop-side-analysis-and-global-color-resolution.md), [ADR-015](ADR/015-state-only-sync.md))
 
 ```
-[ Desktop: Scan with Phone ] ── QR ──► [ Phone: first-run coach (once) ]
+[ Laptop: Pair (QR + code) ] ── QR ──► [ Phone: first-run coach (once) ]
           │                                        │
           ▼                                        ▼
-[ Desktop: live 6-face progress ] ◄── photos ── [ Phone: guided capture, auto shutter ]
+[ Laptop: live 6-face progress ] ◄── colors ── [ Phone: guided capture, reads each face itself ]
           │ (all six read)
           ▼
-[ Desktop: review net ] ── Rescan face ──► [ Phone jumps to that face ]
-          │ (Confirm & solve, valid cube only)
+[ Laptop: review net ] ── Rescan face ──► [ Phone jumps to that face ]
+          │ (confirm, valid cube only)
           ▼
-[ Solve & animated playback ]        [ Phone: "Solving on your computer" ]
+[ Laptop: guided solve on /solve ] ── step ──► [ Phone: step card, "Solve on this phone" ]
 ```
 
 ### 6.1 State Colors
@@ -387,12 +387,12 @@ State is never carried by color alone: each state also has an icon or a word.
 - **Step card**: an isometric mini cube (`FaceGuide.tsx`) showing which center faces the camera, which is on top and which is on the right, plus a one-move instruction and an end-position check.
 - **Reticle**: square 4px corner brackets, ink when idle, warn when something needs fixing, leaf while holding steady; a solid leaf frame pops in once the face is read. Square live dots show that the phone sees each tile.
 - **Hint line**: exactly one instruction, naming the fix rather than the fault ("Glare on the bottom row. Tilt the cube slightly.").
-- **Shutter**: an 80px leaf block, always usable by hand. A four-segment meter under it fills while every check holds; at 600 ms the photo takes itself. Auto-capture can be turned off.
+- **Shutter**: an 80px leaf block, always usable by hand. A four-segment meter under it fills while every check holds; at 600 ms the shutter fires by itself and the face is read on the phone. Auto-capture can be turned off.
 - **Layout**: a column of header, guidance, reticle, hint and controls. The reticle is sized to the remaining height so nothing overlaps on short screens. Safe-area insets are respected and touch targets are at least 44 px.
 
 ### 6.3 Review (`ScanReview.tsx`)
 - An unfolded net in the layout of a real cube, with a yellow corner marker on tiles that were hard to read.
-- Selecting a tile opens an editor with that tile cropped from the user's own photo, six swatches (keys 1–6), and "Rescan this face".
+- Selecting a tile opens an editor with six swatches (keys 1–6; Escape deselects) and "Rescan the … face". There is no photo crop to compare with: the student checks the tile against the cube in hand (ADR-015).
 - A live count of each color, and one sentence describing what to fix when the cube cannot exist.
 - The screen says so when a photo was turned to fit, or when two photos show the same face.
 
