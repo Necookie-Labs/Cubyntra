@@ -30,6 +30,8 @@ export interface TeachingTwinProps {
   showGhost?: boolean;
   /** Whether the current move starts spelled out in words. Default false. */
   plainLanguage?: boolean;
+  /** Color-blind option: a letter on every sticker. Default false. */
+  stickerLetters?: boolean;
   className?: string;
 }
 
@@ -38,6 +40,7 @@ export const TeachingTwin: React.FC<TeachingTwinProps> = ({
   onStepPlayed,
   showGhost = false,
   plainLanguage = false,
+  stickerLetters = false,
   className,
 }) => {
   const [engine, setEngine] = useState<CubeEngine | null>(null);
@@ -49,7 +52,12 @@ export const TeachingTwin: React.FC<TeachingTwinProps> = ({
 
   return (
     <section aria-label="Teaching twin" className={cx('flex flex-col gap-3', className)}>
-      <CubeVisualizer state={initialState} onEngineChange={setEngine} className="min-h-[320px] flex-1" />
+      <CubeVisualizer
+        state={initialState}
+        onEngineChange={setEngine}
+        stickerLetters={stickerLetters}
+        className="min-h-[320px] flex-1"
+      />
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <PlaybackControls

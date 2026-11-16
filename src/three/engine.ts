@@ -113,6 +113,8 @@ export class CubeEngine {
   // Geometries and materials shared by all 27 cubies (disposed with the engine).
   private kit: VoxelKit;
   private theme: ThemeName = 'light';
+  // Color-blind letters on every sticker.
+  private stickerLetters = false;
   // Logical state the twin is showing (or will show once queued turns finish).
   private shownState: CubeState = createSolvedCubeState();
   // How the student holds the cube; the cube group is turned to match before the orbit view.
@@ -284,6 +286,19 @@ export class CubeEngine {
     this.theme = theme;
     this.moveArrow.setColor(TWIN_THEME_HEX[theme].ink);
     this.slotOutline.setColor(TWIN_THEME_HEX[theme].focus);
+  }
+
+  /**
+   * Draws a letter (W Y R O B G) on every sticker, or removes them. Letters follow repaints
+   * and turns, so they always name the sticker's current color.
+   */
+  public setStickerLetters(visible: boolean): void {
+    this.stickerLetters = visible;
+    for (const cubie of this.cubies) cubie.setLettersVisible(visible);
+  }
+
+  public hasStickerLetters(): boolean {
+    return this.stickerLetters;
   }
 
   /**
