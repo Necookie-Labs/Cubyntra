@@ -11,6 +11,7 @@
 import { useEffect } from 'react';
 import Link from 'next/link';
 import { AlertTriangle, Home, RefreshCw } from 'lucide-react';
+import { BlockButton } from '@/components/ui';
 
 export default function Error({ error, retry }: { error: Error & { digest?: string }; retry: () => void }) {
   useEffect(() => {
@@ -19,31 +20,23 @@ export default function Error({ error, retry }: { error: Error & { digest?: stri
 
   return (
     <main className="min-h-[100dvh] grid place-items-center p-6">
-      <div className="w-full max-w-md flex flex-col items-center gap-5 text-center">
-        <div className="p-3 rounded-2xl bg-rose-950/40 border border-rose-800/60">
-          <AlertTriangle className="w-7 h-7 text-rose-300" />
+      <div className="vx-panel vx-place w-full max-w-md p-6 pb-7 flex flex-col items-center gap-4 text-center">
+        <div aria-hidden data-variant="danger" className="vx-block flex h-12 w-12 items-center justify-center pb-1">
+          <AlertTriangle className="w-6 h-6" />
         </div>
         <div className="flex flex-col gap-2">
-          <h1 className="text-xl font-bold tracking-tight text-white">Something went wrong</h1>
-          <p className="text-sm text-neutral-400 leading-relaxed">
+          <h1 className="text-2xl text-ink">Something went wrong</h1>
+          <p className="text-sm text-muted leading-relaxed">
             Cubyntra hit an unexpected error. Trying again usually fixes it; if not, head back to the start.
           </p>
-          {error.digest && <p className="text-[11px] font-mono text-neutral-500">Reference: {error.digest}</p>}
+          {error.digest && <p className="text-xs font-mono text-muted">Reference: {error.digest}</p>}
         </div>
         <div className="flex flex-wrap items-center justify-center gap-2">
-          <button
-            type="button"
-            onClick={() => retry()}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white text-neutral-950 text-sm font-bold hover:bg-neutral-200 transition-colors"
-          >
-            <RefreshCw className="w-4 h-4" />
+          <BlockButton variant="primary" onClick={() => retry()} icon={<RefreshCw className="w-4 h-4" aria-hidden />}>
             Try again
-          </button>
-          <Link
-            href="/"
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-neutral-700 text-neutral-200 text-sm font-semibold hover:bg-neutral-800 transition-colors"
-          >
-            <Home className="w-4 h-4" />
+          </BlockButton>
+          <Link href="/" className="vx-block inline-flex h-10 items-center gap-2 px-4 pb-1 text-sm font-bold">
+            <Home className="w-4 h-4" aria-hidden />
             Back to home
           </Link>
         </div>
