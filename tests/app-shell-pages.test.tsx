@@ -67,7 +67,7 @@ vi.mock('@/sync/CompanionSyncProvider', () => ({
 const { useTutorStore } = await import('@/stores/useTutorStore');
 const { AppShell } = await import('@/components/shell/AppShell');
 const { HomeView } = await import('@/components/home/HomeView');
-const { ProgressView } = await import('@/components/placeholders/Placeholders');
+const { ProgressView } = await import('@/components/progress/ProgressView');
 const { PairView } = await import('@/components/pair/PairView');
 const { resetAppTokenCache } = await import('@/app-shell/appToken');
 
@@ -169,12 +169,12 @@ describe('Home', () => {
   });
 });
 
-describe('placeholder screens', () => {
+describe('more screens', () => {
   it('Progress shows the real counts from the profile', () => {
     useTutorStore.setState({ profile: { ...defaultStudentProfile(), stats: { ...defaultStudentProfile().stats, solvesCompleted: 2, stepsCompleted: 31, checkpointsPassed: 29 } } });
     render(<ProgressView />);
     expect(screen.getByText('31')).toBeTruthy();
-    expect(screen.getByText('Coming soon')).toBeTruthy();
+    expect(screen.queryByText('Coming soon')).toBeNull();
   });
 
   it('Pair shows the QR code and the typed code, and can unpair', () => {
