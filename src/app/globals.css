@@ -325,6 +325,32 @@ h3 {
   scroll-behavior: auto !important;
 }
 
+/*
+ * Tap targets. On phones (below the lg breakpoint, or any coarse pointer) every block button
+ * or link, and every control marked `.vx-hit`, answers to at least 44x44 px: an invisible
+ * ::after grows the hit area around the control without growing the block itself. In the
+ * components layer, so a utility such as `absolute` still positions the control.
+ */
+@layer components {
+  :is(button, a).vx-block,
+  .vx-hit {
+    position: relative;
+  }
+}
+
+@media (max-width: 1023.98px), (pointer: coarse) {
+  :is(button, a).vx-block::after,
+  .vx-hit::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: max(100%, 44px);
+    height: max(100%, 44px);
+    transform: translate(-50%, -50%);
+  }
+}
+
 /* Room for the phone tab bar and the home indicator on notched phones. */
 .vx-safe-bottom {
   padding-bottom: env(safe-area-inset-bottom);

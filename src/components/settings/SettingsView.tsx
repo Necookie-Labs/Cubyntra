@@ -56,7 +56,7 @@ function NameField() {
         onKeyDown={(e) => {
           if (e.key === 'Enter') commit();
         }}
-        className="h-10 w-full max-w-sm border-2 border-line bg-well px-3 text-sm text-ink placeholder:text-muted"
+        className="h-11 w-full max-w-sm border-2 border-line bg-well px-3 text-sm text-ink placeholder:text-muted lg:h-10"
       />
     </div>
   );

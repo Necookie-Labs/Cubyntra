@@ -520,7 +520,7 @@ function CompanionScannerContent() {
                     onClick={() => setStepIndex(idx)}
                     aria-current={isCurrent ? 'step' : undefined}
                     aria-label={`${step.title}${status === 'accepted' ? ', read' : status === 'rejected' ? ', needs a retake' : ''}`}
-                    className="w-10 h-10 grid place-items-center"
+                    className="w-11 h-11 grid place-items-center"
                   >
                     <span
                       className={cx(
@@ -604,7 +604,7 @@ function CompanionScannerContent() {
             type="button"
             onClick={() => setAutoCapture((a) => !a)}
             aria-pressed={autoCapture}
-            className="min-h-10 inline-flex items-center gap-2 px-3 text-xs font-bold text-muted hover:text-ink"
+            className="min-h-11 inline-flex items-center gap-2 px-3 text-xs font-bold text-muted hover:text-ink"
           >
             Auto-capture
             <span

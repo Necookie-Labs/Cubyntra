@@ -135,7 +135,7 @@ function MethodPicker() {
             aria-checked={active}
             onClick={() => updateSettings({ methodDefault: id })}
             className={cx(
-              'flex flex-col items-start gap-3 border-2 border-line p-4 pb-5 text-left shadow-[inset_0_-4px_0_0_var(--vx-panel-edge),4px_4px_0_0_var(--vx-shadow)]',
+              'vx-hit flex flex-col items-start gap-3 border-2 border-line p-4 pb-5 text-left shadow-[inset_0_-4px_0_0_var(--vx-panel-edge),4px_4px_0_0_var(--vx-shadow)]',
               active ? 'bg-leaf-soft' : 'bg-panel hover:bg-well'
             )}
           >

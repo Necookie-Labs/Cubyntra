@@ -26,6 +26,8 @@ export interface StickerGridProps {
 }
 
 const TILE = { sm: 'h-3 w-3', md: 'h-8 w-8 text-xs', lg: 'h-12 w-12 text-sm' } as const;
+/** Tiles that are buttons sit edge to edge, so on phones they grow to a full 44px instead. */
+const TAP_TILE = { sm: 'h-11 w-11 lg:h-3 lg:w-3', md: 'h-11 w-11 text-sm lg:h-8 lg:w-8 lg:text-xs', lg: 'h-12 w-12 text-sm' } as const;
 
 function tileName(index: number, color: CubeColor | null): string {
   return `row ${Math.floor(index / 3) + 1} column ${(index % 3) + 1}: ${color ?? 'not read'}`;
@@ -58,7 +60,7 @@ export const StickerGrid: React.FC<StickerGridProps> = ({
         </>
       );
       const style = color ? { backgroundColor: stickerColor(color) } : undefined;
-      const base = cx('relative flex items-center justify-center', TILE[size], !color && 'bg-well');
+      const base = cx('relative flex items-center justify-center', (onTileClick ? TAP_TILE : TILE)[size], !color && 'bg-well');
       const name = `${tileName(index, color)}${isMarked ? ', needs a look' : ''}`;
       return onTileClick ? (
         <button

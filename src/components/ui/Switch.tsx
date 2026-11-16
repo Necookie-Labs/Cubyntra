@@ -43,7 +43,7 @@ export const Switch: React.FC<SwitchProps> = ({ checked, onChange, label, hint, 
         disabled={disabled}
         onClick={() => onChange(!checked)}
         className={cx(
-          'relative inline-flex h-8 w-14 shrink-0 items-center border-2 border-line p-0.5 transition-colors duration-75',
+          'vx-hit relative inline-flex h-8 w-14 shrink-0 items-center border-2 border-line p-0.5 transition-colors duration-75',
           checked ? 'bg-leaf' : 'bg-well',
           disabled && 'cursor-not-allowed border-line-soft'
         )}

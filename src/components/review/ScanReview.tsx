@@ -268,7 +268,7 @@ export const ScanReview: React.FC<ScanReviewProps> = ({ onRescanFace, onConfirme
                     aria-label={`${color} (key ${i + 1})`}
                     title={`${color} · ${i + 1}`}
                     onClick={() => applyColor(color)}
-                    className={`flex w-8 h-8 items-center justify-center border-2 border-line transition-transform duration-75 ${
+                    className={`vx-hit flex w-8 h-8 items-center justify-center border-2 border-line transition-transform duration-75 ${
                       active
                         ? 'translate-y-0.5 outline-2 outline-offset-2 outline-ink'
                         : 'shadow-block-sm hover:-translate-y-px'

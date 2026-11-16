@@ -46,7 +46,7 @@ const GROUPS: NavGroup[] = ['learn', 'practice', 'device'];
 
 function Brand({ compact = false }: { compact?: boolean }) {
   return (
-    <Link href="/" aria-label="Cubyntra, home" className="flex items-center gap-3 -m-1 p-1 hover:bg-well">
+    <Link href="/" aria-label="Cubyntra, home" className="vx-hit flex items-center gap-3 -m-1 p-1 hover:bg-well">
       <CubeGlyph className={compact ? 'h-8 w-8' : 'h-10 w-10'} />
       <span className="flex flex-col">
         <span className="font-display text-xl leading-none text-ink">Cubyntra</span>

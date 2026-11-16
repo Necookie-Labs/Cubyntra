@@ -47,7 +47,8 @@ export interface CaseTilesProps {
 }
 
 export function CaseTiles({ cases, cards, label, currentId, onSelect, size = 'md', className }: CaseTilesProps) {
-  const box = size === 'sm' ? 'h-3 w-3' : 'h-6 w-6';
+  // Buttons grow to 44px on phones (they sit too close to borrow a bigger hit area).
+  const box = size === 'sm' ? 'h-3 w-3' : onSelect ? 'h-11 w-11 lg:h-6 lg:w-6' : 'h-6 w-6';
   return (
     <ul aria-label={label} className={cx('flex flex-wrap', size === 'sm' ? 'gap-1' : 'gap-1.5', className)}>
       {cases.map((c) => {

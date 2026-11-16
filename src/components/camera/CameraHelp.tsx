@@ -23,7 +23,7 @@ export const READING_TIPS: readonly string[] = [
 export function CameraHelp({ open = false }: { open?: boolean }) {
   return (
     <details open={open} className="vx-well group p-3 text-sm">
-      <summary className="cursor-pointer font-bold text-ink">Camera not working?</summary>
+      <summary className="vx-hit cursor-pointer font-bold text-ink">Camera not working?</summary>
       <div className="mt-3 flex flex-col gap-4">
         <div className="flex flex-col gap-2">
           <h3 className="font-sans text-sm font-bold text-ink">Allow the camera</h3>

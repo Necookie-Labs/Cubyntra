@@ -160,7 +160,7 @@ export const CaptureCoach: React.FC<CaptureCoachProps> = ({ onDone }) => {
               aria-selected={i === index}
               aria-label={`Tip ${i + 1} of ${CARDS.length}`}
               onClick={() => goTo(i)}
-              className="p-2"
+              className="vx-hit p-2"
             >
               <span
                 className={cx(

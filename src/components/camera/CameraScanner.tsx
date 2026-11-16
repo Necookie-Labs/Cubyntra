@@ -553,7 +553,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({ onBack }) => {
               key={seq.face}
               type="button"
               onClick={() => rescanFace(seq.face)}
-              className={`relative aspect-square p-1 border-2 flex flex-col items-center justify-center transition-transform duration-75 hover:-translate-y-px ${
+              className={`vx-hit relative aspect-square p-1 border-2 flex flex-col items-center justify-center transition-transform duration-75 hover:-translate-y-px ${
                 isCurrent
                   ? 'border-line bg-leaf-soft shadow-block-sm'
                   : isCaptured

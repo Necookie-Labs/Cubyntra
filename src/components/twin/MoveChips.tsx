@@ -73,7 +73,7 @@ export const MoveChips: React.FC<MoveChipsProps> = ({
           };
           return onSelect ? (
             <li key={i}>
-              <button type="button" className={chipClass} onClick={() => onSelect(i)} {...common}>
+              <button type="button" className={cx(chipClass, 'vx-hit')} onClick={() => onSelect(i)} {...common}>
                 {move.notation}
               </button>
             </li>
