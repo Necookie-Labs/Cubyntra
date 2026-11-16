@@ -142,7 +142,9 @@ describe('sync code never produces or sends an image', () => {
   const files = [
     ...walk(repoFile('src', 'sync')),
     ...walk(repoFile('src', 'app', 'api', 'session')),
-    repoFile('src', 'app', 'companion', 'page.tsx'),
+    repoFile('src', 'app', '(app)', 'companion', 'page.tsx'),
+    // The checkpoint camera reads faces in the tab; nothing it draws may be encoded or sent.
+    ...walk(repoFile('src', 'components', 'solve')),
   ];
 
   it.each(files.map((f) => [path.relative(process.cwd(), f), f]))('%s', (_name, file) => {
