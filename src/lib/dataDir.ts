@@ -14,9 +14,12 @@ export function dataDir(): string {
   return process.env.CUBYNTRA_DATA_DIR || path.join(process.cwd(), 'data');
 }
 
-/** Absolute path of a file in the data directory. */
+/**
+ * Absolute path of a file in the data directory. The ignore comment stops the bundler from
+ * tracing the whole project into the server output for this runtime-only path.
+ */
 export function dataPath(name: string): string {
-  return path.join(dataDir(), name);
+  return path.join(/*turbopackIgnore: true*/ dataDir(), name);
 }
 
 /**
