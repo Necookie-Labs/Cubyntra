@@ -1,4 +1,4 @@
-import { defineConfig } from 'vitest/config';
+import { configDefaults, defineConfig } from 'vitest/config';
 import { fileURLToPath } from 'node:url';
 
 export default defineConfig({
@@ -11,5 +11,7 @@ export default defineConfig({
     // 2 s alone, but well past the 5 s / 10 s defaults while other suites compete for CPU.
     testTimeout: 20_000,
     hookTimeout: 30_000,
+    // Agent worktrees under .claude/ are other checkouts; their tests run from their own root.
+    exclude: [...configDefaults.exclude, '.claude/**'],
   },
 });
