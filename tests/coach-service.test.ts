@@ -184,7 +184,7 @@ describe('modes', () => {
 
   it('cuts off at the monthly cap', async () => {
     process.env.COACH_MONTHLY_CAP_USD = '0.0001';
-    tracker.record({ input_tokens: 0, output_tokens: 400, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 });
+    await tracker.record({ input_tokens: 0, output_tokens: 400, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 });
     expect(coachMode(tracker)).toBe('capped');
     const events = await collect({ chunks: ['never sent'] });
     expect(streamMock).not.toHaveBeenCalled();

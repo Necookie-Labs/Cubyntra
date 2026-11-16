@@ -202,7 +202,7 @@ async function main(): Promise<void> {
     '',
   ];
   const file = dataPath('coach-eval-report.md');
-  writeFileAtomic(file, lines.join('\n'));
+  await writeFileAtomic(file, lines.join('\n'));
   console.log(`Report written to ${file}`);
 }
 

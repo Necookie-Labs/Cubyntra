@@ -105,6 +105,7 @@ export function monthKey(date: Date): string {
 export class SpendTracker {
   private reservedUsd = 0;
   private data: UsageFile | null = null;
+  private saving: Promise<void> = Promise.resolve();
 
   constructor(
     private readonly file: string = dataPath('coach-usage.json'),
@@ -157,13 +158,17 @@ export class SpendTracker {
   }
 
   /** Releases a reservation and records the real usage, if the call returned any. */
-  settle(estimateUsd: number, usage?: UsageCounts | null): number {
+  async settle(estimateUsd: number, usage?: UsageCounts | null): Promise<number> {
     this.reservedUsd = Math.max(0, this.reservedUsd - estimateUsd);
     return usage ? this.record(usage) : 0;
   }
 
-  /** Adds one response's usage to this month and saves the file. Returns its cost. */
-  record(usage: UsageCounts): number {
+  /**
+   * Adds one response's usage to this month (in memory at once, so the cap sees it straight
+   * away) and saves the file. Saves run one after another, so an older snapshot never lands
+   * after a newer one. Resolves to the cost once the file is written.
+   */
+  async record(usage: UsageCounts): Promise<number> {
     const cost = costOfUsage(usage);
     const data = this.load();
     const key = this.month;
@@ -175,7 +180,9 @@ export class SpendTracker {
     month.cacheWriteTokens += usage.cache_creation_input_tokens ?? 0;
     month.cacheReadTokens += usage.cache_read_input_tokens ?? 0;
     data.months[key] = month;
-    writeFileAtomic(this.file, `${JSON.stringify(data, null, 2)}\n`);
+    const write = this.saving.then(() => writeFileAtomic(this.file, `${JSON.stringify(data, null, 2)}\n`));
+    this.saving = write.catch(() => {});
+    await write;
     return cost;
   }
 }

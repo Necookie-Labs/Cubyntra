@@ -41,7 +41,7 @@ export async function PUT(req: Request) {
   if (!parsed.ok) return Response.json({ error: parsed.error }, { status: 400 });
 
   try {
-    writeStudentProfile(parsed.profile);
+    await writeStudentProfile(parsed.profile);
   } catch (error) {
     if (error instanceof ProfileTooLargeError) return tooLarge();
     console.error('[Cubyntra] Saving the student profile failed:', error);

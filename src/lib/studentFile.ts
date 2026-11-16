@@ -54,9 +54,9 @@ export function readStudentProfile(): StudentProfile {
   }
 }
 
-/** Saves a validated profile atomically. Throws `ProfileTooLargeError` over the size cap. */
-export function writeStudentProfile(profile: StudentProfile): void {
+/** Saves a validated profile atomically. Rejects with `ProfileTooLargeError` over the size cap. */
+export async function writeStudentProfile(profile: StudentProfile): Promise<void> {
   const text = `${JSON.stringify(profile, null, 2)}\n`;
   if (Buffer.byteLength(text) > MAX_STUDENT_BYTES) throw new ProfileTooLargeError();
-  writeFileAtomic(studentFilePath(), text, 0o600);
+  await writeFileAtomic(studentFilePath(), text, 0o600);
 }

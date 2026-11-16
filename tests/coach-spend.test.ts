@@ -78,14 +78,14 @@ describe('monthlyCapUsd', () => {
 describe('SpendTracker', () => {
   const file = () => path.join(scratch.dir, 'coach-usage.json');
 
-  it('records usage per month into the data file', () => {
+  it('records usage per month into the data file', async () => {
     let now = new Date('2026-11-30T23:00:00Z');
     const tracker = new SpendTracker(file(), () => now);
-    tracker.record(usage(0, 1_000_000));
+    await tracker.record(usage(0, 1_000_000));
     expect(tracker.monthSpendUsd()).toBeCloseTo(0.5);
     now = new Date('2026-12-01T00:30:00Z');
     expect(tracker.monthSpendUsd()).toBe(0);
-    tracker.record(usage(1_000_000, 0, 0, 2000));
+    await tracker.record(usage(1_000_000, 0, 0, 2000));
 
     const saved = JSON.parse(fs.readFileSync(file(), 'utf8'));
     expect(Object.keys(saved.months)).toEqual(['2026-11', '2026-12']);
@@ -96,9 +96,9 @@ describe('SpendTracker', () => {
     expect(fs.readdirSync(scratch.dir)).toEqual(['coach-usage.json']);
   });
 
-  it('creates the data directory when it is missing', () => {
+  it('creates the data directory when it is missing', async () => {
     const nested = path.join(scratch.dir, 'deeper', 'coach-usage.json');
-    new SpendTracker(nested).record(usage(1, 1));
+    await new SpendTracker(nested).record(usage(1, 1));
     expect(fs.existsSync(nested)).toBe(true);
   });
 
@@ -107,25 +107,25 @@ describe('SpendTracker', () => {
     expect(new SpendTracker(file()).monthSpendUsd()).toBe(0);
   });
 
-  it('caps the month and refuses reservations that would pass the cap', () => {
+  it('caps the month and refuses reservations that would pass the cap', async () => {
     process.env.COACH_MONTHLY_CAP_USD = '1';
     const tracker = new SpendTracker(file());
     expect(tracker.reserve(0.6)).toBe(true);
     expect(tracker.reserve(0.6)).toBe(false); // the first call is still in flight
-    tracker.settle(0.6, usage(0, 1_900_000)); // cost $0.95
+    await tracker.settle(0.6, usage(0, 1_900_000)); // cost $0.95
     expect(tracker.isCapped()).toBe(false);
     expect(tracker.reserve(0.06)).toBe(false);
     expect(tracker.reserve(0.04)).toBe(true);
-    tracker.settle(0.04, usage(0, 100_000)); // +$0.05 reaches $1.00
+    await tracker.settle(0.04, usage(0, 100_000)); // +$0.05 reaches $1.00
     expect(tracker.isCapped()).toBe(true);
     expect(tracker.reserve(0.0001)).toBe(false);
   });
 
-  it('releases a reservation for a call that returned no usage', () => {
+  it('releases a reservation for a call that returned no usage', async () => {
     process.env.COACH_MONTHLY_CAP_USD = '1';
     const tracker = new SpendTracker(file());
     expect(tracker.reserve(0.9)).toBe(true);
-    tracker.settle(0.9, null);
+    await tracker.settle(0.9, null);
     expect(tracker.reserve(0.9)).toBe(true);
     expect(fs.existsSync(file())).toBe(false);
   });

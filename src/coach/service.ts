@@ -152,7 +152,10 @@ export async function* coachReply(facts: CoachFacts, options: CoachReplyOptions 
     console.warn(`[coach] falling back to the template (${rejected}): ${error instanceof Error ? error.name : 'error'}`);
     yield { type: 'replace', text: templateText(facts), reason: rejected };
   } finally {
-    const cost = tracker.settle(estimate, usage);
+    const cost = await tracker.settle(estimate, usage).catch((error: unknown) => {
+      console.error('[coach] Saving the usage failed:', error);
+      return 0;
+    });
     if (usage) logUsage(usage, cost);
   }
 

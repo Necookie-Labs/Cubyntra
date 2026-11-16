@@ -19,7 +19,7 @@
 
 import fs from 'node:fs';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
-import { dataPath, writeFileAtomic } from './dataDir';
+import { dataPath, writeFileAtomicSync } from './dataDir';
 
 export const APP_TOKEN_HEADER = 'x-cubyntra-token';
 
@@ -42,7 +42,7 @@ export function getAppSecret(): string {
   }
   if (!secret) {
     secret = randomBytes(32).toString('base64url');
-    writeFileAtomic(file, `${secret}\n`, 0o600);
+    writeFileAtomicSync(file, `${secret}\n`, 0o600);
   }
   secrets.set(file, secret);
   return secret;
