@@ -151,6 +151,8 @@ export function applyMoves(state: CubeState, moves: CubeMove[]): CubeState {
 
 /**
  * Converts standard notation string (e.g. "R", "U'", "F2") to a CubeMove object.
+ * Only the six outer face turns are accepted, in upper case. Lower-case letters mean wide moves
+ * in standard notation, so they are rejected rather than silently read as face turns.
  */
 export function parseMove(notation: string): CubeMove {
   const clean = notation.trim();
@@ -158,9 +160,9 @@ export function parseMove(notation: string): CubeMove {
     throw new Error('Cannot parse empty move notation');
   }
 
-  const faceChar = clean[0].toUpperCase() as Face;
+  const faceChar = clean[0] as Face;
   if (!FACES.includes(faceChar)) {
-    throw new Error(`Invalid face identifier in move: "${clean}"`);
+    throw new Error(`Invalid face identifier in move: "${clean}" (expected one of ${FACES.join(' ')})`);
   }
 
   const modifier = clean.slice(1);

@@ -150,8 +150,8 @@ export interface SolverConfig {
 
 - `solveCubeState(cubeStateOrString: CubeState | string, config?: SolverConfig): Promise<SolveResult>`  
   Computes an optimal or near-optimal move sequence using the two-phase Kociemba engine.
-- `parseMoveSequence(moveString: string): MoveNotation[]`  
-  Converts space-delimited string (`"R U R' U'"`) into a typed `MoveNotation[]` array.
+- `parseAlgorithm(alg: string): CubeMove[]` and `parseMove(notation: string): CubeMove` (in `src/cube/transforms.ts`)  
+  Convert a space-delimited string (`"R U R' U'"`) into `CubeMove[]`. Only upper-case outer face turns `U R F D L B` with an optional `'` or `2` are accepted; lower-case (wide) moves, rotations, slices and any other token throw.
 - `invertMove(move: MoveNotation): MoveNotation`  
   Returns the exact algebraic inverse of a face rotation.
 - `invertMoveSequence(moves: MoveNotation[]): MoveNotation[]`  

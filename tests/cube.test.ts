@@ -138,6 +138,14 @@ describe('Cube Domain & Mathematical Invariants', () => {
     expect(() => parseMove('R3')).toThrow();
     expect(() => parseMove('')).toThrow();
   });
+
+  it('rejects lower-case and unsupported move tokens', () => {
+    // Lower case means a wide move in standard notation; it must not be read as a face turn.
+    for (const token of ['r', "u'", 'f2', 'd', 'l', 'b', 'Rw', 'M', 'x', "y'", 'z2', "R2'", "R'2", '2R']) {
+      expect(() => parseMove(token), token).toThrow();
+    }
+    expect(() => parseAlgorithm("R U r' U'")).toThrow(/Invalid face identifier/);
+  });
 });
 
 describe('Cube State Validator & Parity Invariants', () => {
