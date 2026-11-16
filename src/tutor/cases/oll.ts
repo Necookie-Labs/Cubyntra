@@ -245,4 +245,204 @@ export const OLL_CASES: readonly OllCase[] = [
       'No yellow edges on top. Yellow on top: the center and all four corners. Yellow on the sides: front (middle), right (middle), back (middle), left (middle).',
     algorithm: "r U R' U' M2 U R U' R' U' M'",
   },
+  {
+    id: 'oll-21',
+    number: 21,
+    name: 'OLL 21 (Double Sune)',
+    group: 'Cross',
+    pattern: 'x.x|..x..|.xxx.|..x..|x.x',
+    recognition:
+      'A yellow cross on top. Yellow on top: the cross. Yellow on the sides: front (left and right), back (left and right).',
+    algorithm: "R U2 R' U' R U R' U' R U' R'",
+  },
+  {
+    id: 'oll-22',
+    number: 22,
+    name: 'OLL 22 (Pi)',
+    group: 'Cross',
+    pattern: '..x|x.x..|.xxx.|x.x..|..x',
+    recognition:
+      'A yellow cross on top. Yellow on top: the cross. Yellow on the sides: front (right), back (right), left (back and front).',
+    algorithm: "R U2 R2 U' R2 U' R2 U2 R",
+  },
+  {
+    id: 'oll-23',
+    number: 23,
+    name: 'OLL 23 (Headlights)',
+    group: 'Cross',
+    pattern: 'x.x|..x..|.xxx.|.xxx.|...',
+    recognition:
+      'A yellow cross on top. Yellow on top: the cross and the front-left and front-right corners. Yellow on the sides: back (left and right).',
+    algorithm: "R2 D' R U2 R' D R U2 R",
+  },
+  {
+    id: 'oll-24',
+    number: 24,
+    name: 'OLL 24 (Chameleon)',
+    group: 'Cross',
+    pattern: 'x..|..xx.|.xxx.|..xx.|x..',
+    recognition:
+      'A yellow cross on top. Yellow on top: the cross and the back-right and front-right corners. Yellow on the sides: front (left), back (left).',
+    algorithm: "r U R' U' r' F R F'",
+  },
+  {
+    id: 'oll-25',
+    number: 25,
+    name: 'OLL 25 (Bowtie)',
+    group: 'Cross',
+    pattern: '...|x.xx.|.xxx.|.xx..|..x',
+    recognition:
+      'A yellow cross on top. Yellow on top: the cross and the back-right and front-left corners. Yellow on the sides: front (right), left (back).',
+    algorithm: "F' r U R' U' r' F R",
+  },
+  {
+    id: 'oll-26',
+    number: 26,
+    name: 'OLL 26 (Anti-Sune)',
+    group: 'Cross',
+    pattern: '...|x.xx.|.xxx.|..x.x|x..',
+    recognition:
+      'A yellow cross on top. Yellow on top: the cross and the back-right corner. Yellow on the sides: front (left), right (front), left (back).',
+    algorithm: "R U2 R' U' R U' R'",
+  },
+  {
+    id: 'oll-27',
+    number: 27,
+    name: 'OLL 27 (Sune)',
+    group: 'Cross',
+    pattern: 'x..|..x.x|.xxx.|.xx..|..x',
+    recognition:
+      'A yellow cross on top. Yellow on top: the cross and the front-left corner. Yellow on the sides: front (right), right (back), back (left).',
+    algorithm: "R U R' U R U2 R'",
+  },
+  {
+    id: 'oll-28',
+    number: 28,
+    name: 'OLL 28 (Stealth)',
+    group: 'Corners oriented',
+    pattern: '...|.xxx.|.xx.x|.x.x.|.x.',
+    recognition:
+      'All four corners are yellow on top, and two edges are not. Yellow on top: the center, the back and left edges and all four corners. Yellow on the sides: front (middle), right (middle).',
+    algorithm: "r U R' U' r' R U R U' R'",
+  },
+  {
+    id: 'oll-29',
+    number: 29,
+    name: 'OLL 29 (Spotted Chameleon)',
+    group: 'Awkward',
+    pattern: 'x..|..xx.|.xx.x|...x.|xx.',
+    recognition:
+      'Two yellow edges next to each other and two yellow corners that do not make a block. Yellow on top: the center, the back and left edges and the back-right and front-right corners. Yellow on the sides: front (left and middle), right (middle), back (left).',
+    algorithm: "R U R' U' R U' R' F' U' F R U R'",
+  },
+  {
+    id: 'oll-30',
+    number: 30,
+    name: 'OLL 30 (Anti-Spotted Chameleon)',
+    group: 'Awkward',
+    pattern: '...|x.x.x|.xx.x|.x.x.|.x.',
+    recognition:
+      'Two yellow edges next to each other and two yellow corners that do not make a block. Yellow on top: the center, the back and left edges and the front-left and front-right corners. Yellow on the sides: front (middle), right (middle and back), left (back).',
+    algorithm: "F R' F R2 U' R' U' R U R' F2",
+  },
+  {
+    id: 'oll-31',
+    number: 31,
+    name: 'OLL 31 (Couch)',
+    group: 'P shapes',
+    pattern: 'x..|..xx.|x.xx.|...x.|xx.',
+    recognition:
+      'A yellow P shape on top. Yellow on top: the center, the back and right edges and the back-right and front-right corners. Yellow on the sides: front (left and middle), back (left), left (middle).',
+    algorithm: "R' U' F U R U' R' F' R",
+  },
+  {
+    id: 'oll-32',
+    number: 32,
+    name: 'OLL 32 (Anti-Couch)',
+    group: 'P shapes',
+    pattern: '..x|.xx..|.xx.x|.x...|.xx',
+    recognition:
+      'A yellow P shape on top. Yellow on top: the center, the back and left edges and the back-left and front-left corners. Yellow on the sides: front (middle and right), right (middle), back (right).',
+    algorithm: "L U F' U' L' U L F L'",
+  },
+  {
+    id: 'oll-33',
+    number: 33,
+    name: 'OLL 33 (Key)',
+    group: 'T shapes',
+    pattern: 'xx.|...x.|.xxx.|...x.|xx.',
+    recognition:
+      'A yellow T shape on top. Yellow on top: the center, the left and right edges and the back-right and front-right corners. Yellow on the sides: front (left and middle), back (left and middle).',
+    algorithm: "R U R' U' R' F R F'",
+  },
+  {
+    id: 'oll-34',
+    number: 34,
+    name: 'OLL 34 (City)',
+    group: 'C shapes',
+    pattern: '.x.|x...x|.xxx.|.x.x.|.x.',
+    recognition:
+      'A yellow C shape on top. Yellow on top: the center, the left and right edges and the front-left and front-right corners. Yellow on the sides: front (middle), right (back), back (middle), left (back).',
+    algorithm: "R U R2 U' R' F R U R U' F'",
+  },
+  {
+    id: 'oll-35',
+    number: 35,
+    name: 'OLL 35 (Fish Salad)',
+    group: 'Fish',
+    pattern: '.x.|.x..x|x.xx.|..xx.|x..',
+    recognition:
+      'A yellow fish shape on top. Yellow on top: the center, the right and front edges and the back-left and front-right corners. Yellow on the sides: front (left), right (back), back (middle), left (middle).',
+    algorithm: "R U2 R2 F R F' R U2 R'",
+  },
+  {
+    id: 'oll-36',
+    number: 36,
+    name: 'OLL 36 (Wario)',
+    group: 'W shapes',
+    pattern: '..x|.xx..|x.xx.|x..x.|.x.',
+    recognition:
+      'A yellow W shape (a staircase) on top. Yellow on top: the center, the back and right edges and the back-left and front-right corners. Yellow on the sides: front (middle), back (right), left (middle and front).',
+    algorithm: "L' U' L U' L' U L U L F' L' F",
+  },
+  {
+    id: 'oll-37',
+    number: 37,
+    name: 'OLL 37 (Mounted Fish)',
+    group: 'Fish',
+    pattern: '...|.xx.x|.xx.x|...x.|xx.',
+    recognition:
+      'A yellow fish shape on top. Yellow on top: the center, the back and left edges and the back-left and front-right corners. Yellow on the sides: front (left and middle), right (middle and back).',
+    algorithm: "F R' F' R U R U' R'",
+  },
+  {
+    id: 'oll-38',
+    number: 38,
+    name: 'OLL 38 (Mario)',
+    group: 'W shapes',
+    pattern: 'x..|..xx.|.xx.x|.x..x|.x.',
+    recognition:
+      'A yellow W shape (a staircase) on top. Yellow on top: the center, the back and left edges and the back-right and front-left corners. Yellow on the sides: front (middle), right (front and middle), back (left).',
+    algorithm: "R U R' U R U' R' U' R' F R F'",
+  },
+  {
+    id: 'oll-39',
+    number: 39,
+    name: 'OLL 39 (Fung)',
+    group: 'Big lightning bolt',
+    pattern: 'xx.|...x.|.xxx.|.x..x|.x.',
+    recognition:
+      'A big yellow zigzag on top. Yellow on top: the center, the left and right edges and the back-right and front-left corners. Yellow on the sides: front (middle), right (front), back (left and middle).',
+    algorithm: "L F' L' U' L U F U' L'",
+  },
+  {
+    id: 'oll-40',
+    number: 40,
+    name: 'OLL 40 (Anti-Fung)',
+    group: 'Big lightning bolt',
+    pattern: '.xx|.x...|.xxx.|x..x.|.x.',
+    recognition:
+      'A big yellow zigzag on top. Yellow on top: the center, the left and right edges and the back-left and front-right corners. Yellow on the sides: front (middle), back (middle and right), left (front).',
+    algorithm: "R' F R U R' U' F' U R",
+  },
 ];
