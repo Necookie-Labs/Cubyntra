@@ -15,7 +15,8 @@ The Cubyntra 3D engine provides an interactive, mathematically faithful digital 
 1. **Visual Follows Model**: Three.js is strictly a rendering projection. The logical cube state in `src/cube/` is the single source of truth.
 2. **Zero Floating-Point Accumulation Drift**: Repeated matrix multiplications during continuous face turns inevitably degrade floating-point orthogonality without rigorous snapping. All layer rotations round cubie coordinates to integer space $\{-1, 0, 1\}$ upon animation completion.
 3. **Smooth 60 FPS Interpolation**: Smooth easing transitions between move states.
-4. **Context Loss Resilience**: Graceful handling of WebGL device loss and dynamic canvas resize.
+4. **Context Loss Resilience**: The loop pauses when the WebGL context is lost and the twin is rebuilt from the logical state when it returns (section 9).
+5. **Flat Voxel Look**: Flat colors from the design tokens, no gloss, gradients or glow ([ADR-011](ADR/011-voxel-design-system.md)).
 
 ---
 
@@ -37,13 +38,15 @@ Layers along axes:
 - **Centers** (6 pieces): $|x| + |y| + |z| = 1$. Have 1 colored face, 5 internal faces.
 - **Core** (1 piece): $|x| + |y| + |z| = 0$. Hidden internal pivot mechanism.
 
-### Speedcube PBR Mesh Construction & Shared Buffer Geometries
-Rather than rudimentary BoxGeometry cubes, Cubyntra constructs cubies using precision-extruded competition speedcube components:
-1. **Chamfered ABS Body**: Extruded rounded shape with bevel (`createRoundedBoxGeometry(0.985, 0.11, 5)`) creating smooth aerodynamic edges. Shaded with matte black ABS plastic `MeshPhysicalMaterial` (`#15161b`, roughness 0.55, clearcoat 0.25).
-2. **3D Beveled Facelet Tiles**: Tactile 3D tiles (`createRoundedTileGeometry(0.84, 0.13, 0.018)`) with quadratic corner fillets and bevel. Mounted onto external faces with slight normal offset, eliminating z-fighting and mimicking physical speedcube tiles.
-3. **PBR Clearcoat Materials**: High-gloss specular coating with `MeshPhysicalMaterial` (roughness 0.32, clearcoat 0.70, clearcoatRoughness 0.18, envMapIntensity 0.90) and authentic competition speedcube color palette:
-   - White (`#f4f5f0`), Yellow (`#ffd500`), Green (`#00b35c`), Blue (`#0a5cff`), Red (`#e8132e`), Orange (`#ff7a00`).
-4. **Buffer Geometry Sharing**: Shared module-level geometry singletons (`getSharedBodyGeometry` and `getSharedTileGeometry`) reuse vertex and index buffers across all 27 cubies, guaranteeing minimal GPU memory overhead and zero garbage collection spikes.
+### Voxel Cubies & Shared Resources (`src/three/cubie.ts`)
+The twin follows the flat voxel style of [ADR-011](ADR/011-voxel-design-system.md), which replaced the glossy PBR speedcube of ADR-008:
+1. **Body**: a plain `BoxGeometry` of edge 0.98 in the core token (`--vx-sticker-core`, `#1B2E13`). The 0.02 gap to the next cubie reads as a dark seam.
+2. **Tiles**: a chunky raised block (`BoxGeometry` 0.82 x 0.82 x 0.05) on each visible side, in the sticker tokens (`--vx-sticker-*`). WebGL needs real color values, so `src/lib/tokens.ts` mirrors those tokens; `tests/tokens.test.ts` fails if it ever disagrees with `globals.css`. Sticker colors are the same in both themes.
+3. **Materials**: `MeshLambertMaterial` with flat shading: diffuse only, no specular, clearcoat, environment map or tone mapping (`NoToneMapping`).
+4. **Shared kit**: a `VoxelKit` holds the 2 geometries and 14 materials (body and six sticker colors, each in a normal and a faded variant) shared by all 27 cubies. Recoloring a tile swaps it to the shared material of that color instead of editing a per-tile material. The engine owns the kit and disposes it, geometries included, in `dispose()`.
+
+### Flat-Tone Lighting
+One ambient light plus one directional light mounted on the camera. The camera never orbits (the cube group does), so the light stays fixed relative to the screen. A box face is planar and Lambert has no specular term, so each face direction gets exactly one flat tone: faces pointing up read lightest, faces toward the viewer a step darker, side faces darker again. Intensities are in units of pi (Lambert divides by pi), so a face square to the light shows close to the token color itself.
 
 ---
 
@@ -65,7 +68,7 @@ Directly rotating individual cubies along world axes creates non-affine shearing
 5. **Orthonormal Snapping**:
    - Position is rounded to the integer grid.
    - Orientation is snapped by rounding the rotation matrix's first two basis vectors to the nearest signed axes and deriving the third by cross product (`snapQuaternionToCubeGroup`). The result is always one of the 24 exact cube orientations with determinant $+1$. Rounding Euler angles per component, the previous method, is not a valid snap near gimbal lock.
-6. **Repaint by facing**: After each turn, `syncWithCubeState` repaints tiles from the logical state, choosing each tile by the direction it points now (`CubieMesh.setColorFacing`), not by the side it was built on.
+6. **Repaint by facing**: After each turn, `syncWithCubeState` repaints tiles from the logical state (`paintCubies`), choosing each tile by the direction it points now (`CubieMesh.setColorFacing`), not by the side it was built on.
 
 ### 3.2 Move Queue & Playback
 - `animateMove(move, targetState, durationMs)` queues the turn and resolves when that turn has been snapped. Turns are never dropped, however fast they are requested.
@@ -73,6 +76,30 @@ Directly rotating individual cubies along world axes creates non-affine shearing
 - `SolveControls` plays a solution as an async loop: advance the store, await the turn, rest, repeat. At 1x a turn takes 300 ms plus a 250 ms rest, and both scale with speed. Next and Previous animate too; Previous plays the inverse turn.
 
 Verified in `tests/three-motion.test.ts` by driving the real engine frame by frame and reading the state back from cubie geometry and from material colors, for every face, wide, slice and rotation move and for queued mixed sequences (and their inverses) at 144 Hz.
+
+### 3.3 Playback Controller (`src/three/playback.ts`)
+`engine.playback` is a `PlaybackController` that plays one algorithm on the twin. It is pure logic over a two-method driver (`animateMove`, `requestSync`, both implemented by the engine), so it is tested without WebGL.
+
+```ts
+playback.load(start: CubeState, moves: Move[]): void   // stop, rewind, show `start`
+playback.play(): Promise<void>        // to the end; from the end it starts again
+playback.pause(): void                // stops after the turn in flight
+playback.stepForward(): Promise<void> // next move
+playback.stepBack(): Promise<void>    // inverse of the previous move
+playback.seek(index: number): Promise<void> // jump to the state after `index` moves, no animation
+playback.reset(): Promise<void>       // seek(0)
+playback.setSpeed(1 | 0.5): void      // 0.5 doubles turn and rest durations
+playback.setLoop(loop: boolean): void // wrap to the start instead of stopping
+playback.subscribe(listener): () => void
+playback.getSnapshot(): { moves, index, total, activeIndex, direction, playing, speed, loop, state }
+playback.whenIdle(): Promise<void>
+```
+- **Logical state stays ground truth.** `load` precomputes every state along the algorithm with `applyMove`; each turn is handed to the engine with the exact state it must end in, so the queue's snap-and-repaint guarantee applies unchanged.
+- **Ordered commands.** Commands run one at a time on an internal promise chain, so rapid clicks are never dropped or reordered. A started turn always finishes; `pause` takes effect before the next one. A new `load` cancels commands still queued for the old algorithm.
+- **Snapshot.** `index` counts applied moves (0 = start), `activeIndex` is the move animating now (or null), `direction` is `'back'` while an inverse plays. The snapshot object is stable between changes, for `useSyncExternalStore` (`usePlayback` in `src/components/twin/`).
+- At 1x a quarter turn takes 300 ms and play rests 250 ms between turns (the engine itself gives half turns 1.5x).
+
+`tests/three-playback.test.ts` covers the controller with a fake twin; `tests/three-motion.test.ts` plays an algorithm with face, wide, slice and rotation moves through the real engine and checks the twin's colors against the logical state after every step forward and back, and after a seek.
 
 ---
 
@@ -95,7 +122,7 @@ To guide users through solving moves physically, Cubyntra renders animated 3D di
   - Slices (`M E S`) get a ring of radius 2.3 in the slice's own plane through the cube centre, clear of the cube's edges ($1.5\sqrt{2} \approx 2.12$), sweeping like L, D or F.
   - Whole-cube rotations (`x y z`) get the widest, thickest ring (radius 2.6, tube 0.08) around the middle of the cube, sweeping like R, U or F.
   `tests/arrows.test.ts` checks the plane, radius and sweep direction of each.
-- **Style**: A flat, unlit `MeshBasicMaterial` (no pulsing or emissive animation).
+- **Style**: Chunky square bars: tubes and cones with four sides (tube radius 0.08, 0.12 for rotations) in a flat, opaque, unlit `MeshBasicMaterial`. The color is the theme's ink (`--vx-ink`), so arrows contrast with the page in both themes; `engine.setTheme('light' | 'dark')` switches it. No pulsing, transparency or emissive animation.
 
 ---
 
@@ -108,14 +135,54 @@ To guide users through solving moves physically, Cubyntra renders animated 3D di
 - **Damping**: Orbit and zoom ease with $k = 1 - e^{-7.67\,\Delta t}$, which matches the original 0.12 per frame at 60 Hz and behaves the same at any refresh rate.
 - **Clock**: `THREE.Timer`, deliberately not tied to the Page Visibility API, so turns still complete where frames keep firing while `document.hidden` is true. The per-frame delta clamp prevents fast-forwarding when a tab returns.
 
-### 5.1 Studio Environment & Contact Shadow
-- **PMREM Studio Reflections**: Real-time environment reflections generated via `THREE.PMREMGenerator` using synthetic studio light panels (overhead softbox, left/right rim strips, and front fill), casting natural glossy highlights across beveled tile edges.
-- **Contact Shadow Plane**: Projected radial gradient texture positioned at $y = -2.35$ with dynamic scale and opacity breathing in sync with subtle floating idle bobbing.
-- **Color Science & Tone Mapping**: Configured with `THREE.SRGBColorSpace` and `THREE.ACESFilmicToneMapping` (exposure 1.05) for realistic physical rendering.
+### 5.1 Grip-Framed View (`src/three/gripCamera.ts`)
+`engine.setGrip(grip: Grip | null)` shows the twin the way the student holds the cube (`Grip` from `src/cube/grip.ts`): the face whose center is `grip.top` up, the face whose center is `grip.front` toward the viewer, then the usual three-quarter orbit view on top so U, F and R are visible.
+- `gripQuaternion(centers, grip)` is the exact rotation (one of the 24 cube orientations) taking those two faces to +Y and +Z. It is resolved against the state the twin will show once queued turns finish.
+- The cube group's orientation is `orbit * grip`. Only the group turns; cubie transforms stay snapped in the cube's own frame, so a regrip cannot introduce drift. The layer pivot lives inside the group, so turns stay aligned with the cube.
+- Changing the grip eases to the new orientation (`GripAnimator`, about 0.4 s, landing exactly on the target). Under `prefers-reduced-motion` the regrip is instant. `setGrip(null)` returns to the plain view.
+
+### 5.2 Lighting & Stage
+No environment map, contact shadow, shadow maps or tone mapping: the twin sits on the flat panel and well of `CubeVisualizer`, lit only by the flat-tone rig in section 2. A small idle bob (0.06 units) runs unless reduced motion is requested.
 
 ---
 
-## 6. Rendering Performance & Resource Lifecycle
+## 6. Teaching Aids
 
-- **Disposal**: Thorough resource cleanup hooks disposing geometries, materials, and textures when the component unmounts to prevent memory leaks in Single Page Applications.
+### 6.1 Spotlight (`src/three/spotlight.ts`)
+`engine.setSpotlight(pieces: { position: [x, y, z] }[] | null)` keeps the cubies at the listed positions at full color and fades every other cubie, body and tiles, to 35% opacity. The fade is a flat opacity (shared transparent materials from the `VoxelKit`, depth writes off so lit pieces behind stay visible), with no glow or outline. Positions are in the twin's logical frame: x from L (-1) to R (1), y from D (-1) to U (1), z from B (-1) to F (1); anything off the grid throws. The spotlight marks positions, not physical pieces: it is re-applied after every turn. `null` lights everything; an empty list fades everything.
+
+### 6.2 Slot Outline
+`engine.setSlotOutline(position | null)` draws a flat outline box around one cubie position (for example the F2L slot a pair goes into): twelve square bars, 1.12 units across, in the theme's focus color (`--vx-focus`). Bars are used because WebGL lines are one pixel wide on most platforms.
+
+### 6.3 "After" Preview (`src/three/ghost.ts`)
+`engine.setGhostState(state | null)` shows a small faded copy of the cube (30% size, 55% opacity) in the top-right corner of the view, painted with the state the current step should end in. It copies the twin's orientation every frame (grip and orbit), so it shows exactly what the twin will look like once the step has played, including any whole-cube rotation in the algorithm. While it is shown, the twin's fitted camera distance grows by 1.3x so the two do not overlap. A separate small cube was chosen over a translucent overlay on the twin because an overlay would sit on top of the pieces the student is watching turn, and two sets of colors in one place are hard to tell apart.
+
+`tests/three-spotlight.test.ts`, `tests/three-ghost.test.ts` and the spotlight, outline and preview cases in `tests/three-motion.test.ts` cover these.
+
+---
+
+## 7. React Components (`src/components/`)
+- `cube/CubeVisualizer`: mounts the engine, follows the page theme (`<html data-theme>`, watched with a `MutationObserver`) and exposes `getEngine()` on its ref for the teaching aids above.
+- `twin/MoveChips`: one chip per move; the current one is highlighted (`aria-current="step"`), finished ones dimmed, each named with `moveName()` for screen readers; an "In words" toggle spells out the current move.
+- `twin/PlaybackControls`: step back, play / pause, step forward, 0.5x and loop, built from `IconButton` and `BlockButton`. Controlled; bind it to `engine.playback` with `usePlayback(controller)`.
+
+---
+
+## 8. Solver Worker
+Building the Kociemba tables and searching run in a Web Worker so the twin never stutters; see [SOLVER.md](SOLVER.md) section 4.4.
+
+---
+
+## 9. WebGL Context Loss (`src/three/contextLoss.ts`)
+`ContextLossGuard` listens for `webglcontextlost` / `webglcontextrestored` on the canvas, calls `preventDefault()` on the loss (which tells the browser to try to restore), and reports each loss and restore once.
+- **On loss** the engine cancels its animation frame and stops rendering. Turns in flight and queued are finished at once (snapped, with their logical target states), so no caller awaits a turn that might never render.
+- **On restore** `WebGLRenderer` re-creates its GL state; the engine marks every material (kit, preview, arrows, outline) for recompilation so programs and buffers are uploaded again, repaints the twin from the logical state (including a deferred `requestSync`), re-applies the spotlight, resizes and restarts the loop.
+
+`tests/three-context-loss.test.ts` drives this with an `EventTarget` standing in for the canvas.
+
+---
+
+## 10. Rendering Performance & Resource Lifecycle
+
+- **Disposal**: `dispose()` stops the loop, releases every waiting turn, removes all listeners (including the context-loss guard), disposes the playback controller, arrows, slot outline, preview and the shared `VoxelKit` (geometries and materials), then the renderer. `tests/three-motion.test.ts` checks that every shared geometry and material is disposed exactly once.
 - **Render Loop**: Renders every animation frame; the browser pauses it in background tabs.
