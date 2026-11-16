@@ -15,7 +15,7 @@ import { CubeColor, CubeState, Face, ValidationIssue } from '@/cube/types';
 import { COLORS, FACES } from '@/cube/constants';
 import { StickerFlag } from '@/vision/resolveCubeColors';
 import { AlertTriangle, CheckCircle2, Info, RotateCcw, ScanLine, Sparkles } from 'lucide-react';
-import { BlockButton, Chip, stickerColor } from '@/components/ui';
+import { BlockButton, Chip, stickerColor, stickerLetter } from '@/components/ui';
 
 const FACE_LABEL: Record<Face, string> = {
   U: 'Top',
@@ -82,9 +82,11 @@ interface ScanReviewProps {
   onRescanFace: (face: Face) => void;
   onConfirmed: () => void;
   onStartOver: () => void;
+  /** Color-blind option: a letter on every tile. */
+  stickerLetters?: boolean;
 }
 
-export const ScanReview: React.FC<ScanReviewProps> = ({ onRescanFace, onConfirmed, onStartOver }) => {
+export const ScanReview: React.FC<ScanReviewProps> = ({ onRescanFace, onConfirmed, onStartOver, stickerLetters = false }) => {
   const cubeState = useCubyntraStore((s) => s.cubeState);
   const resolution = useCubyntraStore((s) => s.resolution);
   const validation = useCubyntraStore((s) => s.validationResult);
@@ -221,11 +223,16 @@ export const ScanReview: React.FC<ScanReviewProps> = ({ onRescanFace, onConfirme
                   aria-label={`${FACE_LABEL[face]}, row ${Math.floor(index / 3) + 1} column ${(index % 3) + 1}: ${color}${
                     isCenter ? ', center, fixed' : ''
                   }${flagged ? ', needs a look' : ''}`}
-                  className={`relative w-6 h-6 sm:w-8 sm:h-8 transition-transform duration-75 ${
+                  className={`relative flex items-center justify-center w-6 h-6 sm:w-8 sm:h-8 transition-transform duration-75 ${
                     isCenter ? 'cursor-default' : 'cursor-pointer hover:-translate-y-px'
                   } ${isSelected ? 'z-10 scale-110 outline-2 outline-offset-2 outline-focus' : ''}`}
                   style={{ backgroundColor: stickerColor(color) }}
                 >
+                  {stickerLetters && (
+                    <span aria-hidden className="font-mono text-xs font-bold leading-none text-sticker-core">
+                      {stickerLetter(color)}
+                    </span>
+                  )}
                   {flagged && !isSelected && (
                     <span aria-hidden className="absolute -top-1 -right-1 h-3 w-3 border-2 border-line bg-warn" />
                   )}
