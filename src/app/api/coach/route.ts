@@ -14,26 +14,19 @@ import { coachReply } from '@/coach/service';
 import { encodeCoachEvent } from '@/coach/sse';
 import { MAX_REQUEST_BYTES } from '@/coach/types';
 import { coachRateLimiter, guardRequest } from '@/lib/localAuth';
+import { readJsonCapped } from '@/lib/readBodyCapped';
 
 export const dynamic = 'force-dynamic';
-
-const tooLarge = () => Response.json({ error: 'Request body too large' }, { status: 413 });
 
 export async function POST(req: Request) {
   const denied = guardRequest(req, coachRateLimiter);
   if (denied) return denied;
 
-  if (Number(req.headers.get('content-length') ?? 0) > MAX_REQUEST_BYTES) return tooLarge();
-  const raw = await req.text();
-  if (Buffer.byteLength(raw) > MAX_REQUEST_BYTES) return tooLarge();
-
-  let body: unknown;
-  try {
-    body = JSON.parse(raw);
-  } catch {
-    return Response.json({ error: 'Body must be JSON' }, { status: 400 });
-  }
-  const parsed = parseCoachFacts((body as { facts?: unknown } | null)?.facts);
+  // Read in chunks and stop at the cap, so a chunked body with no Content-Length is never
+  // buffered in full.
+  const body = await readJsonCapped(req, MAX_REQUEST_BYTES);
+  if (!body.ok) return Response.json({ error: body.error }, { status: body.status });
+  const parsed = parseCoachFacts((body.value as { facts?: unknown } | null)?.facts);
   if (!parsed.ok) return Response.json({ error: parsed.error }, { status: 400 });
 
   const abort = new AbortController();
