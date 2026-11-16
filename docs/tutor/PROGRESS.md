@@ -42,14 +42,14 @@ Checklist for `docs/tutor/GOAL.md`. Tick an item only when it is done and tested
 - [x] Phase gate passed and pushed
 
 ## Phase 4: Teaching twin
-- [ ] Grip-framed camera and animated regrips (engine `setGrip` done and tested; wiring to tutor step plans pending)
-- [ ] Spotlight and slot outline (engine `setSpotlight` / `setSlotOutline` done and tested; wiring to `highlightPieces` pending)
+- [x] Grip-framed camera and animated regrips
+- [x] Spotlight and slot outline
 - [x] Playback controls and MoveChips (engine playback controller, `PlaybackControls`, `MoveChips`, `usePlayback`)
-- [ ] "After" preview (engine `setGhostState` done and tested; wiring to `expectedState` pending)
+- [x] "After" preview
 - [x] Voxel restyle
-- [x] Solver/tutor in a Web Worker (solver done; the tutor engine still needs its job added to `WorkerJobs`)
+- [x] Solver/tutor in a Web Worker
 - [x] WebGL context-loss recovery
-- [ ] Tests (twin colors match the logical state after each playback step; tutor `expectedState` check pending)
+- [x] Tests (twin colors match the logical state after each playback step and `expectedState` after each tutor step)
 - [ ] Phase gate passed and pushed
 
 ## Phase 5: Checkpoint checks
