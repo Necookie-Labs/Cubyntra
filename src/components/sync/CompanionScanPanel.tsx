@@ -11,9 +11,10 @@ import React from 'react';
 import { useCompanion } from '@/sync/CompanionSyncProvider';
 import { FaceScanStatus } from '@/sync/useCompanionSync';
 import { useCubyntraStore } from '@/stores/useCubyntraStore';
-import { COLOR_HEX, SCAN_SEQUENCE } from '@/cube/constants';
+import { SCAN_SEQUENCE } from '@/cube/constants';
 import { Face } from '@/cube/types';
-import { CheckCircle2, Loader2, QrCode, RotateCcw, Camera, Smartphone } from 'lucide-react';
+import { BlockButton, Chip, ChipTone, Panel, ProgressBlocks, cx, stickerColor } from '@/components/ui';
+import { AlertTriangle, Camera, CheckCircle2, Link2, Loader2, QrCode, RotateCcw, Smartphone } from 'lucide-react';
 
 const FACE_LABEL: Record<Face, string> = {
   U: 'Top',
@@ -35,27 +36,17 @@ interface CompanionScanPanelProps {
 
 type Connection = 'ended' | 'reconnecting' | 'phone' | 'waiting';
 
-const CONNECTION_STYLE: Record<Connection, { pill: string; dot: string; label: string }> = {
-  ended: {
-    pill: 'bg-rose-950/50 border-rose-800/60 text-rose-300',
-    dot: 'bg-rose-400',
-    label: 'Pairing ended',
-  },
-  reconnecting: {
-    pill: 'bg-amber-950/40 border-amber-800/60 text-amber-300',
-    dot: 'bg-amber-400 animate-pulse motion-reduce:animate-none',
-    label: 'Reconnecting…',
-  },
-  phone: {
-    pill: 'bg-emerald-950/50 border-emerald-800/60 text-emerald-400',
-    dot: 'bg-emerald-400',
-    label: 'Phone connected',
-  },
-  waiting: {
-    pill: 'bg-neutral-900 border-neutral-800 text-neutral-400',
-    dot: 'bg-amber-400 animate-pulse motion-reduce:animate-none',
-    label: 'Waiting for your phone',
-  },
+const CONNECTION_STYLE: Record<Connection, { tone: ChipTone; Icon: typeof Link2; label: string }> = {
+  ended: { tone: 'danger', Icon: AlertTriangle, label: 'Pairing ended' },
+  reconnecting: { tone: 'warn', Icon: Loader2, label: 'Reconnecting…' },
+  phone: { tone: 'leaf', Icon: Link2, label: 'Phone connected' },
+  waiting: { tone: 'neutral', Icon: Smartphone, label: 'Waiting for your phone' },
+};
+
+const BADGE: Record<FaceScanStatus, string> = {
+  accepted: 'bg-leaf text-on-leaf',
+  rejected: 'bg-warn text-on-leaf',
+  analyzing: 'bg-panel text-ink',
 };
 
 export const CompanionScanPanel: React.FC<CompanionScanPanelProps> = ({
@@ -84,142 +75,128 @@ export const CompanionScanPanel: React.FC<CompanionScanPanelProps> = ({
     ? 'phone'
     : 'waiting';
   const style = CONNECTION_STYLE[connection];
+  const StatusIcon = style.Icon;
 
   return (
-    <div className="flex flex-col gap-5 w-full max-w-lg mx-auto lg:mx-0 bg-raised/95 backdrop-blur-md border border-neutral-800 p-5 rounded-2xl shadow-2xl">
+    <Panel as="section" className="vx-place flex flex-col gap-6 w-full max-w-lg mx-auto lg:mx-0 p-6 pb-8">
       <header className="flex items-start justify-between gap-4">
-        <div className="flex flex-col gap-1.5">
-          <div
-            className={`inline-flex w-fit items-center gap-2 px-2.5 py-1 rounded-full border text-[11px] font-mono ${style.pill}`}
+        <div className="flex flex-col gap-2">
+          <Chip
+            tone={style.tone}
             role="status"
+            className="w-fit"
+            icon={
+              <StatusIcon
+                aria-hidden
+                className={cx('w-3 h-3', connection === 'reconnecting' && 'animate-spin motion-reduce:animate-none')}
+              />
+            }
           >
-            <span className={`w-1.5 h-1.5 rounded-full ${style.dot}`} />
             {style.label}
-          </div>
-          <h2 className="text-xl font-bold tracking-tight text-white">Scanning with your phone</h2>
+          </Chip>
+          <h2 className="text-2xl leading-tight text-ink">Scanning with your phone</h2>
           {connection === 'ended' ? (
             <div className="flex flex-col items-start gap-3">
-              <p className="text-sm text-rose-200/90 leading-relaxed">
+              <p className="text-sm text-ink leading-relaxed">
                 This pairing expired or the server restarted, so your phone can no longer reach this computer.
                 Make a new QR code and scan it with your phone to carry on.
               </p>
-              <button
-                type="button"
-                onClick={onNewPairing}
-                className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg bg-white text-neutral-950 text-xs font-bold hover:bg-neutral-200 transition-colors"
-              >
-                <QrCode className="w-3.5 h-3.5" />
+              <BlockButton variant="primary" size="sm" onClick={onNewPairing} icon={<QrCode className="w-4 h-4" />}>
                 New QR code
-              </button>
+              </BlockButton>
             </div>
           ) : (
-            <p className="text-sm text-neutral-400 leading-relaxed">
+            <p className="text-sm text-muted leading-relaxed">
               {connection === 'reconnecting'
                 ? 'The connection dropped. Reconnecting on its own; keep your phone on this page.'
                 : 'Take each photo on your phone. It shows up here within a second and is read on this computer.'}
             </p>
           )}
         </div>
-        <button
-          type="button"
-          onClick={onShowQr}
-          className="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-neutral-800 bg-neutral-900 text-xs font-semibold text-neutral-200 hover:bg-neutral-800 hover:text-white transition-colors focus-visible:outline-2 focus-visible:outline-sky-400"
-        >
-          <QrCode className="w-3.5 h-3.5" />
+        <BlockButton size="sm" onClick={onShowQr} icon={<QrCode className="w-4 h-4" />}>
           Show QR
-        </button>
+        </BlockButton>
       </header>
 
       <div className="flex items-center gap-3">
-        <div
-          className="flex-1 h-1.5 rounded-full bg-neutral-800 overflow-hidden"
-          role="progressbar"
-          aria-valuemin={0}
-          aria-valuemax={6}
-          aria-valuenow={doneCount}
-          aria-label="Faces read"
-        >
-          <div
-            className="h-full bg-emerald-400 transition-[width] duration-300 ease-out"
-            style={{ width: `${(doneCount / 6) * 100}%` }}
-          />
-        </div>
-        <span className="text-xs font-mono text-neutral-400 tabular-nums">{doneCount}/6</span>
+        <ProgressBlocks total={6} done={doneCount} label="Faces read" className="flex-1" />
+        <span className="text-sm font-mono font-bold text-ink tabular-nums">{doneCount}/6</span>
       </div>
 
-      <ol className="grid grid-cols-3 gap-3">
+      <ol className="grid grid-cols-3 gap-4">
         {SCAN_SEQUENCE.map((step) => {
           const status = statusOf(step.face);
           const photo = lastPhotos[step.face];
           const isNext = nextStep?.face === step.face;
-          const hex = COLOR_HEX[step.centerColor];
+          const sticker = stickerColor(step.centerColor);
 
           return (
-            <li key={step.face} className="flex flex-col gap-1.5">
+            <li key={step.face} className="flex flex-col gap-2">
               <div
-                className={`relative aspect-square rounded-xl overflow-hidden border-2 transition-colors duration-200 ${
+                className={cx(
+                  'relative aspect-square overflow-hidden border-2 transition-colors duration-100',
                   status === 'accepted'
-                    ? 'border-emerald-500/70'
+                    ? 'border-leaf-edge shadow-block-sm'
                     : status === 'rejected'
-                    ? 'border-amber-400/80'
+                    ? 'border-warn-edge shadow-block-sm'
                     : status === 'analyzing' || isNext
-                    ? 'border-sky-500/70'
-                    : 'border-neutral-800'
-                }`}
+                    ? 'border-line shadow-block-sm'
+                    : 'border-line-soft'
+                )}
               >
                 {photo ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={photo}
                     alt={`${FACE_LABEL[step.face]} face photo`}
-                    className={`w-full h-full object-cover ${status === 'rejected' ? 'opacity-50' : ''}`}
+                    className={cx('w-full h-full object-cover', status === 'rejected' && 'opacity-50')}
                   />
                 ) : (
-                  <div className="w-full h-full grid place-items-center bg-neutral-900/70">
+                  <div className="w-full h-full grid place-items-center bg-well">
                     <span
-                      className="w-7 h-7 rounded-md border border-black/40 shadow-inner"
-                      style={{ backgroundColor: hex, opacity: isNext ? 1 : 0.35 }}
+                      className={cx('w-8 h-8 border-2', isNext ? 'border-line' : 'border-line-soft opacity-40')}
+                      style={{ backgroundColor: sticker }}
                     />
                   </div>
                 )}
 
-                <span className="absolute top-1.5 right-1.5">
-                  {status === 'accepted' && (
-                    <CheckCircle2 className="w-5 h-5 text-emerald-400 drop-shadow" aria-label="Read" />
-                  )}
-                  {status === 'analyzing' && (
-                    <Loader2
-                      className="w-5 h-5 text-sky-300 animate-spin motion-reduce:animate-none drop-shadow"
-                      aria-label="Reading"
-                    />
-                  )}
-                  {status === 'rejected' && (
-                    <RotateCcw className="w-5 h-5 text-amber-300 drop-shadow" aria-label="Needs a retake" />
-                  )}
-                </span>
+                {status && (
+                  <span
+                    className={cx(
+                      'absolute top-1 right-1 grid place-items-center w-6 h-6 border-2 border-line',
+                      BADGE[status]
+                    )}
+                  >
+                    {status === 'accepted' && <CheckCircle2 className="w-4 h-4" aria-label="Read" />}
+                    {status === 'analyzing' && (
+                      <Loader2 className="w-4 h-4 animate-spin motion-reduce:animate-none" aria-label="Reading" />
+                    )}
+                    {status === 'rejected' && <RotateCcw className="w-4 h-4" aria-label="Needs a retake" />}
+                  </span>
+                )}
               </div>
 
-              <div className="flex items-center gap-1.5 text-xs">
-                <span className="w-2 h-2 rounded-full border border-black/40" style={{ backgroundColor: hex }} />
-                <span className={isNext ? 'text-white font-semibold' : 'text-neutral-400'}>
-                  {FACE_LABEL[step.face]}
-                </span>
+              <div className="flex items-center gap-2 text-xs">
+                <span className="w-3 h-3 border-2 border-line" style={{ backgroundColor: sticker }} />
+                <span className={isNext ? 'text-ink font-bold' : 'text-muted'}>{FACE_LABEL[step.face]}</span>
               </div>
               {status === 'rejected' && faceReasons[step.face] && (
-                <p className="text-[11px] leading-snug text-amber-300/90">{faceReasons[step.face]}</p>
+                <p className="text-xs leading-snug text-ink bg-warn-soft border-2 border-warn-edge p-1">
+                  {faceReasons[step.face]}
+                </p>
               )}
             </li>
           );
         })}
       </ol>
 
-      <footer className="flex items-center justify-between gap-3 pt-4 border-t border-neutral-800/80">
-        <p className="flex items-center gap-2 text-xs text-neutral-400 min-w-0">
-          <Smartphone className="w-3.5 h-3.5 shrink-0 text-sky-400" />
+      <footer className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t-2 border-line-soft">
+        <p className="flex items-center gap-2 text-xs text-muted min-w-0">
+          <Smartphone className="w-4 h-4 shrink-0 text-ink" />
           <span className="truncate">
             {nextStep ? (
               <>
-                Next on your phone: <span className="text-neutral-200">{FACE_LABEL[nextStep.face]}</span>{' '}
+                Next on your phone: <span className="text-ink font-bold">{FACE_LABEL[nextStep.face]}</span>{' '}
                 ({nextStep.centerColor} center)
               </>
             ) : (
@@ -227,24 +204,15 @@ export const CompanionScanPanel: React.FC<CompanionScanPanelProps> = ({
             )}
           </span>
         </p>
-        <div className="shrink-0 flex items-center gap-3">
-          <button
-            type="button"
-            onClick={onUseWebcam}
-            className="inline-flex items-center gap-1.5 text-xs text-neutral-400 hover:text-white transition-colors underline-offset-4 hover:underline"
-          >
-            <Camera className="w-3.5 h-3.5" />
+        <div className="shrink-0 flex items-center gap-2">
+          <BlockButton variant="ghost" size="sm" onClick={onUseWebcam} icon={<Camera className="w-4 h-4" />}>
             Use webcam
-          </button>
-          <button
-            type="button"
-            onClick={onCancel}
-            className="px-2.5 py-1.5 rounded-lg text-xs text-neutral-300 border border-neutral-800 hover:bg-neutral-800 hover:text-white transition-colors"
-          >
+          </BlockButton>
+          <BlockButton size="sm" onClick={onCancel}>
             Cancel
-          </button>
+          </BlockButton>
         </div>
       </footer>
-    </div>
+    </Panel>
   );
 };
