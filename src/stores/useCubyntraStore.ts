@@ -40,7 +40,6 @@ export interface CubyntraStore {
   currentClassification: FrameClassificationResult | null;
   isCameraActive: boolean;
   cameraError: string | null;
-  isDebugMode: boolean;
 
   // Photo pipeline: raw tile measurements per face, resolved together once all six are in
   scanSource: ScanSource | null;
@@ -71,7 +70,6 @@ export interface CubyntraStore {
   rescanFace: (face: Face) => void;
   setCameraActive: (active: boolean) => void;
   setCameraError: (error: string | null) => void;
-  toggleDebugMode: () => void;
 
   // Photo pipeline & review
   startCompanionScan: () => void;
@@ -107,7 +105,6 @@ export const useCubyntraStore = create<CubyntraStore>((set, get) => ({
   currentClassification: null,
   isCameraActive: false,
   cameraError: null,
-  isDebugMode: false,
 
   scanSource: null,
   faceSamples: {},
@@ -154,7 +151,6 @@ export const useCubyntraStore = create<CubyntraStore>((set, get) => ({
 
   setCameraError: (cameraError) => set({ cameraError }),
 
-  toggleDebugMode: () => set((s) => ({ isDebugMode: !s.isDebugMode })),
 
   captureFace: async (scannedFace: ScannedFace) => {
     const { scannedFaces, currentStepIndex } = get();

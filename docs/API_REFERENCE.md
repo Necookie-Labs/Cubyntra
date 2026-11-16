@@ -150,7 +150,6 @@ interface SolveResult {
   durationMs: number;
   error?: string;
 }
-interface SolverOptions { maxDepth?: number; timeoutMs?: number }   // declared; solveCube takes no options
 ```
 
 ### 3.2 Functions
@@ -196,7 +195,6 @@ interface CubyntraStore {
   currentClassification: FrameClassificationResult | null; // the webcam scanner's latest frame
   isCameraActive: boolean;
   cameraError: string | null;
-  isDebugMode: boolean;                                   // toggled by toggleDebugMode; no UI reads it now
 
   startScanning(): void;                                  // webcam
   startCompanionScan(): void;                             // phone
@@ -218,7 +216,7 @@ interface CubyntraStore {
   loadMockScramble(scramble?: string): Promise<void>;     // demo cube through the same validate + solve
   loadMockSolved(): Promise<void>;
   setAppState(state); setClassification(result); setCameraActive(active); setCameraError(error);
-  toggleDebugMode(); setPlaying(isPlaying);
+  setPlaying(isPlaying);
 }
 ```
 
