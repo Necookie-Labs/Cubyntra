@@ -9,7 +9,6 @@ import React, { useRef, useCallback, useState } from 'react';
 import { useCubyntraStore } from '@/stores/useCubyntraStore';
 import { CubeMove, CubeState, Face } from '@/cube/types';
 import { Header } from '@/components/branding/Header';
-import { HexagonBackground } from '@/components/visual/HexagonBackground';
 import { CubeVisualizer, CubeVisualizerRef } from '@/components/cube/CubeVisualizer';
 import { CameraScanner } from '@/components/camera/CameraScanner';
 import { SolveControls } from '@/components/solver/SolveControls';
@@ -121,9 +120,6 @@ function Workspace() {
         onClose={() => setPairingMode('closed')}
         onSwitchToWebcam={scanWithWebcam}
       />
-
-      {/* Dynamic Procedural Background */}
-      <HexagonBackground />
 
       {/* Main Header */}
       <Header onHome={goHome} onScanWebcam={scanWithWebcam} onDemo={loadDemo} />
