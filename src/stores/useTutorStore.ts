@@ -16,7 +16,7 @@
 
 import { create } from 'zustand';
 import type { CubeState, Face } from '@/cube/types';
-import { gripOf, type Grip } from '@/cube/grip';
+import { gripOf, viewInGrip, type Grip } from '@/cube/grip';
 import type { AttemptRecord } from '@/coach/types';
 import { planStepInWorker } from '@/solver/client';
 import { applyTileEdits, type TileEdit } from '@/tutor/checkpoint';
@@ -33,6 +33,8 @@ import {
   checkCheckpoint,
   checkWithEdits,
   confirmCheckpointByHand,
+  faceToShowNext,
+  replanAfterRescan,
   type CheckpointOutcome,
 } from '@/app-shell/checkpointAdapter';
 import { APP_TOKEN_HEADER } from '@/app-shell/appToken';
@@ -75,8 +77,23 @@ export interface TutorStore {
   confirmByHand: () => void;
   advance: () => Promise<void>;
   replayStep: () => void;
-  continueFromDiagnosis: () => Promise<void>;
+  /** Follows a confident diagnosis: a corrective step, or a fresh plan from the cube as it is. */
+  continueFromDiagnosis: () => void;
+  /** Back to the camera, keeping what was shown, to show the face the diagnosis asks for. */
+  showNextFace: () => void;
+  /** A full rescan taken during this solve: plan again from the scanned cube. */
+  replanFromRescan: (scanned: CubeState) => void;
+  /** The student holds the cube differently (e.g. relayed from the paired device): re-plan. */
+  setGrip: (grip: Grip) => Promise<void>;
+  /** A checkpoint verdict reached on the paired device for the current step. */
+  applyRemoteCheckpoint: (remote: RemoteCheckpoint) => void;
   abandonSolve: () => void;
+}
+
+export interface RemoteCheckpoint {
+  stepIndex: number;
+  result: 'matched' | 'mismatch' | 'unsure';
+  mistakes?: AttemptRecord['mistakes'];
 }
 
 const now = () => new Date().toISOString();
@@ -311,12 +328,85 @@ export const useTutorStore = create<TutorStore>((set, get) => {
 
     replayStep: () => set({ phase: 'step', checkpoint: null, observations: [] }),
 
-    continueFromDiagnosis: async () => {
+    continueFromDiagnosis: () => {
       const recovery = get().checkpoint?.recovery;
-      if (recovery?.kind !== 'continue') return;
-      set({ cube: recovery.state, grip: recovery.grip, attempts: [] });
+      if (recovery?.action !== 'resume') return;
+      const next = recovery.resume.plan;
+      if (!next) {
+        // The cube the student has is already solved.
+        set({ cube: recovery.mistake.resultingState, plan: null, checkpoint: null, observations: [] });
+        void get().loadPlan();
+        return;
+      }
+      set({
+        cube: next.startState,
+        grip: next.grip,
+        plan: next,
+        phase: 'step',
+        checkpoint: null,
+        observations: [],
+      });
+      persistSolve();
+    },
+
+    showNextFace: () => {
+      if (!faceToShowNext(get().checkpoint)) return;
+      set({ phase: 'checking' });
+    },
+
+    replanFromRescan: (scanned) => {
+      const { method, plan, grip, stepIndex } = get();
+      if (!method) return;
+      const replan = replanAfterRescan(scanned, method, plan?.gripAfter ?? grip ?? undefined, stepIndex);
+      if (!replan.ok) {
+        set({ cube: scanned, plan: null, phase: 'error', errorMessage: replan.reason });
+        return;
+      }
+      set({
+        cube: replan.state,
+        grip: replan.grip,
+        plan: replan.plan,
+        phase: replan.plan ? 'step' : 'solved',
+        attempts: [],
+        checkpoint: null,
+        observations: [],
+        errorMessage: null,
+      });
+      persistSolve();
+    },
+
+    setGrip: async (next) => {
+      const { grip, cube, phase } = get();
+      if (!cube || (grip && grip.top === next.top && grip.front === next.front)) return;
+      if (phase !== 'step' && phase !== 'loading') return;
+      try {
+        set({ cube: viewInGrip(cube, next).state, grip: next });
+      } catch {
+        return; // not a way this cube can be held
+      }
       persistSolve();
       await get().loadPlan();
+    },
+
+    applyRemoteCheckpoint: (remote) => {
+      const { plan, phase } = get();
+      if (!plan || remote.stepIndex !== plan.stepIndex) return;
+      if (phase === 'celebrate' || phase === 'loading') return;
+      if (remote.result === 'matched') {
+        set((s) => ({
+          checkpoint: confirmCheckpointByHand(plan),
+          phase: 'celebrate',
+          attempts: [...s.attempts, { result: 'matched' }],
+        }));
+      } else {
+        set((s) => ({
+          attempts: [
+            ...s.attempts,
+            { result: remote.result, ...(remote.mistakes?.length ? { mistakes: remote.mistakes } : {}) },
+          ],
+        }));
+        persistSolve();
+      }
     },
 
     abandonSolve: () => {

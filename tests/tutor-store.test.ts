@@ -106,6 +106,54 @@ describe('useTutorStore', () => {
     expect(store().attempts).toHaveLength(1);
   });
 
+  it('follows a confident diagnosis into a corrective step or a fresh plan', async () => {
+    let followed = 0;
+    for (let seed = 1; seed < 8 && followed === 0; seed++) {
+      await store().startSolve(scrambledState(seed, 3), 'beginner');
+      const plan = store().plan!;
+      const moves = [...plan.setupMoves, ...plan.algorithm];
+      for (let i = 0; i < moves.length && followed === 0; i++) {
+        if (moves[i].kind === 'rotation') continue;
+        const performed = moves.map((m, k) => (k === i ? invertMove(m) : m));
+        const actual = viewInGrip(applyMoves(plan.startState, performed), plan.gripAfter).state;
+        store().replayStep();
+        store().beginCheckpoint();
+        for (const o of allFaces(plan, actual)) store().submitObservation(o);
+        if (store().phase !== 'mismatch' || store().checkpoint?.recovery?.action !== 'resume') continue;
+        store().continueFromDiagnosis();
+        expect(store().cube).toEqual(actual);
+        expect(store().plan?.startState).toEqual(actual);
+        followed++;
+      }
+    }
+    expect(followed).toBe(1);
+  });
+
+  it('plans again from a mid-solve rescan', async () => {
+    await store().startSolve(scramble, 'cfop');
+    const plan = store().plan!;
+    store().replanFromRescan(plan.expectedState);
+    expect(store().phase).toBe('step');
+    expect(store().plan!.startState).toEqual(viewInGrip(plan.expectedState, plan.gripAfter).state);
+  });
+
+  it('re-plans when the paired device reports a new grip', async () => {
+    await store().startSolve(scramble, 'beginner');
+    await store().setGrip({ top: 'yellow', front: 'blue' });
+    expect(store().grip).toEqual({ top: 'yellow', front: 'blue' });
+    expect(store().plan!.grip).toEqual({ top: 'yellow', front: 'blue' });
+  });
+
+  it('takes a checkpoint verdict from the paired device for the current step only', async () => {
+    await store().startSolve(scramble, 'beginner');
+    store().applyRemoteCheckpoint({ stepIndex: 5, result: 'matched' });
+    expect(store().phase).toBe('step');
+    store().applyRemoteCheckpoint({ stepIndex: 0, result: 'mismatch', mistakes: ['skipped-move'] });
+    expect(store().attempts.at(-1)).toEqual({ result: 'mismatch', mistakes: ['skipped-move'] });
+    store().applyRemoteCheckpoint({ stepIndex: 0, result: 'matched' });
+    expect(store().phase).toBe('celebrate');
+  });
+
   it('moves on when the student says it matches', async () => {
     await store().startSolve(scramble, 'beginner');
     store().beginCheckpoint();

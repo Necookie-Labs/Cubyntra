@@ -18,7 +18,7 @@ import { COLORS } from '@/cube/constants';
 import { gripCenters } from '@/cube/grip';
 import { observeFace } from '@/tutor/checkpoint';
 import type { StepPlan } from '@/tutor/types';
-import type { CheckpointOutcome } from '@/app-shell/checkpointAdapter';
+import { faceToShowNext, type CheckpointOutcome } from '@/app-shell/checkpointAdapter';
 import { BlockButton, Dialog, StickerGrid } from '@/components/ui';
 import { CameraHelp } from '@/components/camera/CameraHelp';
 import { useTutorStore } from '@/stores/useTutorStore';
@@ -28,6 +28,8 @@ import { RETICLE_SHARE, useCheckpointCamera } from './useCheckpointCamera';
 
 /** The face to ask for next, given what the last check said. */
 export function askedFace(plan: StepPlan, outcome: CheckpointOutcome | null): Face {
+  const next = faceToShowNext(outcome);
+  if (next) return next;
   const result = outcome?.result;
   if (result?.wrongFace) return result.wrongFace.asked;
   if (result?.missingFaces.length) return result.missingFaces[0];
@@ -75,7 +77,11 @@ export function CheckpointSheet({ plan }: { plan: StepPlan }) {
   const face = askedFace(plan, outcome);
   const centers = gripCenters(plan.gripAfter);
   const instruction = `Hold the cube with ${plan.gripAfter.top} on top and ${plan.gripAfter.front} facing you. Point the ${FACE_WORD[face]} face (${centers[face]} center) at the camera.`;
-  const status = outcome && outcome.result.status !== 'match' ? outcome.result.message : instruction;
+  const status = faceToShowNext(outcome)
+    ? `One more face will tell what happened. ${instruction}`
+    : outcome && outcome.result.status !== 'match'
+      ? outcome.result.message
+      : instruction;
 
   const check = () => {
     const result = capture();

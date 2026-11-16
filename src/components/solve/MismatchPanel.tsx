@@ -5,13 +5,15 @@
  * Necookie Labs (c) 2026
  *
  * Says what most likely happened (from the diagnosis), then offers the ways forward: replay
- * the step, carry on from the cube the student most likely has, rescan the whole cube, or
+ * the step, fix the slip (a corrective step) or carry on from the cube the student most likely
+ * has, show one more face when that would settle it, rescan the whole cube, or
  * "it actually matches" (the camera was wrong). The read faces can be corrected tile by tile.
  */
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, Check, RotateCcw, ScanLine } from 'lucide-react';
+import { ArrowRight, Check, Eye, RotateCcw, ScanLine } from 'lucide-react';
+import { faceToShowNext } from '@/app-shell/checkpointAdapter';
 import type { CubeColor, Face } from '@/cube/types';
 import { COLORS } from '@/cube/constants';
 import { BlockButton, Panel, StickerGrid } from '@/components/ui';
@@ -58,11 +60,12 @@ export function MismatchPanel() {
   const outcome = useTutorStore((s) => s.checkpoint);
   const observations = useTutorStore((s) => s.observations);
   const letters = useTutorStore((s) => s.profile.settings.stickerLetters);
-  const { replayStep, continueFromDiagnosis, confirmByHand } = useTutorStore.getState();
+  const { replayStep, continueFromDiagnosis, confirmByHand, showNextFace } = useTutorStore.getState();
   if (!outcome) return null;
 
   const top = outcome.diagnosis?.likelyMistakes[0];
   const recovery = outcome.recovery;
+  const showNext = faceToShowNext(outcome);
   const wrongByFace = new Map<Face, number[]>();
   for (const r of outcome.result.stickerResults) {
     if (r.outcome === 'mismatch') wrongByFace.set(r.face, [...(wrongByFace.get(r.face) ?? []), r.index]);
@@ -97,9 +100,14 @@ export function MismatchPanel() {
         <BlockButton variant="primary" onClick={replayStep} icon={<RotateCcw aria-hidden className="h-4 w-4" />}>
           Replay the step
         </BlockButton>
-        {recovery?.kind === 'continue' && (
-          <BlockButton onClick={() => void continueFromDiagnosis()} icon={<ArrowRight aria-hidden className="h-4 w-4" />}>
-            Fix it from here
+        {recovery?.action === 'resume' && (
+          <BlockButton onClick={continueFromDiagnosis} icon={<ArrowRight aria-hidden className="h-4 w-4" />}>
+            {recovery.resume.kind === 'corrective' ? 'Show me how to fix it' : 'Carry on from here'}
+          </BlockButton>
+        )}
+        {showNext && (
+          <BlockButton onClick={showNextFace} icon={<Eye aria-hidden className="h-4 w-4" />}>
+            Show the {FACE_WORD[showNext]} face too
           </BlockButton>
         )}
         <BlockButton onClick={() => router.push('/scan')} icon={<ScanLine aria-hidden className="h-4 w-4" />}>

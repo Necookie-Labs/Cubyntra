@@ -62,8 +62,10 @@ export function ScanView() {
         console.warn('[Cubyntra] Could not build the color palette:', error);
       }
     }
-    // A rescan in the middle of a solve keeps its method; a new solve uses the default.
-    void tutor.startSolve(scan.originalScrambleState, tutor.method ?? tutor.profile.settings.methodDefault);
+    // A rescan in the middle of a solve plans again from the scanned cube (same method, same
+    // grip, same step count); otherwise a new solve starts with the default method.
+    if (tutor.method && tutor.cube) tutor.replanFromRescan(scan.originalScrambleState);
+    else void tutor.startSolve(scan.originalScrambleState, tutor.profile.settings.methodDefault);
     router.push('/solve');
   }, [appState, router]);
 
