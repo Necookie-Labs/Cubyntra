@@ -4,8 +4,20 @@
  */
 
 import * as THREE from 'three';
-import { CubeMove, Face } from '../cube/types';
+import { CubeMove, Face, MoveKind } from '../cube/types';
 import { moveReferenceFace } from '../cube/transforms';
+
+/**
+ * Arc radius, distance of the arc's plane from the cube center along the reference face's
+ * normal, and tube thickness, per move kind. The cube spans ±1.5, so a ring in a middle plane
+ * clears the cube's edges once its radius exceeds 1.5·√2 ≈ 2.12.
+ */
+const ARROW_LAYOUT: Record<MoveKind, { radius: number; offset: number; tube: number }> = {
+  face: { radius: 1.15, offset: 1.75, tube: 0.05 },
+  wide: { radius: 1.15, offset: 1.75, tube: 0.05 },
+  slice: { radius: 2.3, offset: 0, tube: 0.05 },
+  rotation: { radius: 2.6, offset: 0, tube: 0.08 },
+};
 
 export class MoveArrow {
   public group: THREE.Group;
@@ -25,6 +37,12 @@ export class MoveArrow {
 
   /**
    * Updates arrow placement and orientation according to the given move.
+   *
+   * - Face and wide turns: an arc just outside the turning face.
+   * - Slices: a wider arc around the cube in the slice's own plane, sweeping like the face the
+   *   slice follows (M like L, E like D, S like F).
+   * - Whole-cube rotations: the widest, thickest arc, around the middle of the cube, sweeping like
+   *   the face the rotation follows (x like R, y like U, z like F).
    */
   public updateMove(move: CubeMove | null): void {
     this.clear();
@@ -32,8 +50,7 @@ export class MoveArrow {
 
     const { quarterTurns } = move;
     const face = moveReferenceFace(move);
-    // Radius of circular arc
-    const radius = 1.15;
+    const { radius, offset, tube } = ARROW_LAYOUT[move.kind];
     const startAngle = 0.2;
     const sweep = quarterTurns === 2 ? Math.PI * 0.95 : Math.PI * 0.55;
     // Half turns are drawn clockwise, matching how applyMove performs them (two clockwise quarters).
@@ -58,7 +75,7 @@ export class MoveArrow {
     const curve3D = new THREE.CatmullRomCurve3(
       points.map((p) => new THREE.Vector3(p.x, p.y, 0))
     );
-    const tubeGeometry = new THREE.TubeGeometry(curve3D, 24, 0.05, 8, false);
+    const tubeGeometry = new THREE.TubeGeometry(curve3D, 24, tube, 8, false);
     this.arrowMesh = new THREE.Mesh(tubeGeometry, this.material);
 
     // Arrowhead cone at the end
@@ -66,7 +83,7 @@ export class MoveArrow {
     const prevPoint = points[points.length - 2];
     const dir = new THREE.Vector2().subVectors(lastPoint, prevPoint).normalize();
 
-    const headGeom = new THREE.ConeGeometry(0.14, 0.35, 12);
+    const headGeom = new THREE.ConeGeometry(tube * 2.8, tube * 7, 12);
     this.headMesh = new THREE.Mesh(headGeom, this.material);
     this.headMesh.position.set(lastPoint.x, lastPoint.y, 0);
 
@@ -77,8 +94,7 @@ export class MoveArrow {
     subGroup.add(this.arrowMesh);
     subGroup.add(this.headMesh);
 
-    // Position and orient arrow in front of the active face
-    const offset = 1.75; // Distance from center
+    // Position and orient the arrow along the reference face's normal
     this.orientToFace(subGroup, face, offset);
 
     this.group.add(subGroup);

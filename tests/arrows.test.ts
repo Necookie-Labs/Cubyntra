@@ -73,6 +73,47 @@ describe('MoveArrow direction', () => {
     });
   }
 
+  it.each([
+    ['r', 'R'], ['l', 'L'], ['Uw', 'U'], ['d', 'D'], ['f', 'F'], ['b', 'B'],
+  ] as [string, Face][])('wide %s: drawn like its face %s', (symbol, face) => {
+    const arrow = new MoveArrow();
+    const normal = FACE_NORMALS[face];
+    arrow.updateMove(parseMove(symbol));
+    const path = arrowWorldPath(arrow);
+    for (const p of path) expect(p.dot(normal)).toBeGreaterThan(1.5);
+    expect(signedSweep(path, normal)).toBeLessThan(-1);
+    arrow.updateMove(parseMove(`${symbol}'`));
+    expect(signedSweep(arrowWorldPath(arrow), normal)).toBeGreaterThan(1);
+    arrow.dispose();
+  });
+
+  /** Distance of a point from the axis through the cube center along `normal`. */
+  const radial = (p: THREE.Vector3, normal: THREE.Vector3) => p.clone().projectOnPlane(normal).length();
+
+  it.each([
+    ['M', 'L', 'slice'], ['E', 'D', 'slice'], ['S', 'F', 'slice'],
+    ['x', 'R', 'rotation'], ['y', 'U', 'rotation'], ['z', 'F', 'rotation'],
+  ] as [string, Face, string][])('%s: rings the cube in its middle plane and sweeps like %s', (symbol, face, kind) => {
+    const arrow = new MoveArrow();
+    const normal = FACE_NORMALS[face];
+
+    arrow.updateMove(parseMove(symbol));
+    const path = arrowWorldPath(arrow);
+    for (const p of path) {
+      expect(Math.abs(p.dot(normal))).toBeLessThan(1e-6);
+      // Clear of the cube's edges (1.5 * sqrt 2 from the axis); rotations ring wider still.
+      expect(radial(p, normal)).toBeGreaterThan(kind === 'rotation' ? 2.5 : 2.13);
+    }
+    expect(signedSweep(path, normal)).toBeLessThan(-1);
+
+    arrow.updateMove(parseMove(`${symbol}'`));
+    expect(signedSweep(arrowWorldPath(arrow), normal)).toBeGreaterThan(1);
+
+    arrow.updateMove(parseMove(`${symbol}2`));
+    expect(signedSweep(arrowWorldPath(arrow), normal)).toBeLessThan(-2.5);
+    arrow.dispose();
+  });
+
   it('points the arrowhead along the direction of travel', () => {
     const arrow = new MoveArrow();
     arrow.updateMove(parseMove('F'));
