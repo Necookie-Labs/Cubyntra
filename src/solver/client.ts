@@ -10,7 +10,7 @@
 
 import type { CubeState } from '../cube/types';
 import type { Grip } from '../cube/grip';
-import type { GuidedSolve, MethodId, StepPlan, TutorProgress } from '../tutor/types';
+import type { GuidedSolve, MethodId, MethodOptions, StepPlan, TutorProgress } from '../tutor/types';
 import type { SolveResult } from './types';
 import type { WorkerJobs, WorkerJobType, WorkerRequest, WorkerResponse } from './protocol';
 
@@ -142,17 +142,27 @@ export function planStepInWorker(
   state: CubeState,
   method: MethodId,
   grip?: Grip,
-  stepIndex?: number
+  stepIndex?: number,
+  options?: MethodOptions
 ): Promise<StepPlan | null> {
-  return getSolverClient().request('tutor.plan', { state, method, grip, stepIndex });
+  return getSolverClient().request('tutor.plan', { state, method, grip, stepIndex, options });
 }
 
 /** How far through `method` the cube is, computed off the main thread when possible. */
-export function tutorProgressInWorker(state: CubeState, method: MethodId): Promise<TutorProgress> {
-  return getSolverClient().request('tutor.progress', { state, method });
+export function tutorProgressInWorker(
+  state: CubeState,
+  method: MethodId,
+  options?: MethodOptions
+): Promise<TutorProgress> {
+  return getSolverClient().request('tutor.progress', { state, method, options });
 }
 
 /** A whole guided solve (every step), computed off the main thread when possible. */
-export function guidedSolveInWorker(state: CubeState, method: MethodId, grip?: Grip): Promise<GuidedSolve> {
-  return getSolverClient().request('tutor.guidedSolve', { state, method, grip });
+export function guidedSolveInWorker(
+  state: CubeState,
+  method: MethodId,
+  grip?: Grip,
+  options?: MethodOptions
+): Promise<GuidedSolve> {
+  return getSolverClient().request('tutor.guidedSolve', { state, method, grip, options });
 }
