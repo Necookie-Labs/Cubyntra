@@ -430,6 +430,50 @@ function planYellowEdges(view: CubeState): StepDraft {
 }
 
 // ---------------------------------------------------------------------------------------------
+// 7. Position yellow corners
+// ---------------------------------------------------------------------------------------------
+
+const CORNER_CYCLE = "U R U' L' U R' U' L";
+
+/** 0 = no corner in its place, 1 = some are, 2 = all four are. */
+function cornerPlaceProgress(view: CubeState): number {
+  const inPlace = lastCornersInPlace(view);
+  return inPlace === 4 ? 2 : inPlace > 0 ? 1 : 0;
+}
+
+function planPositionCorners(view: CubeState): StepDraft {
+  const unit = alg(CORNER_CYCLE);
+  const now = cornerPlaceProgress(view);
+  let best: { reached: number; cost: number; setup: Move[]; times: number } | null = null;
+  for (const times of [1, 2]) {
+    for (let turns = 0; turns < 4; turns++) {
+      const setup = rotations('y', turns);
+      const reached = cornerPlaceProgress(applyMoves(view, [...setup, ...repeatMoves(unit, times)]));
+      const cost = setup.length + times * unit.length;
+      if (!best || reached > best.reached || (reached === best.reached && cost < best.cost)) {
+        best = { reached, cost, setup, times };
+      }
+    }
+  }
+  return {
+    caseId: now === 0 ? 'yellow-corners-none' : 'yellow-corners-one',
+    caseName: now === 0 ? 'No corner in place' : 'One corner in place',
+    setupMoves: best!.setup,
+    algorithm: repeatMoves(unit, best!.times),
+    highlightPieces: lastLayerCornerRefs(),
+    facts: {
+      goal: 'Move every yellow corner to its own place. It may still be twisted; that is fixed next.',
+      lookFor:
+        now === 0
+          ? 'A corner is in place when its three colors match the three centers around it. None is in place yet, so hold the cube any way round.'
+          : 'A corner is in place when its three colors match the three centers around it. Hold the one that is in place at the front-right.',
+      why: 'The algorithm moves the other three top corners round in a circle and leaves the front-right corner and all the edges alone.',
+      repeat: { unit: [...unit], times: best!.times },
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------------------------
 // Detectors. Each one includes every earlier stage; all of them count a cube that is part-way
 // through the last stage as having finished the stages before it.
 // ---------------------------------------------------------------------------------------------
@@ -499,6 +543,24 @@ const STAGES: StageDefinition[] = [
     progress: yellowEdgeProgress,
     plan: planYellowEdges,
     check: { prefer: ['F', 'R', 'U'] },
+  },
+  {
+    id: 'yellow-corners-position',
+    name: 'Place the yellow corners',
+    top: LAST,
+    isComplete: cornersPlaced,
+    progress: cornerPlaceProgress,
+    plan: planPositionCorners,
+    check: { prefer: ['U', 'F', 'R'] },
+  },
+  {
+    id: 'yellow-corners-orient',
+    name: 'Twist the yellow corners',
+    top: LAST,
+    isComplete: isCubeSolved,
+    progress: yellowCornersUp,
+    plan: planOrientCorners,
+    check: { prefer: ['U', 'F', 'R'] },
   },
 ];
 
