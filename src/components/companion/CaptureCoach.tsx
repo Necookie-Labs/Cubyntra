@@ -5,12 +5,14 @@
  * Necookie Labs (c) 2026
  *
  * Three short cards shown before the first scan: how to hold the cube, what light works,
- * and the order of the six faces.
+ * and the order of the six faces. A full-screen modal: focus moves in, Tab stays inside,
+ * Escape skips it, and focus returns to where it was.
  */
 
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { SCAN_SEQUENCE } from '@/cube/constants';
 import { BlockButton, cx, stickerColor } from '@/components/ui';
+import { trapTab } from '@/components/ui/focus';
 import { FaceGuide } from './FaceGuide';
 import { ArrowRight, Sun, Zap, Camera } from 'lucide-react';
 
@@ -112,12 +114,35 @@ export const CaptureCoach: React.FC<CaptureCoachProps> = ({ onDone }) => {
 
   const isLast = index === CARDS.length - 1;
 
+  // Move focus in on open (to the main button) and give it back on close.
+  const panelRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const panel = panelRef.current;
+    (panel?.querySelector<HTMLElement>('[data-autofocus]') ?? panel)?.focus();
+    return () => {
+      if (previous && previous.isConnected) previous.focus();
+    };
+  }, []);
+
+  const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'Escape') {
+      e.stopPropagation();
+      finish();
+      return;
+    }
+    if (trapTab(e, panelRef.current)) e.preventDefault();
+  };
+
   return (
     <div
+      ref={panelRef}
       role="dialog"
       aria-modal="true"
       aria-labelledby="coach-title"
-      className="absolute inset-0 z-50 flex flex-col bg-ground text-ink pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))]"
+      tabIndex={-1}
+      onKeyDown={onKeyDown}
+      className="outline-none absolute inset-0 z-50 flex flex-col bg-ground text-ink pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))]"
     >
       <div className="flex items-center justify-between px-5">
         <span className="font-display text-sm uppercase tracking-widest text-leaf">Before you start</span>
@@ -175,6 +200,7 @@ export const CaptureCoach: React.FC<CaptureCoachProps> = ({ onDone }) => {
           variant="primary"
           size="lg"
           fullWidth
+          data-autofocus
           onClick={() => (isLast ? finish() : goTo(index + 1))}
           className="max-w-xs"
         >
