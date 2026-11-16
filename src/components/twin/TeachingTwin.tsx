@@ -34,6 +34,8 @@ export interface TeachingTwinProps {
   stickerLetters?: boolean;
   /** The twin's engine once mounted (null after), e.g. to sync its playback with a paired phone. */
   onEngineChange?: (engine: CubeEngine | null) => void;
+  /** Hides the playback controls and move chips (the trainer keeps the algorithm hidden until asked). */
+  movesHidden?: boolean;
   className?: string;
 }
 
@@ -44,6 +46,7 @@ export const TeachingTwin: React.FC<TeachingTwinProps> = ({
   plainLanguage = false,
   stickerLetters = false,
   onEngineChange,
+  movesHidden = false,
   className,
 }) => {
   const [engine, setEngine] = useState<CubeEngine | null>(null);
@@ -56,7 +59,10 @@ export const TeachingTwin: React.FC<TeachingTwinProps> = ({
   }, [engine]);
   // The twin is painted by playback from here on; the visualizer only needs a first state.
   const [initialState] = useState(() => plan?.startState ?? createSolvedCubeState());
-  const { snapshot, ghost, setGhost } = useTeachingTwin(engine, plan, { onStepPlayed, showGhost });
+  const { snapshot, ghost, setGhost } = useTeachingTwin(engine, plan, {
+    onStepPlayed,
+    showGhost,
+  });
   const playback = engine?.playback ?? null;
   const ready = Boolean(plan && snapshot && snapshot.total > 0);
 
@@ -69,27 +75,29 @@ export const TeachingTwin: React.FC<TeachingTwinProps> = ({
         className="min-h-[320px] flex-1"
       />
 
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <PlaybackControls
-          playing={snapshot?.playing ?? false}
-          index={snapshot?.index ?? 0}
-          total={snapshot?.total ?? 0}
-          speed={snapshot?.speed ?? 1}
-          loop={snapshot?.loop ?? false}
-          disabled={!ready}
-          onPlay={() => void playback?.play()}
-          onPause={() => playback?.pause()}
-          onStepBack={() => void playback?.stepBack()}
-          onStepForward={() => void playback?.stepForward()}
-          onSpeedChange={(speed) => playback?.setSpeed(speed)}
-          onLoopChange={(loop) => playback?.setLoop(loop)}
-        />
-        <BlockButton size="sm" variant="ghost" aria-pressed={ghost} disabled={!plan} onClick={() => setGhost(!ghost)}>
-          After
-        </BlockButton>
-      </div>
+      {!movesHidden && (
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <PlaybackControls
+            playing={snapshot?.playing ?? false}
+            index={snapshot?.index ?? 0}
+            total={snapshot?.total ?? 0}
+            speed={snapshot?.speed ?? 1}
+            loop={snapshot?.loop ?? false}
+            disabled={!ready}
+            onPlay={() => void playback?.play()}
+            onPause={() => playback?.pause()}
+            onStepBack={() => void playback?.stepBack()}
+            onStepForward={() => void playback?.stepForward()}
+            onSpeedChange={(speed) => playback?.setSpeed(speed)}
+            onLoopChange={(loop) => playback?.setLoop(loop)}
+          />
+          <BlockButton size="sm" variant="ghost" aria-pressed={ghost} disabled={!plan} onClick={() => setGhost(!ghost)}>
+            After
+          </BlockButton>
+        </div>
+      )}
 
-      {plan && snapshot && ready && (
+      {!movesHidden && plan && snapshot && ready && (
         <MoveChips
           // A new step or a new default starts the words toggle afresh.
           key={`${plan.method}-${plan.stepIndex}-${plan.caseId}-${plainLanguage}`}

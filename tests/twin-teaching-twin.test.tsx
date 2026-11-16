@@ -48,6 +48,16 @@ afterEach(() => {
 });
 
 describe('TeachingTwin', () => {
+  it('hides the controls and the move chips while the moves are hidden', async () => {
+    const { rerender } = render(<TeachingTwin plan={steps[0]} movesHidden />);
+    await flush();
+    expect(screen.queryByRole('list', { name: 'Moves' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'After' })).toBeNull();
+    rerender(<TeachingTwin plan={steps[0]} />);
+    await flush();
+    expect(screen.getByRole('list', { name: 'Moves' })).toBeTruthy();
+  });
+
   it("shows the step's moves as chips and plays them with the controls", async () => {
     const onStepPlayed = vi.fn();
     const plan = steps[0];
