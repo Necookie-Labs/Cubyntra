@@ -12,7 +12,11 @@ import { classifyFace, PaletteReading, StudentPalette } from './palette';
 import { sampleGridFromContext } from './sampling';
 import { StickerSample } from './types';
 
-/** Above this share of clipped pixels a tile's measured color cannot be trusted. */
+/**
+ * Above this share of clipped pixels a tile's measured color cannot be trusted. Clipped pixels
+ * hold no color, so this also covers a white tile in an overexposed photo: it is "not seen"
+ * rather than guessed, the same rule the full scan's glare check applies before capture.
+ */
 export const GLARE_REJECT_FRACTION = 0.2;
 
 export interface FaceReading {
@@ -40,10 +44,12 @@ export function readFaceFromContext(
 
   const samples = sampleGridFromContext(ctx, roi);
   const glare = measureGlare(ctx, roi);
+  const hidden = glare.map((fraction) => fraction > GLARE_REJECT_FRACTION);
   const stickers = classifyFace(
     samples.map((s) => s.rgb),
-    palette
-  ).map((reading, i) => (glare[i] > GLARE_REJECT_FRACTION ? { ...reading, confidence: 0 } : reading));
+    palette,
+    hidden
+  ).map((reading, i) => (hidden[i] ? { ...reading, confidence: 0 } : reading));
 
   return { stickers, samples, glare, usedPalette: Boolean(palette) };
 }

@@ -152,17 +152,45 @@ describe('classifying a partial face with the palette', () => {
     const solved = Object.fromEntries(
       FACES.map((f, i) => [f, Array(9).fill(COLORS[i])])
     ) as unknown as CubeState;
-    for (const face of FACES) {
-      const image = renderCubeFace(solved, face, { lighting: { gain: 0.8, tint: [1.08, 1, 0.9], noise: 5 } });
-      const readings = classifyFaceWithPalette(
-        sampleImage(image).map((s) => s.rgb),
-        palette
-      );
-      for (const reading of readings) {
-        expect(reading.color).toBe(solved[face][4]);
-        expect(reading.confidence).toBeGreaterThanOrEqual(0.5);
+    // Dim and warm light pushes yellow towards orange and white towards yellow; a correction
+    // that changed the color of the light that much must lose to one that only brightens.
+    const lightings: Lighting[] = [
+      { gain: 0.8, tint: [1.08, 1, 0.9], noise: 5 },
+      { gain: 0.76, tint: [1.07, 1, 0.93], noise: 8 },
+      { gain: 0.7, tint: [1.12, 1, 0.88], noise: 6 },
+      { gain: 1.05, tint: [0.9, 1, 1.1], noise: 6 },
+    ];
+    for (const lighting of lightings) {
+      for (const face of FACES) {
+        const image = renderCubeFace(solved, face, { lighting });
+        const readings = classifyFaceWithPalette(
+          sampleImage(image).map((s) => s.rgb),
+          palette
+        );
+        for (const reading of readings) {
+          expect(reading.color, `${face} gain ${lighting.gain}`).toBe(solved[face][4]);
+          expect(reading.confidence).toBeGreaterThanOrEqual(0.5);
+        }
       }
     }
+  });
+
+  it('keeps a skipped tile out of the lighting correction', () => {
+    const palette = paletteFor(state);
+    const face: Face = 'U';
+    const rgbs = sampleImage(renderCubeFace(state, face, { lighting: { gain: 0.8, noise: 5 } })).map((s) => s.rgb);
+    const clean = classifyFaceWithPalette(rgbs, palette);
+    // One tile blown out to white: skipped, the other eight read as before (the fit now rests
+    // on seven tiles instead of eight, so distances move by a fraction).
+    const blown = rgbs.map((rgb, i) => (i === 2 ? { r: 255, g: 255, b: 255 } : rgb));
+    const skip = rgbs.map((_, i) => i === 2);
+    const readings = classifyFaceWithPalette(blown, palette, skip);
+    readings.forEach((reading, i) => {
+      if (i === 2) return;
+      expect(reading.color).toBe(clean[i].color);
+      expect(reading.confidence).toBeGreaterThanOrEqual(0.5);
+      expect(Math.abs(reading.distance - clean[i].distance)).toBeLessThan(0.5);
+    });
   });
 
   it('gives a color halfway between two palette colors a low confidence', () => {
