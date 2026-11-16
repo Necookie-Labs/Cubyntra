@@ -120,9 +120,23 @@ describe('coach templates', () => {
       ...SAMPLE_FACTS,
       hintLevel: 3,
       attempts: [{ result: 'mismatch' }],
-      diagnosis: { likelyMistakes: [{ kind: 'wrong-direction' }] },
+      diagnosis: { likelyMistakes: [{ kind: 'wrong-direction', confidence: 0.6 }], confident: false },
     });
     expect(text.startsWith('Last time one turn probably went the wrong way.')).toBe(true);
+  });
+
+  it("uses the tutor's description when the diagnosis is confident, and asks for another side when it is not", () => {
+    const description = 'Move 3 is "turn the top to the left". You probably turned it the other way.';
+    const mistake = { kind: 'wrong-direction' as const, moveIndex: 2, confidence: 0.92, description };
+    const sure = templateText({ ...SAMPLE_FACTS, hintLevel: 1, diagnosis: { likelyMistakes: [mistake], confident: true } });
+    expect(sure.startsWith(description)).toBe(true);
+    const unsure = templateText({
+      ...SAMPLE_FACTS,
+      hintLevel: 1,
+      diagnosis: { likelyMistakes: [mistake], confident: false, showNext: 'the right side' },
+    });
+    expect(unsure.startsWith('Last time one turn probably went the wrong way.')).toBe(true);
+    expect(unsure).toContain('show the right side to the camera');
   });
 
   it('is deterministic', () => {

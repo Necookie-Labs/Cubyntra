@@ -11,10 +11,10 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { formatAlgorithm } from '../cube/transforms';
-import type { StepPlan } from '../tutor/types';
+import type { Diagnosis, StepPlan } from '../tutor/types';
 import { buildCoachFacts } from './facts';
 import { createCoachEventParser } from './sse';
-import type { AttemptRecord, CoachDiagnosis, CoachMode, FallbackReason, HintLevel } from './types';
+import type { AttemptRecord, CoachMode, FallbackReason, HintLevel } from './types';
 
 /** Same header as `src/lib/localAuth.ts` (server only, so not imported here). */
 export const APP_TOKEN_HEADER = 'x-cubyntra-token';
@@ -27,7 +27,8 @@ export interface UseCoachOptions {
   /** App token from `/api/auth/token` (laptop) or the pairing QR (phone). */
   token: string | null;
   attempts?: readonly AttemptRecord[];
-  diagnosis?: CoachDiagnosis;
+  /** The tutor's diagnosis of the last failed check; only a compact projection is sent. */
+  diagnosis?: Diagnosis;
   /** Defaults to `/api/coach`. */
   endpoint?: string;
 }

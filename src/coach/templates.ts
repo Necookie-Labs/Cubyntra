@@ -51,8 +51,14 @@ function wordsSentence(facts: CoachFacts): string {
 }
 
 function mistakeSentence(facts: CoachFacts): string | null {
-  const top = facts.diagnosis?.likelyMistakes[0]?.kind;
-  if (top) return MISTAKE_TIPS[top];
+  const diagnosis = facts.diagnosis;
+  const top = diagnosis?.likelyMistakes[0];
+  if (diagnosis && top) {
+    // The tutor's own words ("Move 3 is ... You probably turned it the other way.") when sure.
+    const said = diagnosis.confident && top.description ? sentence(top.description) : MISTAKE_TIPS[top.kind];
+    const show = !diagnosis.confident && diagnosis.showNext ? ` If it still does not match, show ${diagnosis.showNext} to the camera.` : '';
+    return said + show;
+  }
   const last = facts.attempts.at(-1);
   if (last?.result === 'mismatch') return MISTAKE_TIPS[last.mistakes?.[0] ?? 'other'];
   return null;

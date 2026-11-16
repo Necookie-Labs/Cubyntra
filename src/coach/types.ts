@@ -8,7 +8,9 @@
  */
 
 import type { CubeColor } from '../cube/types';
-import type { MethodId } from '../tutor/types';
+import type { LikelyMistake, MethodId, MistakeDetail, MistakeKind } from '../tutor/types';
+
+export type { MistakeKind } from '../tutor/types';
 
 /** 1 = what to look for, 2 = why it works, 3 = the exact moves. */
 export type HintLevel = 1 | 2 | 3;
@@ -18,36 +20,37 @@ export const HINT_LEVELS: readonly HintLevel[] = [1, 2, 3];
 /** `live` calls Claude; `mock` has no API key; `capped` reached the monthly spend cap. */
 export type CoachMode = 'live' | 'mock' | 'capped';
 
-/** Kinds of mistake the checkpoint builder (Phase 5) can diagnose. */
-export type MistakeKind =
-  | 'wrong-direction'
-  | 'skipped-move'
-  | 'doubled-move'
-  | 'wrong-face'
-  | 'wrong-grip'
-  | 'other';
-
-export const MISTAKE_KINDS: readonly MistakeKind[] = [
+/** Every kind of slip the tutor's diagnosis can name (`src/tutor/diagnose.ts`). */
+export const MISTAKE_KINDS = [
   'wrong-direction',
   'skipped-move',
   'doubled-move',
   'wrong-face',
   'wrong-grip',
   'other',
-];
+] as const satisfies readonly MistakeKind[];
 
-/** One mistake consistent with what the checkpoint scan saw. */
-export interface LikelyMistake {
-  kind: MistakeKind;
-  /** Index into the step's moves (setup then algorithm) where it most likely happened. */
-  moveIndex?: number;
-  /** 0..1, higher is more likely. */
-  confidence?: number;
-}
+/** Finer labels for kind `other`. */
+export const MISTAKE_DETAILS = ['stopped-early', 'extra-repeat', 'two-mistakes'] as const satisfies readonly MistakeDetail[];
 
-/** What the checkpoint builder fills after a failed check. Ranked, most likely first. */
-export interface CoachDiagnosis {
-  likelyMistakes: LikelyMistake[];
+/**
+ * The compact projection of one tutor `LikelyMistake` that is sent to Claude. The tutor's
+ * `performedMoves`, `resultingState`, `score` and `contradictions` stay in the browser: they
+ * are large and the coach does not need them.
+ */
+export type CoachMistake = Pick<LikelyMistake, 'kind' | 'detail' | 'moveIndex' | 'confidence'> & {
+  /** The tutor's plain-language description; left out when it names a move it may not. */
+  description?: string;
+};
+
+/** The compact projection of a tutor `Diagnosis`. */
+export interface CoachDiagnosisFacts {
+  /** Ranked, most likely first (at most `MAX_MISTAKES`). */
+  likelyMistakes: CoachMistake[];
+  /** True when the top mistake is the only explanation that fits the scan. */
+  confident: boolean;
+  /** When the scan could not tell mistakes apart: the side to show next, in words ("the front"). */
+  showNext?: string;
 }
 
 /** One earlier try at the current step. */
@@ -84,12 +87,12 @@ export interface CoachFacts {
   moveWords?: string[];
   /** Earlier tries at this step, oldest first (at most `MAX_ATTEMPTS`). */
   attempts: AttemptRecord[];
-  diagnosis?: CoachDiagnosis;
+  diagnosis?: CoachDiagnosisFacts;
 }
 
 /** Limits the route enforces on incoming facts. */
 export const MAX_ATTEMPTS = 5;
-export const MAX_MISTAKES = 5;
+export const MAX_MISTAKES = 3;
 export const MAX_TEXT_FIELD = 400;
 export const MAX_MOVES_FIELD = 200;
 export const MAX_REQUEST_BYTES = 8 * 1024;

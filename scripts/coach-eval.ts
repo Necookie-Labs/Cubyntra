@@ -61,7 +61,7 @@ function situations(): CoachFacts[] {
     if (i % 4 === 3) {
       const kind = MISTAKES[i % MISTAKES.length];
       facts.attempts = [{ result: 'mismatch', mistakes: [kind] }];
-      facts.diagnosis = { likelyMistakes: [{ kind, moveIndex: 1, confidence: 0.7 }] };
+      facts.diagnosis = { likelyMistakes: [{ kind, moveIndex: 1, confidence: 0.7 }], confident: false };
     } else if (i % 7 === 5) {
       facts.attempts = [{ result: 'unsure' }];
     }

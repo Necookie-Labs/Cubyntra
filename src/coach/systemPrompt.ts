@@ -32,7 +32,7 @@ Each request is one JSON object with these fields:
 - why: why the moves work.
 - moveWords: only at hint level 3. One line per move to teach, in the form "R = turn the right side up": setupMoves first, then the algorithm (or repeat.unit when repeat is present). Use these words when you describe a move; they are already correct for the student's grip.
 - attempts: earlier tries at this same step, oldest first. result is "matched" (the checkpoint scan agreed), "mismatch" (the cube did not match) or "unsure" (the scan could not tell). mistakes lists the kinds of mistake the scan found most likely.
-- diagnosis: present after a failed check. likelyMistakes is ranked, most likely first. kind is one of wrong-direction, skipped-move, doubled-move, wrong-face, wrong-grip or other. moveIndex, when present, counts from 0 across setupMoves followed by algorithm. confidence is between 0 and 1.
+- diagnosis: present after a failed check. likelyMistakes is ranked, most likely first. kind is one of wrong-direction, skipped-move, doubled-move, wrong-face, wrong-grip or other; detail refines other (stopped-early: the student stopped before the last repeat; extra-repeat: one repeat too many; two-mistakes: two slips together). moveIndex, when present, counts from 0 across setupMoves followed by algorithm. confidence is between 0 and 1. description is the tutor's own plain sentence about the slip, already checked, which you may reuse or reword. confident is true when the top mistake is the only explanation that fits the scan. showNext, when present, names the side the student should show the camera to tell possible mistakes apart.
 
 The facts are all you know about the cube. You cannot see it. Never claim to see colors or pieces that are not described in the facts.`,
 
@@ -64,7 +64,7 @@ If the last attempt was a mismatch, start with one kind, short sentence about it
 - wrong-face: a different side was probably turned. Suggest checking which side the arrow is on before turning.
 - wrong-grip: the cube was probably held differently. Suggest checking the top color and the front color before starting.
 - other: suggest going back to the start of the step and trying again slowly.
-If moveIndex is present you may say roughly where ("near the start", "in the middle", "near the end"). Do not write a move that is not in the facts to describe the mistake. If several attempts failed, be extra encouraging and suggest slowing down. If the last attempt matched, you may briefly praise it. If it was unsure, suggest showing the cube to the camera again in good light.`,
+If the top mistake has a description and confident is true, build your sentence on that description. If confident is false, say it is the most likely slip, not a certainty, and if showNext is present suggest showing that side to the camera. If moveIndex is present you may say roughly where ("near the start", "in the middle", "near the end"). Do not write a move that is not in the facts to describe the mistake. If several attempts failed, be extra encouraging and suggest slowing down. If the last attempt matched, you may briefly praise it. If it was unsure, suggest showing the cube to the camera again in good light.`,
 
   `# Notation (for understanding the facts)
 

@@ -6,20 +6,22 @@
  * over HTTP. Only words and move notation leave the browser: no images and no cube state.
  */
 
-import type { CubeColor } from '../cube/types';
+import type { CubeColor, Face } from '../cube/types';
 import { moveName } from '../cube/moveNames';
 import { formatAlgorithm, parseAlgorithm } from '../cube/transforms';
-import type { StepPlan } from '../tutor/types';
+import type { Diagnosis, StepPlan } from '../tutor/types';
+import { extractMoveTokens } from './guard';
 import {
   AttemptRecord,
-  CoachDiagnosis,
+  CoachDiagnosisFacts,
   CoachFacts,
+  CoachMistake,
   HintLevel,
-  LikelyMistake,
   MAX_ATTEMPTS,
   MAX_MISTAKES,
   MAX_MOVES_FIELD,
   MAX_TEXT_FIELD,
+  MISTAKE_DETAILS,
   MISTAKE_KINDS,
   MistakeKind,
 } from './types';
@@ -29,7 +31,7 @@ export function buildCoachFacts(
   plan: StepPlan,
   hintLevel: HintLevel,
   attempts: readonly AttemptRecord[] = [],
-  diagnosis?: CoachDiagnosis
+  diagnosis?: Diagnosis
 ): CoachFacts {
   const facts: CoachFacts = {
     method: plan.method,
@@ -52,10 +54,59 @@ export function buildCoachFacts(
   if (plan.facts.repeat) {
     facts.repeat = { unit: formatAlgorithm(plan.facts.repeat.unit), times: plan.facts.repeat.times };
   }
-  if (diagnosis?.likelyMistakes.length) {
-    facts.diagnosis = { likelyMistakes: diagnosis.likelyMistakes.slice(0, MAX_MISTAKES) };
-  }
+  const projected = diagnosis && projectDiagnosis(diagnosis, facts);
+  if (projected) facts.diagnosis = projected;
   return withMoveWords(facts);
+}
+
+/** Side names for `Diagnosis.showNext`: words, never a lone face letter. */
+export const SIDE_WORDS: Readonly<Record<Face, string>> = {
+  U: 'the top',
+  D: 'the bottom',
+  F: 'the front',
+  B: 'the back',
+  R: 'the right side',
+  L: 'the left side',
+};
+
+/** Canonical notation of every move token in a piece of text. */
+function notationIn(text: string): string[] {
+  return extractMoveTokens(text).map((t) => t.canonical ?? t.raw);
+}
+
+/**
+ * The compact diagnosis sent to Claude: the top `MAX_MISTAKES` mistakes with kind, detail,
+ * moveIndex, confidence (two decimals) and description, never the tutor's move lists or cube
+ * states. Move guardrail for descriptions: the top mistake's description may name moves of the
+ * step or moves the student most likely did (its `performedMoves`); any other description may
+ * name only moves of the step. A description that breaks this is left out (the kind remains).
+ * Returns undefined when there is no mistake to report.
+ */
+export function projectDiagnosis(
+  diagnosis: Diagnosis,
+  step: Pick<CoachFacts, 'setupMoves' | 'algorithm' | 'repeat'>
+): CoachDiagnosisFacts | undefined {
+  const mistakes = diagnosis.likelyMistakes.slice(0, MAX_MISTAKES);
+  if (!mistakes.length) return undefined;
+  const stepMoves = allowedMoves(step);
+  const likelyMistakes = mistakes.map((m, i): CoachMistake => {
+    const allowed = new Set(stepMoves);
+    if (i === 0) for (const move of m.performedMoves) allowed.add(move.notation);
+    const description = m.description.trim().slice(0, MAX_TEXT_FIELD);
+    const safe = description && notationIn(description).every((n) => allowed.has(n));
+    return {
+      kind: m.kind,
+      ...(m.detail ? { detail: m.detail } : {}),
+      ...(m.moveIndex !== undefined ? { moveIndex: m.moveIndex } : {}),
+      confidence: Math.round(m.confidence * 100) / 100,
+      ...(safe ? { description } : {}),
+    };
+  });
+  return {
+    likelyMistakes,
+    confident: diagnosis.confident,
+    ...(diagnosis.showNext ? { showNext: SIDE_WORDS[diagnosis.showNext] } : {}),
+  };
 }
 
 /** The moves a level-3 hint walks through: setup, then the repeated unit or the whole algorithm. */
@@ -84,11 +135,19 @@ export function guardNames(facts: Pick<CoachFacts, 'caseName' | 'stageName'>): s
   return [facts.caseName, facts.stageName];
 }
 
-/** Every move the step may mention (setup, algorithm, repeated unit), in canonical notation. */
-export function allowedMoves(facts: Pick<CoachFacts, 'setupMoves' | 'algorithm' | 'repeat'>): Set<string> {
+/**
+ * Every move a reply may mention, in canonical notation: the step's setup, algorithm and
+ * repeated unit, plus any move the top diagnosed mistake's description names (checked against
+ * the student's likely moves when the facts were built, see `projectDiagnosis`).
+ */
+export function allowedMoves(
+  facts: Pick<CoachFacts, 'setupMoves' | 'algorithm' | 'repeat'> & Partial<Pick<CoachFacts, 'diagnosis'>>
+): Set<string> {
   const notation = [facts.setupMoves, facts.algorithm, facts.repeat?.unit ?? ''].join(' ').trim();
-  if (!notation) return new Set();
-  return new Set(parseAlgorithm(notation).map((m) => m.notation));
+  const allowed = new Set(notation ? parseAlgorithm(notation).map((m) => m.notation) : []);
+  const top = facts.diagnosis?.likelyMistakes[0]?.description;
+  if (top) for (const n of notationIn(top)) allowed.add(n);
+  return allowed;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -133,20 +192,27 @@ function attempt(v: unknown): AttemptRecord | null {
   return { result: v.result, mistakes: kinds as MistakeKind[] };
 }
 
-function likelyMistake(v: unknown): LikelyMistake | null {
+const SIDES: readonly string[] = Object.values(SIDE_WORDS);
+
+function likelyMistake(v: unknown): CoachMistake | null {
   if (!isRecord(v)) return null;
   const kind = mistakeKind(v.kind);
-  if (!kind) return null;
-  const out: LikelyMistake = { kind };
+  const c = v.confidence;
+  if (!kind || typeof c !== 'number' || !(c >= 0 && c <= 1)) return null;
+  const out: CoachMistake = { kind, confidence: c };
+  if (v.detail !== undefined) {
+    if (!MISTAKE_DETAILS.includes(v.detail as (typeof MISTAKE_DETAILS)[number])) return null;
+    out.detail = v.detail as CoachMistake['detail'];
+  }
   if (v.moveIndex !== undefined) {
     const i = v.moveIndex;
     if (typeof i !== 'number' || !Number.isInteger(i) || i < 0 || i > 99) return null;
     out.moveIndex = i;
   }
-  if (v.confidence !== undefined) {
-    const c = v.confidence;
-    if (typeof c !== 'number' || !(c >= 0 && c <= 1)) return null;
-    out.confidence = c;
+  if (v.description !== undefined) {
+    const d = text(v.description);
+    if (d === null) return null;
+    out.description = d;
   }
   return out;
 }
@@ -218,9 +284,25 @@ export function parseCoachFacts(input: unknown): ParseResult<CoachFacts> {
     const d = v.diagnosis;
     if (!isRecord(d) || !Array.isArray(d.likelyMistakes)) return fail('diagnosis must have a likelyMistakes list');
     if (d.likelyMistakes.length > MAX_MISTAKES) return fail('too many likely mistakes');
+    if (typeof d.confident !== 'boolean') return fail('diagnosis.confident must be true or false');
+    if (d.showNext !== undefined && (typeof d.showNext !== 'string' || !SIDES.includes(d.showNext))) {
+      return fail('diagnosis.showNext must name a side');
+    }
     const parsed = d.likelyMistakes.map(likelyMistake);
     if (parsed.some((m) => m === null)) return fail('diagnosis contains an invalid mistake');
-    if (parsed.length) facts.diagnosis = { likelyMistakes: parsed as LikelyMistake[] };
+    const mistakes = parsed as CoachMistake[];
+    // Only the top mistake's description may name moves outside the step (see projectDiagnosis).
+    const stepMoves = allowedMoves(facts);
+    if (mistakes.slice(1).some((m) => m.description && notationIn(m.description).some((n) => !stepMoves.has(n)))) {
+      return fail('a diagnosis description names a move outside the step');
+    }
+    if (mistakes.length) {
+      facts.diagnosis = {
+        likelyMistakes: mistakes,
+        confident: d.confident,
+        ...(typeof d.showNext === 'string' ? { showNext: d.showNext } : {}),
+      };
+    }
   }
 
   return { ok: true, value: withMoveWords(facts) };
