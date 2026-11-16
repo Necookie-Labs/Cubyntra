@@ -2,189 +2,167 @@
 
 **Product**: Cubyntra  
 **Organization**: Necookie Labs  
-**Document Version**: 1.0  
-**Status**: V1 Release  
-**Last Updated**: 2026-09-26  
+**Document Version**: 2.0  
+**Status**: Tutor rebuild (2.0.0)  
+**Last Updated**: 2026-11-17  
 
 ---
 
-## 1. System Overview & Component Responsibilities
+## 1. Subsystems & Responsibilities
 
-The system is decomposed into five primary subsystems coordinated by a centralized Zustand store:
-
-| Subsystem | Key Files | Primary Responsibilities |
+| Subsystem | Key files | Responsibilities |
 | :--- | :--- | :--- |
-| **Vision & Scanner** | `src/vision/camera.ts`<br>`src/vision/sampling.ts`<br>`src/vision/color.ts`<br>`src/vision/stability.ts` | MediaStream capture, centered ROI framing, 3x3 pixel aggregation with outlier rejection, HSV/CIELAB conversion, and multi-frame consensus buffering. |
-| **Cube Domain** | `src/cube/types.ts`<br>`src/cube/constants.ts`<br>`src/cube/transforms.ts`<br>`src/cube/validator.ts` | Representation of the 54 facelets and 27 cubie coordinates, face rotations, move parsing/inversion, and parity validation. |
-| **Solver Subsystem** | `src/solver/types.ts`<br>`src/solver/solver.ts` | Kociemba two-phase table lookups, move optimization, and simulation verification. |
-| **3D Digital Twin** | `src/three/cubie.ts`<br>`src/three/arrows.ts`<br>`src/three/engine.ts`<br>`src/components/cube/CubeVisualizer.tsx` | WebGL scene lifecycle, lighting, camera controls, layer rotation animations, orthogonal matrix snapping, and 3D directional arrows. |
-| **State & Presentation** | `src/stores/useCubyntraStore.ts`<br>`src/components/` | Application state machine, responsive dual-pane layout, move ticker, speed controls, and CV debugger telemetry. |
+| **Cube domain** | `src/cube/types.ts`, `transforms.ts`, `grip.ts`, `pieces.ts`, `orientation.ts`, `validator.ts`, `moveNames.ts` | 54-sticker state, face / wide / slice / rotation moves, grips, piece queries, validation, move names. No DOM. |
+| **Tutor engine** | `src/tutor/engine.ts`, `methods/`, `cases/`, `checkpoint.ts`, `diagnose.ts`, `recovery.ts`, `api.ts` | Methods as data, step plans replayed and checked, checkpoint verification, mistake diagnosis, recovery. No DOM, React or Three.js. |
+| **Learning** | `src/learn/` | Trainer sets and drills, Leitner boxes, mastery and streaks, timer rules and scrambles. Pure. |
+| **Vision** | `src/vision/camera.ts`, `sampling.ts`, `color.ts`, `captureQuality.ts`, `faceImageAnalyzer.ts`, `resolveCubeColors.ts`, `palette.ts`, `checkpointCapture.ts`, `ml/` | Camera lifecycle, reticle sampling, color classification, cube presence check, 54-tile resolution, the student palette, reading a checkpoint face. |
+| **Worker** | `src/solver/solver.worker.ts`, `client.ts`, `handlers.ts`, `protocol.ts`, `solver.ts` | Kociemba solve of a scan and tutor jobs (`tutor.plan`, `tutor.progress`, `tutor.guidedSolve`) off the main thread. |
+| **Twin** | `src/three/engine.ts`, `cubie.ts`, `arrows.ts`, `playback.ts`, `gripCamera.ts`, `spotlight.ts`, `ghost.ts`, `contextLoss.ts`; `src/twin/`; `src/components/twin/` | Voxel cubies, drift-free turns, arrows, grip camera, spotlight and slot outline, "after" preview, playback, context-loss rebuild. |
+| **Coach** | `src/coach/` , `src/app/api/coach/` | Facts, system prompt, templates and case notes, guardrail, spend tracking, SSE relay, `useCoach`. |
+| **Sync** | `src/sync/`, `src/app/api/session/` | Pairing (QR, typed code), session manager and relay, state messages, tutor and playback mirroring. |
+| **Profile** | `src/lib/studentProfile.ts`, `studentFile.ts`, `profileOps.ts`, `src/app/api/student/` | Schema and migration, atomic file, operation merge. |
+| **State & shell** | `src/stores/useCubyntraStore.ts`, `useTutorStore.ts`; `src/app-shell/`; `src/components/` | Scan state machine, guided-solve state machine, token bootstrap, checkpoint adapter, screens. |
 
 ---
 
-## 2. End-to-End Sequence Diagram
+## 2. Guided Solve Sequence
 
 ```mermaid
 sequenceDiagram
     autonumber
-    actor User
-    participant Camera as WebRTC Camera
-    participant Scanner as CameraScanner
-    participant Vision as Color & Stability Engine
-    participant Store as useCubyntraStore
-    participant Validator as CubeValidator
-    participant Solver as KociembaSolver
-    participant Three as Three.js Engine
+    actor S as Student
+    participant Scan as Scan (useCubyntraStore)
+    participant T as useTutorStore
+    participant W as Worker (tutor.plan)
+    participant Twin as Teaching twin
+    participant C as /api/coach
+    participant CP as Checkpoint adapter
+    participant P as /api/student
 
-    User->>Store: Click "Scan Physical Cube"
-    Store->>Scanner: Mount and initialize camera
-    Scanner->>Camera: getUserMedia({ facingMode: 'environment' })
-    Camera-->>Scanner: MediaStream attached to <video>
-
-    loop Every Animation Frame
-        Scanner->>Vision: sampleGridFromContext(ctx, roi)
-        Vision-->>Scanner: 9x StickerSample[] + confidence
-        Scanner->>Vision: processFrame(samples, face)
-        Vision-->>Scanner: stabilityProgress, isStable
-        Scanner->>Store: setClassification(stabilityResult)
+    S->>Scan: six faces, review, confirm
+    Scan->>Scan: validateCubeState, Kociemba solve in worker
+    Scan->>T: startSolve(originalScrambleState, method)
+    T->>P: PATCH ops (palette, currentSolve)
+    loop each step
+        T->>W: planStepInWorker(state, method, grip, stepIndex, options)
+        W-->>T: StepPlan (replayed, advances the stage)
+        T->>Twin: plan -> grip, spotlight, chips, playback
+        opt hint 1/2/3
+            S->>C: facts JSON (x-cubyntra-token)
+            C-->>S: streamed text, or the template
+        end
+        S->>T: I did it -> beginCheckpoint
+        S->>CP: face photo read in the tab -> FaceObservation
+        CP-->>T: match / uncertain / wrong-face / mismatch + diagnosis + recovery
+        alt match
+            T->>T: advance (cube = expectedState)
+            T->>P: PATCH ops (currentSolve, stats, stages)
+        else mismatch
+            T-->>S: Not quite yet: replay, fix it from here, rescan, it matches
+        end
     end
-
-    User->>Scanner: Tap "Capture Face" (or auto-lock triggers)
-    Scanner->>Store: captureFace(ScannedFace)
-    Note over Store: Repeats for U, F, R, B, L, D (6 Faces)
-
-    Store->>Validator: validateCubeState(reconstructedState)
-    alt State is Invalid (e.g. Parity Error)
-        Validator-->>Store: ValidationResult (issues[])
-        Store-->>User: Display ErrorRecoveryModal with Rescan recommendation
-    else State is Valid
-        Validator-->>Store: ValidationResult (valid: true)
-        Store->>Solver: solveCube(cubeState)
-        Solver-->>Store: SolveResult (moves[], durationMs)
-        Store->>Three: syncWithCubeState(scrambledState)
-        Store-->>User: Display Solution Ready & Move Ticker
-    end
-
-    User->>Store: Click "Play" or "Step Next"
-    Store->>Three: animateMove(move, targetState)
-    Three->>Three: Rotate pivot group + Snap orthogonal integers
-    Three-->>User: 60 FPS animated turn with 3D Directional Arrow
+    T->>P: clearCurrentSolve, stats, activeDays
 ```
 
 ---
 
-## 3. Scanning State Machine
+## 3. State Machines
 
-The scanning lifecycle transitions through deterministic states managed by Zustand:
+### 3.1 Scan (`useCubyntraStore.appState`)
 
 ```mermaid
 stateDiagram-v2
-    [*] --> READY: App Initialization
-    READY --> SCANNING: Start Scanning
-    READY --> PROCESSING: Load Scramble Demo
+    [*] --> ready
+    ready --> scanning: startScanning (webcam)
+    ready --> scanning: startCompanionScan (phone)
+    ready --> processing: loadMockScramble
+    scanning --> reviewing: six faces resolved
+    reviewing --> reviewing: setReviewSticker / pending phone faces
+    reviewing --> processing: confirmReview (valid cube only)
+    processing --> solution_ready: validated and solved
+    processing --> error: invalid or solver failure
+    error --> scanning: rescanFace / restart
+    solution_ready --> ready: resetAll
+```
 
-    state SCANNING {
-        [*] --> SAMPLING: Frame Acquisition
-        SAMPLING --> STABILIZING: Consecutive Matches
-        STABILIZING --> SAMPLING: Motion Blur / Inconsistency
-        STABILIZING --> STABLE_LOCKED: 8 Frames Matching (Progress = 100%)
-        STABLE_LOCKED --> FACE_CAPTURED: Capture Face
-        FACE_CAPTURED --> ADVANCE_FACE: Next Step < 6
-        ADVANCE_FACE --> SAMPLING
-    }
+### 3.2 Guided solve (`useTutorStore.phase`)
 
-    SCANNING --> PROCESSING: All 6 Faces Captured
-    PROCESSING --> SOLUTION_READY: Validation & Solving Succeeded
-    PROCESSING --> ERROR: Validation Failed (Parity / Count Error)
-
-    ERROR --> SCANNING: Rescan Face / Restart
-
-    state SOLUTION_READY {
-        [*] --> IDLE_STEP
-        IDLE_STEP --> ANIMATING_MOVE: Step Next / Play
-        ANIMATING_MOVE --> IDLE_STEP: Move Snapped (Pause)
-    }
-
-    SOLUTION_READY --> SOLVING: Play Active
-    SOLVING --> SOLVED: Final Move Executed
-    SOLVED --> READY: Reset All
+```mermaid
+stateDiagram-v2
+    [*] --> idle
+    idle --> loading: startSolve / resumeSolve
+    loading --> step: plan ready
+    loading --> error: TutorPlanError or worker failure
+    step --> checking: beginCheckpoint (I did it)
+    checking --> step: cancelCheckpoint
+    checking --> checking: uncertain / wrong face
+    checking --> celebrate: match (or confirmByHand)
+    checking --> mismatch: mismatch
+    celebrate --> loading: advance
+    loading --> solved: no next step
+    mismatch --> step: replayStep / continueFromDiagnosis (corrective step)
+    mismatch --> checking: showNextFace
+    mismatch --> loading: replanFromRescan
+    error --> loading: Try again
+    solved --> loading: startSolve (a new cube)
 ```
 
 ---
 
-## 4. Domain Data Models & Interfaces
+## 4. Data Contracts
 
-### 4.1 Cube Domain Model (`src/cube/types.ts`)
+### 4.1 Cube (`src/cube/types.ts`)
 ```ts
-export type CubeColor = 'white' | 'yellow' | 'green' | 'blue' | 'red' | 'orange';
-export type Face = 'U' | 'R' | 'F' | 'D' | 'L' | 'B';
-export type QuarterTurns = 1 | -1 | 2;
-
-export interface CubeMove {
-  face: Face;
-  quarterTurns: QuarterTurns;
-  notation: string;
-  description: string;
-}
-
-export type FaceStickers = [
-  CubeColor, CubeColor, CubeColor,
-  CubeColor, CubeColor, CubeColor,
-  CubeColor, CubeColor, CubeColor
-];
-
-export interface CubeState {
-  U: FaceStickers;
-  R: FaceStickers;
-  F: FaceStickers;
-  D: FaceStickers;
-  L: FaceStickers;
-  B: FaceStickers;
-}
+type CubeColor = 'white' | 'yellow' | 'green' | 'blue' | 'red' | 'orange';
+type Face = 'U' | 'R' | 'F' | 'D' | 'L' | 'B';
+type QuarterTurns = 1 | -1 | 2;
+type Move =                                   // each also has quarterTurns, notation, description
+  | { kind: 'face'; face: Face }
+  | { kind: 'wide'; face: Face }
+  | { kind: 'slice'; slice: 'M' | 'E' | 'S' }
+  | { kind: 'rotation'; axis: 'x' | 'y' | 'z' };
+interface CubeState { U: FaceStickers; R: FaceStickers; F: FaceStickers; D: FaceStickers; L: FaceStickers; B: FaceStickers }
+interface Grip { top: CubeColor; front: CubeColor }   // src/cube/grip.ts
 ```
 
-### 4.2 Computer Vision Models (`src/vision/types.ts`)
-```ts
-export interface RGBColor { r: number; g: number; b: number; }
-export interface HSVColor { h: number; s: number; v: number; }
-export interface LABColor { l: number; a: number; b: number; }
+### 4.2 Step plan (`src/tutor/types.ts`)
+`StepPlan` carries the method and options, stage and case, `grip` / `gripAfter`, `startState`,
+`setupMoves`, `algorithm`, `highlightPieces`, `targetSlot`, `expectedState`, the checkpoint
+spec (`facesToShow`, `stickers`), teaching `facts` (goal, look-for, why, repeat) and progress
+values. Full definition: [`docs/tutor/METHODS.md`](tutor/METHODS.md) §1.1.
 
-export interface StickerSample {
-  row: number;
-  col: number;
-  index: number;
-  rgb: RGBColor;
-  hsv: HSVColor;
-  lab: LABColor;
-  predictedColor: CubeColor;
-  confidence: number;
-  colorScores: Record<CubeColor, number>;
-}
+### 4.3 Vision (`src/vision/types.ts`, `palette.ts`)
+`StickerSample` (row, col, index, RGB / HSV / LAB, predicted color, confidence, scores),
+`FrameClassificationResult`, and `StudentPalette` (mean and spread per color, no images).
 
-export interface FrameClassificationResult {
-  stickers: StickerSample[];
-  averageConfidence: number;
-  isStable: boolean;
-  stabilityProgress: number;
-  stableFramesCount: number;
-  expectedFace: Face;
-}
-```
+### 4.4 Wire formats
+Sync messages, coach facts and profile operations: [API_REFERENCE.md](API_REFERENCE.md) §6, §7
+and §9.
 
 ---
 
-## 5. Concurrency, Performance & Memory Management
+## 5. Concurrency, Performance & Resources
 
-### 5.1 Non-Blocking Sampling Loop
-Video frames are extracted using `ctx.getImageData()` within a `requestAnimationFrame` loop. To keep CPU utilization under 15% on mobile devices:
-- Only the 9 central sampling patches are extracted, rather than copying the entire video frame buffer.
-- React state updates are throttled: store updates occur only on changes in classifications or stability progression.
+### 5.1 Worker
+Kociemba table building, the scan's solve and every tutor job run in one module worker per page
+(`getSolverClient`). If the worker cannot load or crashes, the client re-runs waiting jobs on the
+main thread; the tutor store plans once on the main thread if the worker itself fails.
 
-### 5.2 WebGL Resource Disposal
-When navigating away from the visualizer or unmounting:
-- `cancelAnimationFrame` terminates all render loops.
-- `mesh.geometry.dispose()` frees buffer geometries.
-- `material.dispose()` frees shader programs and textures.
-- `renderer.forceContextLoss()` then `renderer.dispose()` give the WebGL 2.0 context back at once
-  (browsers cap live contexts and otherwise reclaim a dropped one only on garbage collection).
-- `track.stop()` releases hardware camera lenses.
+### 5.2 Sampling loops
+The scanner and checkpoint camera read only the reticle square from a canvas in a
+`requestAnimationFrame` loop; React state changes only when a classification or check changes.
+Frames are never stored.
+
+### 5.3 Profile writes
+The store applies each change locally as a `ProfileOp` and queues it; queued ops go out as one
+`PATCH` per batch once a token exists and the profile has loaded. The server merges batches one
+at a time under a per-process lock and writes atomically (rename with retries).
+
+### 5.4 WebGL lifecycle
+The twin stays mounted across steps, so a solve uses one WebGL context. On unmount the engine
+cancels its frame loop, disposes geometries, materials and textures, then calls
+`renderer.forceContextLoss()` and `renderer.dispose()`. A lost context is rebuilt on restore.
+
+### 5.5 Camera lifecycle
+`initializeCameraStream` times out after 30 s without a stream or 10 s without a frame;
+`terminateCameraStream` stops every track when a scanner or checkpoint sheet closes.
