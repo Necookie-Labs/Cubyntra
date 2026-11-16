@@ -46,6 +46,10 @@ export interface CubyntraStore {
   scanSource: ScanSource | null;
   faceSamples: Partial<Record<Face, StickerSample[]>>;
   resolution: ResolvedCube | null;
+  /** Tiles the student set by hand on the review screen; laid back over every re-resolution. */
+  manualEdits: Partial<Record<Face, Partial<Record<number, CubeColor>>>>;
+  /** Phone readings that arrived during review while hand fixes exist, waiting for a choice. */
+  pendingFaces: Partial<Record<Face, StickerSample[]>>;
 
   // Cube & Solver State
   cubeState: CubeState;
@@ -73,6 +77,10 @@ export interface CubyntraStore {
   startCompanionScan: () => void;
   ingestFaceSamples: (face: Face, samples: StickerSample[]) => void;
   setReviewSticker: (face: Face, index: number, color: CubeColor) => void;
+  /** Uses the held phone readings; hand fixes on other faces are kept. */
+  applyPendingFaces: () => void;
+  /** Keeps the review as it is and drops the held phone readings. */
+  discardPendingFaces: () => void;
   confirmReview: () => Promise<void>;
 
   // Solving Actions
@@ -104,6 +112,8 @@ export const useCubyntraStore = create<CubyntraStore>((set, get) => ({
   scanSource: null,
   faceSamples: {},
   resolution: null,
+  manualEdits: {},
+  pendingFaces: {},
 
   cubeState: createSolvedCubeState(),
   originalScrambleState: createSolvedCubeState(),
@@ -121,6 +131,8 @@ export const useCubyntraStore = create<CubyntraStore>((set, get) => ({
       scanSource: 'webcam',
       errorMessage: null,
       faceSamples: {},
+      manualEdits: {},
+      pendingFaces: {},
       resolution: null,
       currentStepIndex: 0,
       scannedFaces: {},
@@ -197,6 +209,7 @@ export const useCubyntraStore = create<CubyntraStore>((set, get) => ({
           scannedFaces: nextFaces,
           faceSamples: nextSamples,
           resolution: null,
+          pendingFaces: {},
           scanSource: s.scanSource ?? 'webcam',
         };
       });
@@ -209,6 +222,8 @@ export const useCubyntraStore = create<CubyntraStore>((set, get) => ({
       scanSource: 'companion',
       errorMessage: null,
       faceSamples: {},
+      manualEdits: {},
+      pendingFaces: {},
       resolution: null,
       currentStepIndex: 0,
       scannedFaces: {},
@@ -223,92 +238,36 @@ export const useCubyntraStore = create<CubyntraStore>((set, get) => ({
   },
 
   ingestFaceSamples: (face, samples) => {
-    const { faceSamples, scannedFaces, cubeState } = get();
-    const nextSamples = { ...faceSamples, [face]: samples };
-
-    // Provisional colors for immediate feedback, calibrated on the centers seen so far.
-    const centers: Partial<Record<Face, RGBColor>> = {};
-    for (const f of FACES) if (nextSamples[f]) centers[f] = nextSamples[f]![4].rgb;
-    const palette = buildDynamicPalette(centers);
-    const preview = samples.map((s, i) =>
-      i === 4 ? CANONICAL_CENTER_COLORS[face] : classifyWithDynamicPalette(s.rgb, palette).predictedColor
-    ) as FaceStickers;
-
-    const scanned: ScannedFace = {
-      face,
-      centerColor: CANONICAL_CENTER_COLORS[face],
-      stickers: preview,
-      confidences: samples.map((s) => s.confidence),
-      capturedAt: Date.now(),
-    };
-    const nextScanned = { ...scannedFaces, [face]: scanned };
-
-    // Faces may arrive in any order (the phone lets users jump between steps), so progress
-    // is keyed by face rather than counted.
-    const nextStep = SCAN_SEQUENCE.findIndex((step) => !nextSamples[step.face]);
-
-    if (FACES.every((f) => nextSamples[f])) {
-      let resolution: ResolvedCube;
-      try {
-        resolution = resolveCubeColors(nextSamples as Record<Face, StickerSample[]>);
-      } catch (err) {
-        console.error('[Cubyntra] Color resolution failed:', err);
-        set({
-          faceSamples: nextSamples,
-          scannedFaces: nextScanned,
-          appState: 'error',
-          validationResult: null,
-          errorMessage: 'The six faces could not be combined into a cube. Try scanning again.',
-        });
-        return;
-      }
-      set({
-        faceSamples: nextSamples,
-        scannedFaces: nextScanned,
-        currentStepIndex: SCAN_SEQUENCE.length,
-        resolution,
-        cubeState: resolution.state,
-        validationResult: resolution.validation,
-        appState: 'reviewing',
-      });
+    const { appState, manualEdits } = get();
+    // A new reading during review must not silently undo the student's hand fixes: hold it
+    // and let them choose (applyPendingFaces / discardPendingFaces).
+    if (appState === 'reviewing' && hasManualEdits(manualEdits)) {
+      set((s) => ({ pendingFaces: { ...s.pendingFaces, [face]: samples } }));
       return;
     }
-
-    set({
-      faceSamples: nextSamples,
-      scannedFaces: nextScanned,
-      currentStepIndex: nextStep,
-      cubeState: { ...cubeState, [face]: preview },
-    });
+    ingestNow(face, samples);
   },
 
+  applyPendingFaces: () => {
+    const { pendingFaces, manualEdits } = get();
+    const faces = FACES.filter((f) => pendingFaces[f]);
+    if (faces.length === 0) return;
+    // Fixes on a re-read face no longer apply to it; fixes elsewhere are kept.
+    const edits = { ...manualEdits };
+    for (const f of faces) delete edits[f];
+    set({ pendingFaces: {}, manualEdits: edits });
+    for (const f of faces) ingestNow(f, pendingFaces[f]!);
+  },
+
+  discardPendingFaces: () => set({ pendingFaces: {} }),
+
   setReviewSticker: (face, index, color) => {
-    const { cubeState, resolution } = get();
+    const { cubeState, resolution, manualEdits } = get();
     if (index === 4 || index < 0 || index > 8) return; // centers are fixed by the mechanism
 
-    const nextFace = [...cubeState[face]] as FaceStickers;
-    nextFace[index] = color;
-    const nextState = { ...cubeState, [face]: nextFace };
-
-    // A tile the user has set by hand is verified; stop flagging it.
-    let nextResolution = resolution;
-    if (resolution) {
-      const faceFlags = resolution.flags[face].map((fl, i) =>
-        i === index ? { lowMargin: false, overridden: false } : fl
-      );
-      const flags = { ...resolution.flags, [face]: faceFlags };
-      nextResolution = {
-        ...resolution,
-        flags,
-        flaggedCount: FACES.reduce((n, f) => n + flags[f].filter((fl) => fl.lowMargin || fl.overridden).length, 0),
-      };
-    }
-
-    set({
-      cubeState: nextState,
-      resolution: nextResolution,
-      validationResult: validateCubeState(nextState),
-    });
+    const edits = { ...manualEdits, [face]: { ...manualEdits[face], [index]: color } };
+    const applied = applyManualEdits(cubeState, resolution, { [face]: { [index]: color } });
+    set({ ...applied, manualEdits: edits });
   },
 
   confirmReview: async () => {
@@ -343,6 +302,8 @@ export const useCubyntraStore = create<CubyntraStore>((set, get) => ({
         // The demo replaces any scan in progress, so its source and readings go too.
         scanSource: null,
         faceSamples: {},
+        manualEdits: {},
+        pendingFaces: {},
         resolution: null,
         solution: null,
         scannedFaces,
@@ -469,6 +430,8 @@ export const useCubyntraStore = create<CubyntraStore>((set, get) => ({
       errorMessage: null,
       cameraError: null,
       faceSamples: {},
+      manualEdits: {},
+      pendingFaces: {},
       resolution: null,
       currentStepIndex: 0,
       scannedFaces: {},
@@ -482,6 +445,116 @@ export const useCubyntraStore = create<CubyntraStore>((set, get) => ({
     });
   },
 }));
+
+type ManualEdits = Partial<Record<Face, Partial<Record<number, CubeColor>>>>;
+
+function hasManualEdits(edits: ManualEdits): boolean {
+  return FACES.some((f) => Object.keys(edits[f] ?? {}).length > 0);
+}
+
+/**
+ * Lays hand-set tiles over a cube state. A tile the student set by hand is verified, so it stops
+ * being flagged.
+ */
+function applyManualEdits(
+  state: CubeState,
+  resolution: ResolvedCube | null,
+  edits: ManualEdits
+): { cubeState: CubeState; resolution: ResolvedCube | null; validationResult: ValidationResult } {
+  const next = { ...state };
+  let flags = resolution?.flags;
+  for (const face of FACES) {
+    const faceEdits = edits[face];
+    if (!faceEdits) continue;
+    const stickers = [...next[face]] as FaceStickers;
+    for (const [i, color] of Object.entries(faceEdits)) {
+      const index = Number(i);
+      if (index === 4 || !color) continue;
+      stickers[index] = color;
+    }
+    next[face] = stickers;
+    if (flags) {
+      flags = {
+        ...flags,
+        [face]: flags[face].map((fl, i) => (faceEdits[i] && i !== 4 ? { lowMargin: false, overridden: false } : fl)),
+      };
+    }
+  }
+  const nextResolution =
+    resolution && flags
+      ? {
+          ...resolution,
+          flags,
+          flaggedCount: FACES.reduce((n, f) => n + flags![f].filter((fl) => fl.lowMargin || fl.overridden).length, 0),
+        }
+      : resolution;
+  return { cubeState: next, resolution: nextResolution, validationResult: validateCubeState(next) };
+}
+
+/**
+ * Records one face's readings. Faces may arrive in any order (the phone lets users jump between
+ * steps), so progress is keyed by face. Once all six are in, the cube is resolved and any hand
+ * fixes still standing are laid back over it.
+ */
+function ingestNow(face: Face, samples: StickerSample[]): void {
+  const { getState: get, setState: set } = useCubyntraStore;
+  const { faceSamples, scannedFaces, cubeState, manualEdits } = get();
+  const nextSamples = { ...faceSamples, [face]: samples };
+
+  // Provisional colors for immediate feedback, calibrated on the centers seen so far.
+  const centers: Partial<Record<Face, RGBColor>> = {};
+  for (const f of FACES) if (nextSamples[f]) centers[f] = nextSamples[f]![4].rgb;
+  const palette = buildDynamicPalette(centers);
+  const preview = samples.map((s, i) =>
+    i === 4 ? CANONICAL_CENTER_COLORS[face] : classifyWithDynamicPalette(s.rgb, palette).predictedColor
+  ) as FaceStickers;
+
+  const scanned: ScannedFace = {
+    face,
+    centerColor: CANONICAL_CENTER_COLORS[face],
+    stickers: preview,
+    confidences: samples.map((s) => s.confidence),
+    capturedAt: Date.now(),
+  };
+  const nextScanned = { ...scannedFaces, [face]: scanned };
+  // A fresh reading of a face replaces any hand fixes on it.
+  const edits = { ...manualEdits };
+  delete edits[face];
+
+  if (!FACES.every((f) => nextSamples[f])) {
+    set({
+      faceSamples: nextSamples,
+      scannedFaces: nextScanned,
+      manualEdits: edits,
+      currentStepIndex: SCAN_SEQUENCE.findIndex((step) => !nextSamples[step.face]),
+      cubeState: { ...cubeState, [face]: preview },
+    });
+    return;
+  }
+
+  let resolution: ResolvedCube;
+  try {
+    resolution = resolveCubeColors(nextSamples as Record<Face, StickerSample[]>);
+  } catch (err) {
+    console.error('[Cubyntra] Color resolution failed:', err);
+    set({
+      faceSamples: nextSamples,
+      scannedFaces: nextScanned,
+      appState: 'error',
+      validationResult: null,
+      errorMessage: 'The six faces could not be combined into a cube. Try scanning again.',
+    });
+    return;
+  }
+  set({
+    ...applyManualEdits(resolution.state, resolution, edits),
+    faceSamples: nextSamples,
+    scannedFaces: nextScanned,
+    manualEdits: edits,
+    currentStepIndex: SCAN_SEQUENCE.length,
+    appState: 'reviewing',
+  });
+}
 
 /** Validates and solves `cubeState`, writing the outcome into the store. */
 async function solveInto(cubeState: CubeState): Promise<void> {

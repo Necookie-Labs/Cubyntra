@@ -88,6 +88,66 @@ describe('photo ingest and review', () => {
     expect(store().solution).toBeNull();
   });
 
+  describe('a phone reading that arrives during review', () => {
+    const wrongU0 = () => (truth.U[0] === 'red' ? 'orange' : 'red');
+    const reviewWithFix = () => {
+      FACES.forEach((face) => store().ingestFaceSamples(face, samplesFor(face)));
+      store().setReviewSticker('U', 0, wrongU0());
+    };
+
+    it('is held, not applied over hand fixes', () => {
+      reviewWithFix();
+      store().ingestFaceSamples('F', samplesFor('F'));
+      expect(store().cubeState.U[0]).toBe(wrongU0());
+      expect(store().pendingFaces.F).toBeDefined();
+      expect(store().appState).toBe('reviewing');
+    });
+
+    it('can be applied, keeping fixes on other faces', () => {
+      reviewWithFix();
+      store().ingestFaceSamples('F', samplesFor('F'));
+      store().applyPendingFaces();
+      expect(store().pendingFaces).toEqual({});
+      expect(store().cubeState.U[0]).toBe(wrongU0());
+      expect(store().cubeState.F).toEqual(truth.F);
+      expect(store().manualEdits.U).toEqual({ 0: wrongU0() });
+    });
+
+    it('can be discarded', () => {
+      reviewWithFix();
+      const before = store().cubeState;
+      store().ingestFaceSamples('F', samplesFor('F'));
+      store().discardPendingFaces();
+      expect(store().pendingFaces).toEqual({});
+      expect(store().cubeState).toEqual(before);
+    });
+
+    it('a re-read face drops the fixes on that face only', () => {
+      reviewWithFix();
+      store().setReviewSticker('F', 0, truth.F[0] === 'red' ? 'orange' : 'red');
+      store().ingestFaceSamples('F', samplesFor('F'));
+      store().applyPendingFaces();
+      expect(store().manualEdits.F).toBeUndefined();
+      expect(store().cubeState.F).toEqual(truth.F);
+      expect(store().cubeState.U[0]).toBe(wrongU0());
+    });
+
+    it('is applied at once when nothing was fixed by hand', () => {
+      FACES.forEach((face) => store().ingestFaceSamples(face, samplesFor(face)));
+      store().ingestFaceSamples('F', samplesFor('F'));
+      expect(store().pendingFaces).toEqual({});
+      expect(store().cubeState).toEqual(truth);
+    });
+
+    it('hand fixes survive a rescan of another face', () => {
+      reviewWithFix();
+      store().rescanFace('R');
+      store().ingestFaceSamples('R', samplesFor('R'));
+      expect(store().appState).toBe('reviewing');
+      expect(store().cubeState.U[0]).toBe(wrongU0());
+    });
+  });
+
   it('rescanning a phone face stays on the phone', () => {
     FACES.forEach((face) => store().ingestFaceSamples(face, samplesFor(face)));
     store().rescanFace('R');

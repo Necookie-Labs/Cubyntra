@@ -80,6 +80,10 @@ export const ScanReview: React.FC<ScanReviewProps> = ({ onRescanFace, onConfirme
   const validation = useCubyntraStore((s) => s.validationResult);
   const setReviewSticker = useCubyntraStore((s) => s.setReviewSticker);
   const confirmReview = useCubyntraStore((s) => s.confirmReview);
+  const pendingFaces = useCubyntraStore((s) => s.pendingFaces);
+  const applyPendingFaces = useCubyntraStore((s) => s.applyPendingFaces);
+  const discardPendingFaces = useCubyntraStore((s) => s.discardPendingFaces);
+  const pendingList = useMemo(() => FACES.filter((f) => pendingFaces[f]), [pendingFaces]);
 
   const [selected, setSelected] = useState<{ face: Face; index: number } | null>(null);
 
@@ -158,6 +162,21 @@ export const ScanReview: React.FC<ScanReviewProps> = ({ onRescanFace, onConfirme
             : 'Every tile read cleanly. Give it a glance, then solve.'}
         </p>
       </header>
+
+      {pendingList.length > 0 && (
+        <Notice tone="info" icon={<Info className="w-4 h-4" />}>
+          Your phone sent a new reading of the {pendingList.map((f) => FACE_LABEL[f]).join(' and ')} face. Use it?
+          Your fixes on other faces stay.
+          <span className="flex flex-wrap gap-2 mt-2">
+            <BlockButton variant="primary" size="sm" onClick={applyPendingFaces}>
+              Use new reading
+            </BlockButton>
+            <BlockButton size="sm" onClick={discardPendingFaces}>
+              Keep my fixes
+            </BlockButton>
+          </span>
+        </Notice>
+      )}
 
       {duplicate && (
         <Notice tone="error" icon={<AlertTriangle className="w-4 h-4" />}>
