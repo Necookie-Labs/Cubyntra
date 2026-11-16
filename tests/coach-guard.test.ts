@@ -40,6 +40,7 @@ describe('extractMoveTokens', () => {
     "I'd say you're nearly there!",
     'This is the F2L stage of CFOP and a 3x3 cube.',
     'Use the L shape or the U perm.',
+    'Two edges make an L with the center, so the L points to the front.',
     'The Ua perm and the H perm move edges.',
     'A b c, x marks the spot.',
     'Born in the U.S.A.',

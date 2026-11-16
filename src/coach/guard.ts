@@ -10,7 +10,7 @@
  * - Upper-case face turns, wide turns and slices (`R`, `Rw`, `M`) with an optional `'` or `2`,
  *   standing alone: not glued to letters, digits, `-`, `&`, `/`, `.`+letter or a following
  *   apostrophe-letter. So "U-turn", "R&B", "R's" and "B.C." are words, and "I" is never a move.
- *   A bare letter used as a shape name ("L shape", "U perm") is not a move, and the step's own
+ *   A bare letter used as a shape name ("L shape", "U perm", "an L") is not a move, and the step's own
  *   case and stage names ("Headlights (U)") are blanked out before the scan.
  * - Lower-case wide turns and rotations (`r`, `x`, `y`) only when they carry a `'` or `2`, or
  *   sit next to another move token: a lone lower-case letter is more likely a word or a label.
@@ -51,11 +51,15 @@ function isBoundaryBefore(text: string, index: number): boolean {
   return true;
 }
 
-// Case names that use a letter for a shape: "L shape", "U perm".
-const SHAPE_WORD = /^\s+(?:shape|shaped|perm|permutation|case|pattern)\b/i;
+// Case names that use a letter for a shape: "L shape", "U perm", "the L points left".
+const SHAPE_WORD = /^\s+(?:shape|shaped|perm|permutation|case|pattern|points|pointing)\b/i;
+// "an L", "a U": with an article in front, these two letters are shapes, not turns.
+const SHAPE_ARTICLE = /\ban?\s+$/i;
 
-function isShapeName(text: string, end: number, suffix: string): boolean {
-  return !suffix && SHAPE_WORD.test(text.slice(end, end + 16));
+function isShapeName(text: string, index: number, end: number, letter: string, suffix: string): boolean {
+  if (suffix) return false;
+  if (SHAPE_WORD.test(text.slice(end, end + 16))) return true;
+  return (letter === 'L' || letter === 'U') && SHAPE_ARTICLE.test(text.slice(Math.max(0, index - 4), index));
 }
 
 function isBoundaryAfter(text: string, end: number): boolean {
@@ -90,7 +94,7 @@ export function extractMoveTokens(input: string): MoveToken[] {
     if (!isBoundaryBefore(text, index) || !isBoundaryAfter(text, end)) continue;
     const lower = !UPPER.test(letter);
     if (lower && wide) continue; // "xw" and friends are not notation
-    if (!lower && !wide && isShapeName(text, end, suffix)) continue;
+    if (!lower && !wide && isShapeName(text, index, end, letter, suffix)) continue;
     // 'F' in single quotes: the closing quote is not a prime.
     if (suffix === "'" && text[index - 1] === "'") suffix = '';
     // "(...) x2": a repeat count, not a rotation.
