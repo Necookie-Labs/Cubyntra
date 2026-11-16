@@ -6,7 +6,8 @@
  *
  * Phone: a slim top bar and a five-tab bar along the bottom. Desktop (lg and up): a side nav
  * with every screen, grouped. Both are <nav> landmarks with aria-current on the active link;
- * a skip link jumps straight to the page content.
+ * a skip link jumps straight to the page content. The phone companion (`/companion`) is a
+ * full-screen camera: it shares the shell's session and pairing but shows no navigation.
  */
 
 import React from 'react';
@@ -28,6 +29,7 @@ import { ThemeToggle } from '@/components/branding/ThemeToggle';
 import { cx } from '@/components/ui';
 import { NAV_GROUP_LABEL, NAV_ITEMS, isActivePath, type NavGroup } from '@/app-shell/nav';
 import { useStudentSession } from '@/app-shell/useStudentSession';
+import { CompanionSyncProvider } from '@/sync/CompanionSyncProvider';
 
 const ICONS: Record<string, LucideIcon> = {
   '/': Home,
@@ -141,10 +143,30 @@ function TabBar({ pathname }: { pathname: string | null }) {
   );
 }
 
+/** Full-screen camera screens: no navigation chrome over the viewfinder. */
+export function isImmersivePath(pathname: string | null): boolean {
+  return Boolean(pathname && (pathname === '/companion' || pathname.startsWith('/companion/')));
+}
+
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   useStudentSession();
 
+  // One phone pairing for the whole app, so it survives moving between screens (ADR-015).
+  return (
+    <CompanionSyncProvider>
+      {isImmersivePath(pathname) ? (
+        <main id="content" className="min-h-[100dvh] bg-ground text-ink">
+          {children}
+        </main>
+      ) : (
+        <ShellFrame pathname={pathname}>{children}</ShellFrame>
+      )}
+    </CompanionSyncProvider>
+  );
+}
+
+function ShellFrame({ pathname, children }: { pathname: string | null; children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-ground text-ink lg:grid lg:grid-cols-[240px_minmax(0,1fr)]">
       <a

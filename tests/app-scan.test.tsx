@@ -31,11 +31,36 @@ vi.mock('@/components/twin/TeachingTwin', () => ({
 vi.mock('@/components/camera/CameraScanner', () => ({
   CameraScanner: () => <div>camera scanner</div>,
 }));
-vi.mock('@/components/sync/MobilePairingModal', () => ({
-  MobilePairingModal: ({ isOpen }: { isOpen: boolean }) => (isOpen ? <div role="dialog" aria-label="Pairing" /> : null),
+const companion = vi.hoisted(() => ({
+  value: {
+    sessionId: null as string | null,
+    qrDataUrl: null as string | null,
+    code: null as string | null,
+    codeExpiresAt: null as number | null,
+    companionUrl: null as string | null,
+    companionBaseUrl: null as string | null,
+    availableIps: [] as string[],
+    isCreating: false,
+    isConnected: false,
+    sessionEnded: false,
+    connections: { desktop: 0, mobile: 0 },
+    mobileConnected: false,
+    phonePresence: null,
+    error: null as string | null,
+    faceStatus: {},
+    getClientId: () => 'laptop',
+    initSession: vi.fn(async () => {}),
+    disconnect: vi.fn(),
+    selectHost: vi.fn(async () => {}),
+    send: vi.fn(async () => ({ ok: true, status: 200 })),
+    subscribe: vi.fn(() => () => {}),
+    requestRescan: vi.fn(async () => {}),
+    confirmScan: vi.fn(async () => {}),
+  },
 }));
 vi.mock('@/sync/CompanionSyncProvider', () => ({
   CompanionSyncProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  useCompanion: () => companion.value,
 }));
 
 const { useTutorStore } = await import('@/stores/useTutorStore');
@@ -92,6 +117,19 @@ describe('Scan', () => {
     expect(useCubyntraStore.getState().appState).toBe('scanning');
     expect(screen.getByText('camera scanner')).toBeTruthy();
     expect(screen.getByText('Camera not working?')).toBeTruthy();
+  });
+
+  it('lets a paired phone read the faces instead', () => {
+    useCubyntraStore.getState().resetAll();
+    companion.value.mobileConnected = true;
+    companion.value.sessionId = 's1';
+    render(<ScanView />);
+    fireEvent.click(screen.getByRole('button', { name: 'Scan with the phone' }));
+    expect(useCubyntraStore.getState().scanSource).toBe('companion');
+    expect(screen.getByRole('heading', { name: 'Scanning with your phone' })).toBeTruthy();
+    expect(screen.queryByText('camera scanner')).toBeNull();
+    companion.value.mobileConnected = false;
+    companion.value.sessionId = null;
   });
 
   it('starts a guided solve and goes to /solve when the demo cube is used', async () => {

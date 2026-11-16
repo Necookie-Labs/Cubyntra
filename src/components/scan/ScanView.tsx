@@ -4,7 +4,8 @@
  * Cubyntra - Scan screen
  * Necookie Labs (c) 2026
  *
- * Full scan of the student's cube: six faces with the camera, then the review. When the scan
+ * Full scan of the student's cube: six faces with this device's camera, or with the paired
+ * phone (only colors travel, ADR-015), then the review. When the scan
  * is confirmed the student's color palette is built from the raw samples (for checkpoint
  * scans later), saved, and a guided solve starts on /solve with the default method. The demo
  * scramble from the scanner takes the same path without a palette.
@@ -12,7 +13,7 @@
 
 import React, { useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { AlertTriangle, RefreshCw, Shuffle } from 'lucide-react';
+import { AlertTriangle, RefreshCw, Shuffle, Smartphone } from 'lucide-react';
 import type { Face } from '@/cube/types';
 import { FACES } from '@/cube/constants';
 import { useCubyntraStore } from '@/stores/useCubyntraStore';
@@ -20,6 +21,8 @@ import { useTutorStore } from '@/stores/useTutorStore';
 import { CameraScanner } from '@/components/camera/CameraScanner';
 import { CameraHelp, READING_TIPS } from '@/components/camera/CameraHelp';
 import { ScanReview } from '@/components/review/ScanReview';
+import { CompanionScanPanel } from '@/components/sync/CompanionScanPanel';
+import { useCompanion } from '@/sync/CompanionSyncProvider';
 import { BlockButton, Panel } from '@/components/ui';
 import { Busy, PageContainer } from '@/components/shell/Page';
 import { buildStudentPalette } from '@/vision/palette';
@@ -34,7 +37,11 @@ export function ScanView() {
   const startScanning = useCubyntraStore((s) => s.startScanning);
   const rescanFace = useCubyntraStore((s) => s.rescanFace);
   const loadMockScramble = useCubyntraStore((s) => s.loadMockScramble);
+  const scanSource = useCubyntraStore((s) => s.scanSource);
+  const startCompanionScan = useCubyntraStore((s) => s.startCompanionScan);
   const stickerLetters = useTutorStore((s) => s.profile.settings.stickerLetters);
+  const { mobileConnected, requestRescan, confirmScan } = useCompanion();
+  const byPhone = scanSource === 'companion';
 
   // Armed once this visit has shown the scanner or the review, so a finished scan from an
   // earlier visit does not start a solve on arrival.
@@ -78,8 +85,25 @@ export function ScanView() {
     <PageContainer width="md">
       <h1 className="sr-only">Scan your cube</h1>
 
-      {appState === 'scanning' && (
+      {appState === 'scanning' && byPhone && (
+        <CompanionScanPanel
+          onShowQr={() => router.push('/pair')}
+          onUseWebcam={startScanning}
+          onCancel={() => router.push('/')}
+          onNewPairing={() => router.push('/pair')}
+        />
+      )}
+
+      {appState === 'scanning' && !byPhone && (
         <>
+          {mobileConnected && (
+            <Panel tone="well" className="flex flex-wrap items-center justify-between gap-3">
+              <p className="text-sm text-ink">Your phone is paired. It can read the faces instead.</p>
+              <BlockButton size="sm" onClick={startCompanionScan} icon={<Smartphone aria-hidden className="h-4 w-4" />}>
+                Scan with the phone
+              </BlockButton>
+            </Panel>
+          )}
           <CameraScanner onBack={() => router.push('/')} />
           <CameraHelp />
         </>
@@ -87,8 +111,14 @@ export function ScanView() {
 
       {appState === 'reviewing' && (
         <ScanReview
-          onRescanFace={rescanFace}
-          onConfirmed={() => {}}
+          onRescanFace={(face) => {
+            rescanFace(face);
+            if (byPhone) void requestRescan(face);
+          }}
+          // The phone shows its done screen; the relay keeps only cube states (ADR-015).
+          onConfirmed={() => {
+            if (byPhone) void confirmScan();
+          }}
           onStartOver={scanAgain}
           stickerLetters={stickerLetters}
         />

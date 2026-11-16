@@ -32,18 +32,43 @@ vi.mock('@/components/twin/TeachingTwin', () => ({
 vi.mock('@/components/camera/CameraScanner', () => ({
   CameraScanner: () => <div>camera scanner</div>,
 }));
-vi.mock('@/components/sync/MobilePairingModal', () => ({
-  MobilePairingModal: ({ isOpen }: { isOpen: boolean }) => (isOpen ? <div role="dialog" aria-label="Pairing" /> : null),
+const companion = vi.hoisted(() => ({
+  value: {
+    sessionId: null as string | null,
+    qrDataUrl: null as string | null,
+    code: null as string | null,
+    codeExpiresAt: null as number | null,
+    companionUrl: null as string | null,
+    companionBaseUrl: null as string | null,
+    availableIps: [] as string[],
+    isCreating: false,
+    isConnected: false,
+    sessionEnded: false,
+    connections: { desktop: 0, mobile: 0 },
+    mobileConnected: false,
+    phonePresence: null,
+    error: null as string | null,
+    faceStatus: {},
+    getClientId: () => 'laptop',
+    initSession: vi.fn(async () => {}),
+    disconnect: vi.fn(),
+    selectHost: vi.fn(async () => {}),
+    send: vi.fn(async () => ({ ok: true, status: 200 })),
+    subscribe: vi.fn(() => () => {}),
+    requestRescan: vi.fn(async () => {}),
+    confirmScan: vi.fn(async () => {}),
+  },
 }));
 vi.mock('@/sync/CompanionSyncProvider', () => ({
   CompanionSyncProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  useCompanion: () => companion.value,
 }));
 
 const { useTutorStore } = await import('@/stores/useTutorStore');
 const { AppShell } = await import('@/components/shell/AppShell');
 const { HomeView } = await import('@/components/home/HomeView');
 const { TrainerView, TimerView, ProgressView } = await import('@/components/placeholders/Placeholders');
-const { PairView } = await import('@/components/placeholders/PairView');
+const { PairView } = await import('@/components/pair/PairView');
 const { resetAppTokenCache } = await import('@/app-shell/appToken');
 
 const flush = () =>
@@ -89,6 +114,17 @@ afterEach(() => {
 });
 
 describe('AppShell', () => {
+  it('shows the phone companion full screen, without navigation', () => {
+    nav.pathname = '/companion';
+    render(
+      <AppShell>
+        <p>camera</p>
+      </AppShell>
+    );
+    expect(screen.queryAllByRole('navigation')).toHaveLength(0);
+    expect(screen.getByRole('main').textContent).toBe('camera');
+  });
+
   it('has a skip link, main landmark and marks the current page in the navigation', () => {
     nav.pathname = '/solve';
     render(
@@ -150,9 +186,27 @@ describe('placeholder screens', () => {
     expect(screen.getByText('Coming soon')).toBeTruthy();
   });
 
-  it('Pair opens the existing pairing dialog', () => {
+  it('Pair shows the QR code and the typed code, and can unpair', () => {
+    Object.assign(companion.value, {
+      sessionId: 's1',
+      qrDataUrl: 'data:image/png;base64,AAAA',
+      code: 'ABCDEF',
+      codeExpiresAt: Date.now() + 9 * 60_000,
+      companionBaseUrl: 'https://192.168.1.20:3000/companion',
+      mobileConnected: false,
+    });
     render(<PairView />);
-    fireEvent.click(screen.getByRole('button', { name: 'Show pairing code' }));
-    expect(screen.getByRole('dialog', { name: 'Pairing' })).toBeTruthy();
+    expect(screen.getByRole('img', { name: 'Pairing QR code' })).toBeTruthy();
+    expect(screen.getByLabelText('Pairing code A B C D E F')).toBeTruthy();
+    expect(screen.getByText('Waiting for your phone')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Unpair' }));
+    expect(companion.value.disconnect).toHaveBeenCalled();
+    expect(companion.value.initSession).not.toHaveBeenCalled();
+  });
+
+  it('Pair makes a code on arrival when none exists', () => {
+    Object.assign(companion.value, { sessionId: null, qrDataUrl: null, code: null });
+    render(<PairView />);
+    expect(companion.value.initSession).toHaveBeenCalled();
   });
 });
