@@ -462,6 +462,7 @@ export const useCubyntraStore = create<CubyntraStore>((set, get) => ({
       appState: 'ready',
       scanSource: null,
       errorMessage: null,
+      cameraError: null,
       faceSamples: {},
       resolution: null,
       currentStepIndex: 0,

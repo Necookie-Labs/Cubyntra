@@ -11,6 +11,14 @@ const store = () => useCubyntraStore.getState();
 
 beforeEach(() => store().resetAll());
 
+describe('resetAll', () => {
+  it('clears a camera error', () => {
+    store().setCameraError('Camera permission denied');
+    store().resetAll();
+    expect(store().cameraError).toBeNull();
+  });
+});
+
 describe('startScanning', () => {
   it('clears the previous cube and its validation', async () => {
     await store().loadMockScramble("R U R' U'");
