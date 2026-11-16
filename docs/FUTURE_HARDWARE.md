@@ -2,11 +2,13 @@
 
 **Product**: Cubyntra  
 **Organization**: Necookie Labs  
-**Status**: **FUTURE / OUT OF SCOPE FOR V1**
+**Status**: **Concept only, not planned, not built**
 
 > [!IMPORTANT]
-> **FUTURE / OUT OF SCOPE FOR V1**  
-> This specification documents forward-looking architectural designs and communication protocols for an autonomous physical robotic solver rig planned for Cubyntra V4. **No physical robotics hardware or drivers are part of the Cubyntra V1 release.**
+> **CONCEPT ONLY / OUT OF SCOPE**  
+> This document sketches a possible physical robotic solver rig. It is not on the roadmap ([ROADMAP.md](ROADMAP.md) §4), and **no robotics hardware, firmware or drivers exist in Cubyntra**, including the 2.0 tutor.
+>
+> Relation to 2.0: a rig gripping the six centers can only turn faces. The Kociemba solver (`src/solver/`) outputs face turns only and would be its natural source; the tutor engine's plans also contain wide moves, slices and whole-cube rotations meant for a person and would need translating first.
 
 ---
 
