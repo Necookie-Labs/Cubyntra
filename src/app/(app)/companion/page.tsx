@@ -42,6 +42,7 @@ import { CompanionReticle, ReticleTone } from '@/components/companion/CompanionR
 import { FaceGuide } from '@/components/companion/FaceGuide';
 import { CaptureCoach, hasSeenCaptureCoach } from '@/components/companion/CaptureCoach';
 import { PairCodeDialog } from '@/components/companion/PairCodeDialog';
+import { PhoneStepCard } from '@/components/companion/PhoneStepCard';
 import { BlockButton, IconButton, Panel, cx, stickerColor } from '@/components/ui';
 import {
   AlertCircle,
@@ -345,7 +346,13 @@ function CompanionScannerContent() {
     setStepIndex(0);
   }, [session]);
 
-  // Remote control for the solve on the computer (solver mode sends the whole solution).
+  // The guided solve on the computer: the phone shows the step like the solve screen does.
+  const tutorStep =
+    session.step && (session.step.method === 'beginner' || session.step.method === 'cfop')
+      ? { ...session.step, method: session.step.method }
+      : null;
+
+  // Remote control for the older solver playback (it sends the whole solution as one step).
   const solutionMoves = (() => {
     try {
       return session.step?.algorithm ? parseAlgorithm(session.step.algorithm) : [];
@@ -625,15 +632,20 @@ function CompanionScannerContent() {
             <p className="text-sm text-muted leading-relaxed flex items-start gap-2 text-left">
               <Monitor className="w-4 h-4 mt-0.5 shrink-0 text-ink" />
               {session.confirmed
-                ? 'Follow the moves on the 3D cube. You can control them from here too.'
+                ? 'Follow the moves on the 3D cube. You can control them from here, or solve on this phone.'
                 : sessionId
                 ? 'Check the cube on your computer, fix any tile it marks, then press Confirm & solve.'
                 : 'To use a computer, open Cubyntra there and scan its QR code before you scan the cube.'}
             </p>
           </Panel>
 
+          {/* The guided solve's step, with remote playback and a way to solve on this phone. */}
+          {session.confirmed && sessionId && tutorStep && (
+            <PhoneStepCard step={tutorStep} playback={session.playback} onControl={session.controlPlayback} />
+          )}
+
           {/* Remote control: either device can play, pause and step; the computer shows the turns. */}
-          {session.confirmed && sessionId && solutionMoves.length > 0 && (
+          {session.confirmed && sessionId && !tutorStep && solutionMoves.length > 0 && (
             <Panel as="section" aria-label="Solution controls" className="flex flex-col items-center gap-3 w-full max-w-xs p-4 pb-5">
               <p role="status" className="text-sm font-bold text-ink">
                 {playMove
