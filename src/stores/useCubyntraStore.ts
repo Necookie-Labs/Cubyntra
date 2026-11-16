@@ -340,6 +340,11 @@ export const useCubyntraStore = create<CubyntraStore>((set, get) => ({
     try {
       const { state, scannedFaces } = getScrambledMockScan(scramble);
       set({
+        // The demo replaces any scan in progress, so its source and readings go too.
+        scanSource: null,
+        faceSamples: {},
+        resolution: null,
+        solution: null,
         scannedFaces,
         cubeState: state,
         originalScrambleState: state,
