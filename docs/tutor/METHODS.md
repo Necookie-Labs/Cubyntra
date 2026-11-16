@@ -270,6 +270,14 @@ two layers are planned identically. The four 2-look stages are replaced by two:
   perm, V perm), the table holds a rotation-free version of the same case.
 - **Plans carry the setting** as `plan.options`, and recovery keeps it (section 1.1).
 
+### 5.2 Choosing the variant
+
+The student picks the last layer in Settings (shown while CFOP is the method):
+`settings.lastLayer` in the profile, `'2-look'` by default. `useTutorStore` turns it into
+`options` with `methodOptionsFor` (`{ lastLayer: 'full' }` for CFOP only) and passes it to every
+plan it asks the worker for (`tutor.plan`) and to `replanFromScan` after a rescan. The home screen
+suggests the switch once the four 2-look stages are mastered (section 10.4).
+
 ---
 
 ## 6. Checkpoint spec
@@ -608,5 +616,67 @@ Stage turns include the line-up turn of the top before the algorithm.
   use back-face turns where speedcubers would regrip; alternative algorithms per case and
   left-handed mirrors are not offered.
 - OLL nicknames follow common algorithm sheets; several cases have more than one nickname in use.
-- The coach has no case notes of its own for `oll-01` … `oll-57` and `pll-aa` … `pll-z`, nor stage
-  notes for `oll` and `pll`, yet; its templates fall back to the plan's facts, which is tested.
+- Coach case notes exist for every id, including `oll-01` … `oll-57` and `pll-aa` … `pll-z`, and the
+  `oll` and `pll` stages have stage notes (`src/coach/caseNotes.ts`, `src/coach/stages.ts`).
+
+---
+
+## 10. Trainer sets and learning rules (`src/learn/`)
+
+The trainer, the timer and the progress world reuse the engine and its tables; nothing here
+picks moves for a guided solve.
+
+### 10.1 Sets (`trainerSets.ts`)
+
+| Set id | Name | Cases | Held | Top turn at random |
+|---|---|---|---|---|
+| `beginner` | Beginner's algorithms | 7: `white-corner-below` (`R' D' R D`), `middle-edge-right`, `middle-edge-left`, `yellow-cross-line`, `yellow-edges-adjacent`, `yellow-corners-one`, `yellow-corner-twist-2` | white on top for the corner trigger, yellow on top for the rest | yes, except the two `R' D' R D` cases |
+| `f2l` | F2L | the 41 of section 7.1, grouped as there | yellow on top, slot at the front-right | yes |
+| `last-layer-2look` | 2-look OLL and PLL | 16: 3 + 7 OLL, 2 + 4 PLL (sections 7.2, 7.3) | yellow on top | yes |
+| `oll` | Full OLL | 57, grouped by shape (section 7.4) | yellow on top | yes |
+| `pll` | Full PLL | 21, grouped as in section 7.5 | yellow on top | yes |
+
+Every case keeps the tutor's own case id, so the coach's case notes apply to a drill as they do
+to a guided solve, and a case learned in the trainer is the same algorithm the solve teaches.
+Green is always in front.
+
+### 10.2 Drills (`drill.ts`)
+
+A drill starts from a solved cube held as the set says, undoes the case's algorithm, then turns
+the top 0 to 3 quarter turns (random, for cases that start from any turn of the top). The drill's
+moves are that top turn undone, then the algorithm; when the algorithm itself starts with a top
+turn the two are merged into one. `buildDrill` plans it with `planNextStepIn` and a one-stage
+method whose goal is a solved cube, so the drill is a real `StepPlan`: replayed, with a
+checkpoint derived as in section 6 and `options: { lastLayer: 'full' }` for the full OLL and PLL
+sets. The student is shown the setup (the inverse of the drill's moves) to do on a solved cube.
+Tests build every case of every set from every top turn and check that it ends solved, and that
+for the CFOP sets the engine itself plans the same case id from the drill's cube.
+
+### 10.3 Spaced repetition (`leitner.ts`)
+
+Leitner boxes 1 to 5, counted in drills (deterministic, no clock). A first answer puts a case in
+box 2 (got it) or box 1 (missed it); got it moves up one box, missed it goes back to box 1. A case
+in box b is due again `BOX_GAP[b]` drills later: 2, 4, 8, 16, 32. The next drill is the most
+overdue case (lowest due, then lowest box, then table order); with nothing due, the first case
+never drilled; with every case drilled, the one due soonest. The case just shown is not repeated
+when another is available. A case is learned from box 3 on.
+
+### 10.4 Mastery, streaks and graduation (`mastery.ts`)
+
+- When a checked step leaves its stage (the thousands of `progressAfter` exceed `stageIndex`), the
+  solve records the highest coach hint asked for during that stage under `<method>/<stage>`. A
+  stage the cube skipped is not recorded.
+- **Mastered:** at least 3 of the stage's newest 5 records needed no level-3 hint ("Show the
+  moves"). A method is mastered when all of its stages are.
+- **Streak:** local days with a finished guided solve or a trainer answer; the current streak
+  counts back from today, or from yesterday while today is still empty.
+- **Graduation:** beginner's method mastered while it is the default method: suggest CFOP with the
+  2-look last layer. The CFOP stages `oll-edges`, `oll-corners`, `pll-corners` and `pll-edges`
+  mastered while `lastLayer` is `'2-look'`: suggest `'full'`.
+
+### 10.5 Timer (`timer.ts`, `scramble.ts`)
+
+WCA rules: 15 s inspection with calls at 8 s and 12 s; a start from 15 s is +2, from 17 s a DNF.
+Times are truncated to hundredths. ao5 and ao12 drop the best and the worst solve and average
+the rest, rounded to hundredths; one DNF is dropped as the worst, two make a DNF. Scrambles are 20
+random outer turns, never the same face twice in a row and never three turns on one axis.
