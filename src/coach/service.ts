@@ -3,9 +3,9 @@
  * Necookie Labs (c) 2026
  *
  * Produces one coach reply as a sequence of stream events. In live mode it streams Claude
- * Haiku 5.5 (effort low, at most 400 tokens, cached system prompt) and relays text as it
- * arrives, holding back the last partial word so the move guardrail sees each token before the
- * student does. Whenever the reply cannot be trusted (guardrail, refusal, truncation, an API
+ * Haiku 5.5 (thinking off, effort low, at most 400 tokens, cached system prompt) and relays
+ * text as it arrives, holding back the last partial word (and a trailing bare move letter) so
+ * the move guardrail sees each token before the student does. Whenever the reply cannot be trusted (guardrail, refusal, truncation, an API
  * error) the student gets the built-in template instead. Mock mode (no key) and capped mode
  * (monthly cap reached) serve templates through the same events.
  */
@@ -54,12 +54,18 @@ export function coachStatus(tracker: SpendTracker = getSpendTracker()): CoachSta
   };
 }
 
-/** The exact request sent to Claude. No sampling parameters: the API rejects them. */
+/**
+ * The exact request sent to Claude. No sampling parameters: the API rejects them. Thinking is
+ * off: Haiku 5.5 thinks adaptively by default, and thinking tokens would eat into the 400-token
+ * reply budget (a cut-off reply falls back to the template). Disabled thinking is accepted on
+ * Haiku 5.5 at effort high or below, and this request uses low.
+ */
 export function buildCoachRequest(facts: CoachFacts): Anthropic.MessageStreamParams {
   const messages: Anthropic.MessageParam[] = [{ role: 'user', content: JSON.stringify(facts) }];
   return {
     model: COACH_MODEL,
     max_tokens: COACH_MAX_TOKENS,
+    thinking: { type: 'disabled' },
     output_config: { effort: 'low' },
     system: [{ type: 'text', text: COACH_SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }],
     messages,

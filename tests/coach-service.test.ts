@@ -68,7 +68,7 @@ function shown(events: CoachStreamEvent[]): string {
 }
 
 describe('coach request shape', () => {
-  it('uses Haiku 5.5 at low effort with a cached system prompt and no sampling params', async () => {
+  it('uses Haiku 5.5 with thinking off at low effort, a cached system prompt and no sampling params', async () => {
     await collect({ chunks: ['Find the corner. '] });
     expect(streamMock).toHaveBeenCalledTimes(1);
     const [params, options] = streamMock.mock.calls[0];
@@ -76,11 +76,13 @@ describe('coach request shape', () => {
     expect(params.model).toBe('claude-haiku-5-5');
     expect(params.max_tokens).toBe(400);
     expect(params.output_config).toEqual({ effort: 'low' });
+    // Thinking off so the 400-token budget is all reply; allowed on Haiku 5.5 at effort <= high.
+    expect(params.thinking).toEqual({ type: 'disabled' });
     expect(params.system).toEqual([
       { type: 'text', text: COACH_SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } },
     ]);
     expect(params.messages).toEqual([{ role: 'user', content: JSON.stringify(SAMPLE_FACTS) }]);
-    for (const key of ['temperature', 'top_p', 'top_k', 'thinking']) expect(params).not.toHaveProperty(key);
+    for (const key of ['temperature', 'top_p', 'top_k']) expect(params).not.toHaveProperty(key);
     expect(options).toHaveProperty('signal');
   });
 });
