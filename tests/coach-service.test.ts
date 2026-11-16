@@ -157,17 +157,47 @@ describe('live replies', () => {
   it.each([
     ['rate limit', new Anthropic.RateLimitError(429, undefined, 'slow down', new Headers()), 'rate-limited'],
     ['server error', new Anthropic.InternalServerError(500, undefined, 'oops', new Headers()), 'api-error'],
-    ['network', new Anthropic.APIConnectionError({ message: 'offline' }), 'offline'],
-  ])('falls back to the template on a %s error', async (_label, error, reason) => {
-    const events = await collect({ chunks: ['Look '], error });
+  ])('falls back to the template on a %s error, recording nothing for a refused call', async (_label, error, reason) => {
+    const events = await collect({ chunks: ['Look '], error, errorAt: 'start' });
     expect(shown(events)).toBe(templateText(SAMPLE_FACTS));
     expect(events.at(-1)).toMatchObject({ source: 'template', reason });
     expect(tracker.monthUsage().requests).toBe(0);
   });
 
-  it('stops quietly when the student leaves', async () => {
+  it('records the worst-case estimate when the connection drops before any usage arrives', async () => {
+    const events = await collect({ chunks: ['Look '], error: new Anthropic.APIConnectionError({ message: 'offline' }), errorAt: 'start' });
+    expect(events.at(-1)).toMatchObject({ source: 'template', reason: 'offline' });
+    const month = tracker.monthUsage();
+    expect(month.requests).toBe(1);
+    expect(month.outputTokens).toBe(400);
+    expect(month.cacheWriteTokens).toBeGreaterThan(0);
+  });
+
+  it('records the input usage of a stream that errors part-way, with the full output budget', async () => {
+    const error = new Anthropic.APIError(undefined, { type: 'error', error: { type: 'overloaded_error' } }, 'overloaded', undefined);
+    const events = await collect({ chunks: ['Look ', 'for '], error });
+    expect(events.at(-1)).toMatchObject({ source: 'template', reason: 'api-error' });
+    const month = tracker.monthUsage();
+    expect(month).toMatchObject({ requests: 1, inputTokens: 300, cacheReadTokens: 4500, outputTokens: 400 });
+  });
+
+  it('stops quietly when the student leaves, still recording what the call used', async () => {
     const events = await collect({ chunks: ['Look '], error: new Anthropic.APIUserAbortError() });
     expect(events.find((e) => e.type === 'replace' || e.type === 'done')).toBeUndefined();
+    expect(tracker.monthUsage()).toMatchObject({ requests: 1, inputTokens: 300, cacheReadTokens: 4500, outputTokens: 400 });
+  });
+
+  it('records the usage when the reader stops consuming the reply mid-stream', async () => {
+    streamMock.mockReturnValue(fakeStream({ chunks: ['Look for ', 'the corner ', 'with yellow.'] }));
+    for await (const e of coachReply(SAMPLE_FACTS, { tracker })) {
+      if (e.type === 'delta') break;
+    }
+    expect(tracker.monthUsage()).toMatchObject({ requests: 1, inputTokens: 300, cacheReadTokens: 4500 });
+  });
+
+  it('takes the output count from message_delta', async () => {
+    await collect({ chunks: ['Look for the corner.'], usage: { output_tokens: 57 } });
+    expect(tracker.monthUsage()).toMatchObject({ requests: 1, outputTokens: 57 });
   });
 });
 

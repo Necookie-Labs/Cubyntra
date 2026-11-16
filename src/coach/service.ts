@@ -13,7 +13,15 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { allowedMoves, guardNames } from './facts';
 import { checkReplyMoves, relayableLength } from './guard';
-import { COACH_MAX_TOKENS, COACH_MODEL, SpendTracker, estimateCallCost, getSpendTracker } from './spend';
+import {
+  COACH_MAX_TOKENS,
+  COACH_MODEL,
+  SpendTracker,
+  estimateCallCost,
+  estimateCallUsage,
+  getSpendTracker,
+  type UsageCounts,
+} from './spend';
 import { COACH_SYSTEM_PROMPT } from './systemPrompt';
 import { NOTICES, templateText } from './templates';
 import { CoachFacts, CoachMode, CoachStatus, CoachStreamEvent, FallbackReason } from './types';
@@ -84,7 +92,7 @@ function* templateReply(facts: CoachFacts, mode: CoachMode, reason: FallbackReas
   yield { type: 'done', source: 'template', mode, reason, notice };
 }
 
-function logUsage(usage: Anthropic.Usage, cost: number): void {
+function logUsage(usage: UsageCounts, cost: number): void {
   console.info(
     `[coach] usage input=${usage.input_tokens} output=${usage.output_tokens} ` +
       `cache_read=${usage.cache_read_input_tokens ?? 0} cache_write=${usage.cache_creation_input_tokens ?? 0} ` +
@@ -102,7 +110,8 @@ export async function* coachReply(facts: CoachFacts, options: CoachReplyOptions 
   }
 
   const request = buildCoachRequest(facts);
-  const estimate = estimateCallCost(COACH_SYSTEM_PROMPT.length + JSON.stringify(request.messages).length);
+  const inputChars = COACH_SYSTEM_PROMPT.length + JSON.stringify(request.messages).length;
+  const estimate = estimateCallCost(inputChars);
   if (!tracker.reserve(estimate)) {
     yield* templateReply(facts, 'capped', 'capped');
     return;
@@ -110,7 +119,13 @@ export async function* coachReply(facts: CoachFacts, options: CoachReplyOptions 
 
   const allowed = allowedMoves(facts);
   const names = guardNames(facts);
-  let usage: Anthropic.Usage | null = null;
+  // Usage is taken from the stream as it arrives, so a call that is aborted or fails part-way
+  // is still counted: `message_start` carries the input and cache counts, `message_delta` the
+  // (cumulative) output count.
+  let usage: UsageCounts | null = null;
+  let outputCounted = false;
+  // An HTTP error status means the API refused the call before any work: nothing was billed.
+  let refusedByApi = false;
   let full = '';
   let sent = 0;
   let rejected: FallbackReason | null = null;
@@ -118,6 +133,28 @@ export async function* coachReply(facts: CoachFacts, options: CoachReplyOptions 
   try {
     const stream = getClient().messages.stream(request, { signal: options.signal });
     for await (const event of stream) {
+      if (event.type === 'message_start') {
+        const u = event.message.usage;
+        usage = {
+          input_tokens: u.input_tokens,
+          output_tokens: u.output_tokens,
+          cache_creation_input_tokens: u.cache_creation_input_tokens ?? 0,
+          cache_read_input_tokens: u.cache_read_input_tokens ?? 0,
+        };
+        continue;
+      }
+      if (event.type === 'message_delta') {
+        const u = event.usage;
+        const base: UsageCounts = usage ?? { input_tokens: 0, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 };
+        usage = {
+          input_tokens: u.input_tokens ?? base.input_tokens,
+          output_tokens: u.output_tokens,
+          cache_creation_input_tokens: u.cache_creation_input_tokens ?? base.cache_creation_input_tokens,
+          cache_read_input_tokens: u.cache_read_input_tokens ?? base.cache_read_input_tokens,
+        };
+        outputCounted = true;
+        continue;
+      }
       if (rejected || event.type !== 'content_block_delta' || event.delta.type !== 'text_delta') continue;
       full += event.delta.text;
       // Relay only complete tokens, holding back a bare letter that may start a run of moves.
@@ -134,6 +171,7 @@ export async function* coachReply(facts: CoachFacts, options: CoachReplyOptions 
     }
     const message = await stream.finalMessage();
     usage = message.usage;
+    outputCounted = true;
 
     if (!rejected) {
       if (message.stop_reason === 'refusal') rejected = 'refusal';
@@ -147,16 +185,22 @@ export async function* coachReply(facts: CoachFacts, options: CoachReplyOptions 
       }
     }
   } catch (error) {
+    refusedByApi = error instanceof Anthropic.APIError && typeof error.status === 'number';
     if (error instanceof Anthropic.APIUserAbortError || options.signal?.aborted) return;
     rejected = fallbackReason(error);
     console.warn(`[coach] falling back to the template (${rejected}): ${error instanceof Error ? error.name : 'error'}`);
     yield { type: 'replace', text: templateText(facts), reason: rejected };
   } finally {
-    const cost = await tracker.settle(estimate, usage).catch((error: unknown) => {
+    // Cut off before the output count arrived: count the full output budget (it may have been
+    // generated). Nothing arrived at all: count the worst-case estimate, unless the API refused.
+    let counted: UsageCounts | null = usage;
+    if (counted && !outputCounted) counted = { ...counted, output_tokens: Math.max(counted.output_tokens, COACH_MAX_TOKENS) };
+    if (!counted && !refusedByApi) counted = estimateCallUsage(inputChars);
+    const cost = await tracker.settle(estimate, counted).catch((error: unknown) => {
       console.error('[coach] Saving the usage failed:', error);
       return 0;
     });
-    if (usage) logUsage(usage, cost);
+    if (counted) logUsage(counted, cost);
   }
 
   yield rejected

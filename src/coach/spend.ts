@@ -55,15 +55,21 @@ export function costOfUsage(usage: UsageCounts, model: string = COACH_MODEL): nu
 }
 
 /**
- * Worst-case cost of one call: input counted at 3 characters per token (pessimistic for
+ * Worst-case usage of one call: input counted at 3 characters per token (pessimistic for
  * English), all of it billed as a cache write, plus a full `max_tokens` of output.
  */
+export function estimateCallUsage(inputChars: number): UsageCounts {
+  return {
+    input_tokens: 0,
+    output_tokens: COACH_MAX_TOKENS,
+    cache_creation_input_tokens: Math.ceil(inputChars / 3),
+    cache_read_input_tokens: 0,
+  };
+}
+
+/** Worst-case cost of one call (see `estimateCallUsage`). */
 export function estimateCallCost(inputChars: number, model: string = COACH_MODEL): number {
-  const inputTokens = Math.ceil(inputChars / 3);
-  return costOfUsage(
-    { input_tokens: 0, output_tokens: COACH_MAX_TOKENS, cache_creation_input_tokens: inputTokens, cache_read_input_tokens: 0 },
-    model
-  );
+  return costOfUsage(estimateCallUsage(inputChars), model);
 }
 
 /** The monthly cap in US dollars: `COACH_MONTHLY_CAP_USD` if it is a valid number, else $10. */
