@@ -9,6 +9,8 @@
  */
 
 import type { CubeState } from '../cube/types';
+import type { Grip } from '../cube/grip';
+import type { GuidedSolve, MethodId, StepPlan, TutorProgress } from '../tutor/types';
 import type { SolveResult } from './types';
 import type { WorkerJobs, WorkerJobType, WorkerRequest, WorkerResponse } from './protocol';
 
@@ -130,4 +132,27 @@ export function warmUpSolver(): void {
     .catch(() => {
       // A failed warm-up only means the first solve builds the tables itself.
     });
+}
+
+/**
+ * The tutor's next step for `state` held in `grip`, planned off the main thread when possible.
+ * Resolves with null when the cube is solved; rejects with the plan error otherwise.
+ */
+export function planStepInWorker(
+  state: CubeState,
+  method: MethodId,
+  grip?: Grip,
+  stepIndex?: number
+): Promise<StepPlan | null> {
+  return getSolverClient().request('tutor.plan', { state, method, grip, stepIndex });
+}
+
+/** How far through `method` the cube is, computed off the main thread when possible. */
+export function tutorProgressInWorker(state: CubeState, method: MethodId): Promise<TutorProgress> {
+  return getSolverClient().request('tutor.progress', { state, method });
+}
+
+/** A whole guided solve (every step), computed off the main thread when possible. */
+export function guidedSolveInWorker(state: CubeState, method: MethodId, grip?: Grip): Promise<GuidedSolve> {
+  return getSolverClient().request('tutor.guidedSolve', { state, method, grip });
 }

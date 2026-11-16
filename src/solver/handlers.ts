@@ -7,6 +7,7 @@
  */
 
 import { ensureSolverInitialized, solveCube } from './solver';
+import { planNextStep, progress, runGuidedSolve } from '../tutor/api';
 import type { WorkerJobs, WorkerJobType, WorkerRequest, WorkerResponse } from './protocol';
 
 type Handlers = {
@@ -19,6 +20,9 @@ export const handlers: Handlers = {
     return { ready: true };
   },
   solve: async ({ state }) => solveCube(state),
+  'tutor.plan': async ({ state, method, grip, stepIndex }) => planNextStep(state, method, grip, stepIndex),
+  'tutor.progress': async ({ state, method }) => progress(state, method),
+  'tutor.guidedSolve': async ({ state, method, grip }) => runGuidedSolve(state, method, grip),
 };
 
 /** Runs one request and wraps the outcome (or the error) in a reply. Never throws. */

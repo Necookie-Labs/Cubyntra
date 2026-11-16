@@ -72,4 +72,14 @@ describe('CubeVisualizer', () => {
     unmount();
     expect(instances[0].dispose).toHaveBeenCalledOnce();
   });
+
+  it('reports the engine on mount and null before disposing it', () => {
+    const onEngineChange = vi.fn();
+    const { unmount } = render(<CubeVisualizer state={createSolvedCubeState()} onEngineChange={onEngineChange} />);
+    expect(onEngineChange).toHaveBeenCalledTimes(1);
+    expect(onEngineChange).toHaveBeenLastCalledWith(instances[0]);
+    unmount();
+    expect(onEngineChange).toHaveBeenLastCalledWith(null);
+    expect(instances[0].dispose).toHaveBeenCalledOnce();
+  });
 });

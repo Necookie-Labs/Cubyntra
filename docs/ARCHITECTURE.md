@@ -84,6 +84,7 @@ src/
 - `src/vision/` depends only on `src/cube/` for type definitions (`Face`, `CubeColor`, `ScannedFace`). It has **zero Three.js dependencies**.
 - `src/solver/` depends only on `src/cube/` to serialize `CubeState` and verify solutions.
 - `src/tutor/` depends only on `src/cube/`. It plans every step of a guided solve and never imports the DOM, Three.js, React, the solver or the network (ADR-012).
+- `src/twin/` maps step plans onto the 3D twin (positions, slots, playback-driven aids). It depends on `src/cube/`, `src/tutor/` types and the engine's teaching API as a type; it has no DOM, React or Three.js imports.
 - `src/three/` depends on `src/cube/` for `CubeState` and `CubeMove` contracts. It receives states and animates them.
 - `src/stores/` orchestrates `cube`, `vision`, `solver`, and `three`.
 - `src/components/` connects UI events to `src/stores/`.
