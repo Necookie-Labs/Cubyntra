@@ -13,8 +13,3 @@ export interface SolveResult {
   durationMs: number;
   error?: string;
 }
-
-export interface SolverOptions {
-  maxDepth?: number;
-  timeoutMs?: number;
-}

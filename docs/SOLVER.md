@@ -80,7 +80,7 @@ Individual move inverses:
 ### 4.1 Module Structure
 ```
 src/solver/
-├── types.ts          # SolveResult, SolverOptions
+├── types.ts          # SolveResult
 ├── solver.ts         # solveCube(), ensureSolverInitialized(), generateRandomScramble()
 ├── protocol.ts       # WorkerJobs: the typed message protocol for the worker
 ├── handlers.ts       # the work behind each message type; dispatch()
