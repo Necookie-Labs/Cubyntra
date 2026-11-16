@@ -27,7 +27,8 @@ import {
   Box,
   ArrowLeft,
 } from 'lucide-react';
-import { BlockButton, Chip, IconButton, Panel, ProgressBlocks, stickerColor } from '@/components/ui';
+import { BlockButton, Chip, IconButton, Panel, ProgressBlocks, cx, stickerColor, stickerLetter, stickerLetterClass } from '@/components/ui';
+import { useTutorStore } from '@/stores/useTutorStore';
 
 interface CameraScannerProps {
   /** Leave the scan and return to the start screen. */
@@ -35,6 +36,8 @@ interface CameraScannerProps {
 }
 
 export const CameraScanner: React.FC<CameraScannerProps> = ({ onBack }) => {
+  // Color-blind option: the letter of each color the camera sees, in the live grid.
+  const letters = useTutorStore((s) => s.profile.settings.stickerLetters);
   const {
     currentStepIndex,
     scannedFaces,
@@ -408,12 +411,24 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({ onBack }) => {
                     {/* Inner sampling block */}
                     {isValidCubeColor ? (
                       <div
-                        className="w-4 h-4 border-2 border-line transition-transform duration-150"
+                        className={cx(
+                          'flex items-center justify-center border-2 border-line transition-transform duration-150',
+                          letters ? 'h-6 w-6' : 'h-4 w-4'
+                        )}
                         style={{
                           backgroundColor: cellColor,
                           transform: isStable ? 'scale(1.25)' : 'scale(1)',
                         }}
-                      />
+                      >
+                        {letters && sample && (
+                          <span
+                            data-testid="live-letter"
+                            className={cx('font-mono text-xs font-bold leading-none', stickerLetterClass(sample.predictedColor))}
+                          >
+                            {stickerLetter(sample.predictedColor)}
+                          </span>
+                        )}
+                      </div>
                     ) : (
                       <div className={`w-2 h-2 ${isFace ? 'bg-danger' : 'bg-sticker-white'}`} />
                     )}
@@ -546,6 +561,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({ onBack }) => {
                   : 'border-line-soft bg-well'
               }`}
               title={`Face ${seq.face} (${seq.centerColor}) - Click to rescan`}
+              aria-label={`Scan the ${seq.centerColor} center face (${isCaptured ? 'read' : isCurrent ? 'scanning now' : 'not read yet'})`}
             >
               {isCaptured && capturedData ? (
                 <div className="grid grid-cols-3 gap-0.5 w-full h-full bg-sticker-core p-0.5">

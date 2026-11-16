@@ -13,7 +13,8 @@ import { useCompanion } from '@/sync/CompanionSyncProvider';
 import { useCubyntraStore } from '@/stores/useCubyntraStore';
 import { SCAN_SEQUENCE } from '@/cube/constants';
 import { Face } from '@/cube/types';
-import { BlockButton, Chip, ChipTone, Panel, ProgressBlocks, cx, stickerColor } from '@/components/ui';
+import { BlockButton, Chip, ChipTone, Panel, ProgressBlocks, cx, stickerColor, stickerLetter, stickerLetterClass } from '@/components/ui';
+import { useTutorStore } from '@/stores/useTutorStore';
 import { AlertTriangle, Camera, CheckCircle2, Link2, Loader2, QrCode, Smartphone } from 'lucide-react';
 
 const FACE_LABEL: Record<Face, string> = {
@@ -51,6 +52,7 @@ export const CompanionScanPanel: React.FC<CompanionScanPanelProps> = ({
 }) => {
   const { mobileConnected, isConnected, sessionEnded, sessionId } = useCompanion();
   const scannedFaces = useCubyntraStore((s) => s.scannedFaces);
+  const letters = useTutorStore((s) => s.profile.settings.stickerLetters);
 
   const isRead = (face: Face) => Boolean(scannedFaces[face]);
   const doneCount = SCAN_SEQUENCE.filter((s) => isRead(s.face)).length;
@@ -134,7 +136,13 @@ export const CompanionScanPanel: React.FC<CompanionScanPanelProps> = ({
                     className="grid grid-cols-3 gap-0.5 w-full h-full p-1 bg-line"
                   >
                     {scanned.stickers.map((color, i) => (
-                      <span key={i} style={{ backgroundColor: stickerColor(color) }} />
+                      <span key={i} className="grid place-items-center" style={{ backgroundColor: stickerColor(color) }}>
+                        {letters && (
+                          <span aria-hidden className={cx('font-mono text-xs font-bold leading-none', stickerLetterClass(color))}>
+                            {stickerLetter(color)}
+                          </span>
+                        )}
+                      </span>
                     ))}
                   </div>
                 ) : (
@@ -154,7 +162,7 @@ export const CompanionScanPanel: React.FC<CompanionScanPanelProps> = ({
               </div>
 
               <div className="flex items-center gap-2 text-xs">
-                <span className="w-3 h-3 border-2 border-line" style={{ backgroundColor: sticker }} />
+                <span aria-hidden className="w-3 h-3 border-2 border-line" style={{ backgroundColor: sticker }} />
                 <span className={isNext ? 'text-ink font-bold' : 'text-muted'}>{FACE_LABEL[step.face]}</span>
               </div>
             </li>

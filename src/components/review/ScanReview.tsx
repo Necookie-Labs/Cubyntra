@@ -268,13 +268,19 @@ export const ScanReview: React.FC<ScanReviewProps> = ({ onRescanFace, onConfirme
                     aria-label={`${color} (key ${i + 1})`}
                     title={`${color} · ${i + 1}`}
                     onClick={() => applyColor(color)}
-                    className={`w-8 h-8 border-2 border-line transition-transform duration-75 ${
+                    className={`flex w-8 h-8 items-center justify-center border-2 border-line transition-transform duration-75 ${
                       active
                         ? 'translate-y-0.5 outline-2 outline-offset-2 outline-ink'
                         : 'shadow-block-sm hover:-translate-y-px'
                     }`}
                     style={{ backgroundColor: stickerColor(color) }}
-                  />
+                  >
+                    {stickerLetters && (
+                      <span aria-hidden className={cx('font-mono text-xs font-bold leading-none', stickerLetterClass(color))}>
+                        {stickerLetter(color)}
+                      </span>
+                    )}
+                  </button>
                 );
               })}
             </div>
@@ -304,24 +310,28 @@ export const ScanReview: React.FC<ScanReviewProps> = ({ onRescanFace, onConfirme
 
       {/* Validity */}
       <div className="flex flex-col gap-3 pt-4 border-t-2 border-line-soft">
-        <div className="flex flex-wrap items-center gap-2" aria-label="Tiles per color">
+        <ul className="flex flex-wrap items-center gap-2" aria-label="Tiles per color">
           {COLORS.map((color) => (
-            <Chip
-              key={color}
-              tone={counts[color] === 9 ? 'neutral' : 'danger'}
-              className="font-mono tabular-nums"
-              icon={
-                <span
-                  aria-hidden
-                  className="h-3 w-3 border-2 border-line"
-                  style={{ backgroundColor: stickerColor(color) }}
-                />
-              }
-            >
-              {counts[color]}
-            </Chip>
+            <li key={color}>
+              <Chip
+                tone={counts[color] === 9 ? 'neutral' : 'danger'}
+                className="font-mono tabular-nums"
+                icon={
+                  <span
+                    aria-hidden
+                    className="h-3 w-3 border-2 border-line"
+                    style={{ backgroundColor: stickerColor(color) }}
+                  />
+                }
+              >
+                {/* The letter names the color, so the count never relies on the swatch alone. */}
+                <span aria-hidden>{stickerLetter(color)}</span>
+                <span className="sr-only">{color}:</span> {counts[color]}
+                {counts[color] !== 9 && <span className="sr-only">, should be 9</span>}
+              </Chip>
+            </li>
           ))}
-        </div>
+        </ul>
         <p role="status" className="flex items-start gap-2 text-sm font-bold text-ink">
           {isValid ? (
             <>

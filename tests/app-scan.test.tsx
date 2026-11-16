@@ -6,9 +6,10 @@
 
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { planNextStep } from '@/tutor';
 import { defaultStudentProfile } from '@/lib/studentProfile';
+import { createSolvedCubeState } from '@/cube/constants';
 
 const nav = vi.hoisted(() => ({ pathname: '/', push: vi.fn(), refresh: vi.fn() }));
 vi.mock('next/navigation', () => ({
@@ -141,6 +142,21 @@ describe('Scan', () => {
     await flush();
     expect(nav.push).toHaveBeenCalledWith('/solve');
     expect(useTutorStore.getState().method).toBe('beginner');
+  });
+
+  it('names colors in the review with letters, never by the swatch alone', () => {
+    useCubyntraStore.getState().resetAll();
+    const profile = defaultStudentProfile();
+    profile.settings.stickerLetters = true;
+    useTutorStore.setState({ profile });
+    render(<ScanView />);
+    act(() => useCubyntraStore.setState({ appState: 'reviewing', cubeState: createSolvedCubeState(), validationResult: null }));
+    const counts = screen.getByRole('list', { name: 'Tiles per color' });
+    expect(counts.textContent).toBe('Wwhite: 9Yyellow: 9Ggreen: 9Bblue: 9Rred: 9Oorange: 9');
+    expect(within(counts).getAllByRole('listitem')[0].textContent).toContain('white:');
+    fireEvent.click(screen.getByRole('button', { name: /Front, row 1 column 1/ }));
+    const swatches = within(screen.getByRole('radiogroup', { name: 'Tile color' })).getAllByRole('radio');
+    expect(swatches.map((s) => s.textContent).join('')).toBe('WYGBRO');
   });
 
   it('explains an unreadable cube with tips and a retry', () => {
