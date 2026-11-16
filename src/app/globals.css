@@ -1,195 +1,295 @@
 @import "tailwindcss";
 
 /*
- * Surface tokens. Components use bg-page, bg-raised, bg-overlay and bg-inset instead of
- * hard-coded colors, so a theme only has to redefine these variables.
+ * Cubyntra voxel design system (ADR-011).
+ *
+ * Flat colors only: no gradients, blur, glow, glass or text-shadow. Depth comes from
+ * two-tone block faces (a light top lip, a darker bottom edge) and hard offset shadows with
+ * zero blur. Every color in the app is one of the tokens below; tests/design-rules.test.ts
+ * fails on a hex color anywhere outside this block.
+ *
+ * The resolved theme lives on <html data-theme> (src/lib/theme.ts), set before first paint.
  */
+
+/* tokens:start */
 :root {
-  --background: #0a0b0d;
-  --foreground: #f8fafc;
+  /* Ground and surfaces */
+  --vx-ground: #EAF4E2;       /* mint page */
+  --vx-panel: #F7F3E3;        /* cream panel face */
+  --vx-panel-edge: #DCD3B0;   /* panel bottom edge */
+  --vx-well: #DCEBCF;         /* sunken wells, tracks, inputs */
 
-  --surface-page: #0a0b0d;
-  --surface-raised: #0d0f12;
-  --surface-overlay: #111318;
-  --surface-inset: #0a0b0e;
-  /* 3D stage radial gradient */
-  --stage-from: #1e2330;
-  --stage-to: #0c0e14;
-  /* Text on saturated fills (emerald and sky buttons) stays dark in every theme. */
-  --on-accent: #0a0b0d;
+  /* Text and lines */
+  --vx-ink: #2E4A22;          /* moss ink: body text, borders */
+  --vx-muted: #4D6841;        /* secondary text */
+  --vx-line: #2E4A22;         /* 2px and 4px block outlines */
+  --vx-line-soft: #B9CFA8;    /* dividers inside a panel */
+  --vx-shadow: #B5CCA2;       /* hard offset shadow, an ink tint */
+  --vx-lip: #FFFFFF59;        /* light top lip of a block face */
 
-  /* Procedural background, as R G B triplets for use with alpha */
-  --hex-line: 255 255 255;
-  --hex-accent: 56 189 248;
-  --hex-vignette: 10 11 13;
+  /* Primary leaf */
+  --vx-leaf: #5FA83A;
+  --vx-leaf-edge: #3F7A24;
+  --vx-leaf-soft: #CFE6BD;
+  --vx-on-leaf: #1B2E13;
 
-  --scrollbar-track: rgba(15, 17, 21, 0.6);
-  --scrollbar-thumb: rgba(255, 255, 255, 0.15);
-  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.3);
+  /* Status */
+  --vx-warn: #E8B730;
+  --vx-warn-edge: #A9821A;
+  --vx-warn-soft: #F6E7B8;
+  --vx-danger: #B83A26;
+  --vx-danger-edge: #7E2516;
+  --vx-danger-soft: #F5D6CC;
+  --vx-on-danger: #FFF8EC;
+
+  --vx-focus: #1D5FB8;
+  --vx-scrim: #16210FB3;      /* dialog backdrop: flat, no blur */
+  --vx-qr-paper: #FFFFFF;     /* QR codes need a white quiet zone in every theme */
+
+  /* Cube stickers: the same flat colors in both themes */
+  --vx-sticker-white: #F4F4EE;
+  --vx-sticker-yellow: #F2CF1D;
+  --vx-sticker-red: #C8352E;
+  --vx-sticker-orange: #F07A1A;
+  --vx-sticker-blue: #2F6CD0;
+  --vx-sticker-green: #1F9A4A;
+  --vx-sticker-core: #1B2E13; /* plastic between stickers */
+
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  --vx-ground: #16210F;       /* deep moss */
+  --vx-panel: #1F2D16;
+  --vx-panel-edge: #121C0C;
+  --vx-well: #111A0B;
+
+  --vx-ink: #E4EFD8;
+  --vx-muted: #A7BF98;
+  --vx-line: #0B1306;
+  --vx-line-soft: #33472A;
+  --vx-shadow: #0B1306;
+  --vx-lip: #FFFFFF1F;
+
+  --vx-leaf-soft: #2B4420;
+  --vx-warn-soft: #3D3210;
+  --vx-danger-soft: #43190F;
+
+  --vx-focus: #8CC4FF;
+  --vx-scrim: #05080399;
 
   color-scheme: dark;
 }
+/* tokens:end */
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-page: var(--surface-page);
-  --color-raised: var(--surface-raised);
-  --color-overlay: var(--surface-overlay);
-  --color-inset: var(--surface-inset);
-  --color-on-accent: var(--on-accent);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+  /* Legacy surface names, kept until every component is on the voxel tokens. */
+  --color-background: var(--vx-ground);
+  --color-foreground: var(--vx-ink);
+  --color-page: var(--vx-ground);
+  --color-raised: var(--vx-panel);
+  --color-overlay: var(--vx-panel);
+  --color-inset: var(--vx-well);
+  --color-on-accent: var(--vx-on-leaf);
 
-/*
- * Light theme. Tailwind compiles every color class to a CSS variable, so remapping the
- * palette here re-themes the whole app without per-component classes:
- *  - neutrals are inverted, so dark surfaces become light and muted text becomes mid-gray;
- *  - white and black swap, so white primary buttons become ink buttons;
- *  - accent tints (900-950) become pale tints, and light accent text (300-400) becomes the
- *    darker 700-800 shades so small text keeps contrast on white. Solid 500-600 fills stay.
- * Generated from tailwindcss/theme.css values.
- */
-:root[data-theme="light"] {
-  --background: #f5f6f8;
-  --foreground: #0f172a;
+  --color-ground: var(--vx-ground);
+  --color-panel: var(--vx-panel);
+  --color-panel-edge: var(--vx-panel-edge);
+  --color-well: var(--vx-well);
+  --color-ink: var(--vx-ink);
+  --color-muted: var(--vx-muted);
+  --color-line: var(--vx-line);
+  --color-line-soft: var(--vx-line-soft);
+  --color-shadow: var(--vx-shadow);
+  --color-leaf: var(--vx-leaf);
+  --color-leaf-edge: var(--vx-leaf-edge);
+  --color-leaf-soft: var(--vx-leaf-soft);
+  --color-on-leaf: var(--vx-on-leaf);
+  --color-warn: var(--vx-warn);
+  --color-warn-edge: var(--vx-warn-edge);
+  --color-warn-soft: var(--vx-warn-soft);
+  --color-danger: var(--vx-danger);
+  --color-danger-edge: var(--vx-danger-edge);
+  --color-danger-soft: var(--vx-danger-soft);
+  --color-on-danger: var(--vx-on-danger);
+  --color-focus: var(--vx-focus);
+  --color-scrim: var(--vx-scrim);
+  --color-qr-paper: var(--vx-qr-paper);
+  --color-sticker-white: var(--vx-sticker-white);
+  --color-sticker-yellow: var(--vx-sticker-yellow);
+  --color-sticker-red: var(--vx-sticker-red);
+  --color-sticker-orange: var(--vx-sticker-orange);
+  --color-sticker-blue: var(--vx-sticker-blue);
+  --color-sticker-green: var(--vx-sticker-green);
+  --color-sticker-core: var(--vx-sticker-core);
 
-  --surface-page: #f5f6f8;
-  --surface-raised: #ffffff;
-  --surface-overlay: #ffffff;
-  --surface-inset: #f1f3f6;
-  --stage-from: #ffffff;
-  --stage-to: #e3e7ed;
+  --shadow-block: 4px 4px 0 0 var(--vx-shadow);
+  --shadow-block-sm: 2px 2px 0 0 var(--vx-shadow);
 
-  --hex-line: 15 23 42;
-  --hex-accent: 2 132 199;
-  --hex-vignette: 245 246 248;
+  --font-sans: var(--font-body);
+  --font-display: var(--font-pixel);
+  --font-mono: var(--font-code);
 
-  --scrollbar-track: rgba(15, 23, 42, 0.04);
-  --scrollbar-thumb: rgba(15, 23, 42, 0.18);
-  --scrollbar-thumb-hover: rgba(15, 23, 42, 0.32);
-
-  color-scheme: light;
-
-  --color-white: oklch(14.5% 0 none);
-  --color-black: #ffffff;
-  --color-neutral-50: oklch(14.5% 0 none);
-  --color-neutral-100: oklch(20.5% 0 none);
-  --color-neutral-200: oklch(26.9% 0 none);
-  --color-neutral-300: oklch(37.1% 0 none);
-  --color-neutral-400: oklch(43.9% 0 none);
-  --color-neutral-500: oklch(55.6% 0 none);
-  --color-neutral-600: oklch(70.8% 0 none);
-  --color-neutral-700: oklch(87% 0 none);
-  --color-neutral-800: oklch(92.2% 0 none);
-  --color-neutral-900: oklch(97% 0 none);
-  --color-neutral-950: oklch(98.5% 0 none);
-  --color-sky-50: oklch(29.3% 0.066 243.157);
-  --color-sky-100: oklch(39.1% 0.09 240.876);
-  --color-sky-200: oklch(44.3% 0.11 240.79);
-  --color-sky-300: oklch(44.3% 0.11 240.79);
-  --color-sky-400: oklch(50% 0.134 242.749);
-  --color-sky-700: oklch(82.8% 0.111 230.318);
-  --color-sky-800: oklch(90.1% 0.058 230.902);
-  --color-sky-900: oklch(95.1% 0.026 236.824);
-  --color-sky-950: oklch(97.7% 0.013 236.62);
-  --color-emerald-50: oklch(26.2% 0.051 172.552);
-  --color-emerald-100: oklch(37.8% 0.077 168.94);
-  --color-emerald-200: oklch(43.2% 0.095 166.913);
-  --color-emerald-300: oklch(43.2% 0.095 166.913);
-  --color-emerald-400: oklch(50.8% 0.118 165.612);
-  --color-emerald-700: oklch(84.5% 0.143 164.978);
-  --color-emerald-800: oklch(90.5% 0.093 164.15);
-  --color-emerald-900: oklch(95% 0.052 163.051);
-  --color-emerald-950: oklch(97.9% 0.021 166.113);
-  --color-amber-50: oklch(27.9% 0.077 45.635);
-  --color-amber-100: oklch(41.4% 0.112 45.904);
-  --color-amber-200: oklch(47.3% 0.137 46.201);
-  --color-amber-300: oklch(47.3% 0.137 46.201);
-  --color-amber-400: oklch(55.5% 0.163 48.998);
-  --color-amber-700: oklch(87.9% 0.169 91.605);
-  --color-amber-800: oklch(92.4% 0.12 95.746);
-  --color-amber-900: oklch(96.2% 0.059 95.617);
-  --color-amber-950: oklch(98.7% 0.022 95.277);
-  --color-rose-50: oklch(27.1% 0.105 12.094);
-  --color-rose-100: oklch(41% 0.159 10.272);
-  --color-rose-200: oklch(45.5% 0.188 13.697);
-  --color-rose-300: oklch(45.5% 0.188 13.697);
-  --color-rose-400: oklch(51.4% 0.222 16.935);
-  --color-rose-700: oklch(81% 0.117 11.638);
-  --color-rose-800: oklch(89.2% 0.058 10.001);
-  --color-rose-900: oklch(94.1% 0.03 12.58);
-  --color-rose-950: oklch(96.9% 0.015 12.422);
-  --color-red-50: oklch(25.8% 0.092 26.042);
-  --color-red-100: oklch(39.6% 0.141 25.723);
-  --color-red-200: oklch(44.4% 0.177 26.899);
-  --color-red-300: oklch(44.4% 0.177 26.899);
-  --color-red-400: oklch(50.5% 0.213 27.518);
-  --color-red-700: oklch(80.8% 0.114 19.571);
-  --color-red-800: oklch(88.5% 0.062 18.334);
-  --color-red-900: oklch(93.6% 0.032 17.717);
-  --color-red-950: oklch(97.1% 0.013 17.38);
-  --color-orange-50: oklch(26.6% 0.079 36.259);
-  --color-orange-100: oklch(40.8% 0.123 38.172);
-  --color-orange-200: oklch(47% 0.157 37.304);
-  --color-orange-300: oklch(47% 0.157 37.304);
-  --color-orange-400: oklch(55.3% 0.195 38.402);
-  --color-orange-700: oklch(83.7% 0.128 66.29);
-  --color-orange-800: oklch(90.1% 0.076 70.697);
-  --color-orange-900: oklch(95.4% 0.038 75.164);
-  --color-orange-950: oklch(98% 0.016 73.684);
+  /* Motion: quick steps, and a small overshoot when a block lands. */
+  --ease-place: cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 body {
-  background-color: var(--background);
-  color: var(--foreground);
+  background-color: var(--vx-ground);
+  color: var(--vx-ink);
   overflow-x: hidden;
 }
 
-/* Technical scrollbars */
+h1,
+h2,
+h3 {
+  font-family: var(--font-pixel), var(--font-body), sans-serif;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+::selection {
+  background: var(--vx-leaf);
+  color: var(--vx-on-leaf);
+}
+
+/* One focus ring for everything: a solid 2px outline with a gap, never a glow. */
+:focus-visible {
+  outline: 2px solid var(--vx-focus);
+  outline-offset: 2px;
+}
+
+/* Square, flat scrollbars */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--scrollbar-track);
+  background: var(--vx-well);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--scrollbar-thumb);
-  border-radius: 9999px;
+  background: var(--vx-line-soft);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--scrollbar-thumb-hover);
+  background: var(--vx-muted);
 }
 
-/* Motion: a few short, purposeful entrances. Everything stops under reduced motion. */
-@keyframes cb-rise {
-  from { opacity: 0; transform: translateY(6px) scale(0.98); }
-  to { opacity: 1; transform: none; }
+/*
+ * Blocks. A block is a flat face inside a 2px outline, with a light lip along the top and a
+ * darker edge along the bottom. Variants only swap the three face colors.
+ */
+.vx-block {
+  --vx-face: var(--vx-panel);
+  --vx-edge: var(--vx-panel-edge);
+  --vx-text: var(--vx-ink);
+  background-color: var(--vx-face);
+  color: var(--vx-text);
+  border: 2px solid var(--vx-line);
+  box-shadow:
+    inset 0 2px 0 0 var(--vx-lip),
+    inset 0 -4px 0 0 var(--vx-edge),
+    2px 2px 0 0 var(--vx-shadow);
+  transition:
+    transform 80ms steps(2, end),
+    box-shadow 80ms steps(2, end);
 }
 
-@keyframes cb-turn-in {
-  from { opacity: 0; transform: rotate(-14deg) scale(0.9); }
-  to { opacity: 1; transform: none; }
+.vx-block[data-variant="primary"] {
+  --vx-face: var(--vx-leaf);
+  --vx-edge: var(--vx-leaf-edge);
+  --vx-text: var(--vx-on-leaf);
 }
 
-@keyframes cb-flash {
+.vx-block[data-variant="danger"] {
+  --vx-face: var(--vx-danger);
+  --vx-edge: var(--vx-danger-edge);
+  --vx-text: var(--vx-on-danger);
+}
+
+.vx-block[data-variant="ghost"] {
+  --vx-face: transparent;
+  --vx-edge: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.vx-block[data-variant="ghost"]:hover:not(:disabled) {
+  --vx-face: var(--vx-well);
+}
+
+.vx-block:hover:not(:disabled):not([data-variant="ghost"]) {
+  transform: translateY(-1px);
+}
+
+/* Pressed: the block sinks 2px and its bottom edge shrinks from 4px to 2px. */
+.vx-block:active:not(:disabled):not([data-variant="ghost"]),
+.vx-block[aria-pressed="true"]:not([data-variant="ghost"]) {
+  transform: translateY(2px);
+  box-shadow:
+    inset 0 2px 0 0 var(--vx-lip),
+    inset 0 -2px 0 0 var(--vx-edge);
+}
+
+.vx-block:disabled {
+  cursor: not-allowed;
+  --vx-face: var(--vx-well);
+  --vx-edge: var(--vx-well);
+  --vx-text: var(--vx-muted);
+  border-color: var(--vx-line-soft);
+  box-shadow: none;
+}
+
+/* A panel is a large block: thicker bottom edge, 4px hard shadow. */
+.vx-panel {
+  background-color: var(--vx-panel);
+  color: var(--vx-ink);
+  border: 2px solid var(--vx-line);
+  box-shadow:
+    inset 0 -4px 0 0 var(--vx-panel-edge),
+    4px 4px 0 0 var(--vx-shadow);
+}
+
+.vx-well {
+  background-color: var(--vx-well);
+  border: 2px solid var(--vx-line-soft);
+}
+
+/* Motion: a block drops in with a small overshoot, in visible steps. */
+@keyframes vx-place {
+  0% { opacity: 0; transform: translateY(-8px); }
+  60% { opacity: 1; transform: translateY(2px); }
+  100% { opacity: 1; transform: none; }
+}
+
+@keyframes vx-pop {
+  0% { opacity: 0; transform: scale(0.85); }
+  70% { opacity: 1; transform: scale(1.06); }
+  100% { opacity: 1; transform: none; }
+}
+
+@keyframes vx-flash {
   from { opacity: 0.85; }
   to { opacity: 0; }
 }
 
-.cb-rise { animation: cb-rise 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
-.cb-turn-in { animation: cb-turn-in 320ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
-.cb-flash { animation: cb-flash 180ms ease-out both; }
+.vx-place, .cb-rise { animation: vx-place 200ms steps(3, end) both; }
+.vx-pop, .cb-turn-in { animation: vx-pop 240ms var(--ease-place) both; }
+.vx-flash, .cb-flash { animation: vx-flash 180ms steps(3, end) both; }
 
 @media (prefers-reduced-motion: reduce) {
-  .cb-rise,
-  .cb-turn-in,
-  .cb-flash {
-    animation: none;
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .vx-block:hover:not(:disabled):not([data-variant="ghost"]) {
+    transform: none;
   }
 }
