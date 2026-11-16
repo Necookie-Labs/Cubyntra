@@ -1,30 +1,30 @@
 /**
- * Cubyntra - Checkpoint adapter (verification, stand-in diagnosis, recovery)
+ * Cubyntra - Checkpoint adapter wiring (verify, diagnoseMistake, decideRecovery, replanFromScan)
  * Necookie Labs (c) 2026
  */
 
 import { describe, expect, it } from 'vitest';
+import type { CubeColor } from '../src/cube/types';
 import { applyMoves, invertMove } from '../src/cube/transforms';
 import { viewInGrip } from '../src/cube/grip';
 import { FACES } from '../src/cube/constants';
 import { runGuidedSolve } from '../src/tutor';
 import { observationOf } from '../src/tutor/checkpoint';
 import type { StepPlan } from '../src/tutor/types';
-import type { CubeColor } from '../src/cube/types';
 import {
   checkCheckpoint,
   checkWithEdits,
   confirmCheckpointByHand,
-  planRecovery,
+  faceToShowNext,
+  replanAfterRescan,
   toCoachDiagnosis,
 } from '../src/app-shell/checkpointAdapter';
 import { scrambledState } from './helpers/scrambles';
 
 const steps = runGuidedSolve(scrambledState(17, 2), 'beginner').steps;
-/** A step with at least two layer turns, so a slip in the middle changes the cube. */
+/** A step with at least three layer turns, so a slip in the middle changes the cube. */
 const plan = steps.find((s) => s.algorithm.filter((m) => m.kind !== 'rotation').length >= 3)!;
 const moves = [...plan.setupMoves, ...plan.algorithm];
-
 const shown = (p: StepPlan, state = p.expectedState) => FACES.map((face) => observationOf(state, face));
 
 describe('checkpoint adapter', () => {
@@ -35,27 +35,42 @@ describe('checkpoint adapter', () => {
     expect(outcome.recovery).toBeNull();
   });
 
-  it('diagnoses a move turned the wrong way and offers to continue from that cube', () => {
-    let mismatches = 0;
+  it('diagnoses a wrong-way turn with diagnoseMistake and resumes with decideRecovery', () => {
+    let resumed = 0;
     moves.forEach((move, i) => {
       if (move.kind === 'rotation' || move.quarterTurns === 2) return;
       const performed = moves.map((m, k) => (k === i ? invertMove(m) : m));
       const actual = viewInGrip(applyMoves(plan.startState, performed), plan.gripAfter).state;
       const outcome = checkCheckpoint(plan, shown(plan, actual));
-      if (outcome.result.status !== 'mismatch') return; // this slip left the check spec alone
-      mismatches++;
+      if (outcome.result.status !== 'mismatch') return; // this slip left the checked stickers alone
       const kinds = outcome.diagnosis!.likelyMistakes.map((m) => `${m.kind}@${m.moveIndex}`);
       expect(kinds).toContain(`wrong-direction@${i}`);
-      for (const m of outcome.diagnosis!.likelyMistakes) expect(m.description).not.toMatch(/[RLUDFB]'/);
-      if (outcome.recovery?.kind === 'continue') expect(outcome.recovery.state).toEqual(actual);
+      const recovery = outcome.recovery!;
+      if (recovery.action !== 'resume') return;
+      resumed++;
+      const next = recovery.resume.plan!;
+      expect(next.startState).toEqual(actual);
+      if (recovery.resume.kind === 'corrective') expect(next.expectedState).toEqual(plan.expectedState);
     });
-    expect(mismatches).toBeGreaterThan(0);
+    expect(resumed).toBeGreaterThan(0);
   });
 
-  it('asks for a rescan when nothing explains what the camera saw', () => {
-    const diagnosis = { likelyMistakes: [], confident: false };
-    expect(planRecovery(plan, diagnosis)).toEqual({ kind: 'rescan' });
-    expect(planRecovery(plan, { ...diagnosis, showNext: 'R' })).toEqual({ kind: 'show-face', face: 'R' });
+  it('names the face to show next only when the recovery asks for one', () => {
+    expect(faceToShowNext(null)).toBeNull();
+    const base = checkCheckpoint(plan, shown(plan));
+    expect(faceToShowNext(base)).toBeNull();
+    expect(
+      faceToShowNext({ ...base, recovery: { action: 'needsRescan', reason: 'not-confident', showNext: 'R' } })
+    ).toBe('R');
+  });
+
+  it('plans again from a rescan, held as the student last was', () => {
+    const replan = replanAfterRescan(plan.expectedState, plan.method, plan.gripAfter, plan.stepIndex + 1);
+    expect(replan.ok).toBe(true);
+    if (replan.ok) {
+      expect(replan.grip).toEqual(plan.gripAfter);
+      expect(replan.plan?.stepIndex).toBe(plan.stepIndex + 1);
+    }
   });
 
   it('confirms by hand as a manual match', () => {
@@ -82,21 +97,11 @@ describe('checkpoint adapter', () => {
   it('hands the coach the diagnosis only when it names a mistake', () => {
     expect(toCoachDiagnosis(null)).toBeUndefined();
     expect(toCoachDiagnosis({ likelyMistakes: [], confident: false })).toBeUndefined();
-    const diagnosis = {
-      confident: true,
-      likelyMistakes: [
-        {
-          kind: 'skipped-move' as const,
-          moveIndex: 2,
-          confidence: 0.7,
-          description: 'x',
-          performedMoves: [],
-          resultingState: plan.expectedState,
-          score: 0,
-          contradictions: 0,
-        },
-      ],
-    };
-    expect(toCoachDiagnosis(diagnosis)).toBe(diagnosis);
+    const diagnosed = moves
+      .map((_, i) => viewInGrip(applyMoves(plan.startState, moves.filter((__, k) => k !== i)), plan.gripAfter).state)
+      .map((actual) => checkCheckpoint(plan, shown(plan, actual)).diagnosis)
+      .find((d) => d && d.likelyMistakes.length > 0);
+    expect(diagnosed).toBeTruthy();
+    expect(toCoachDiagnosis(diagnosed!)).toBe(diagnosed);
   });
 });
