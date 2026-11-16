@@ -21,3 +21,17 @@ export { PLL_CORNER_CASES, PLL_EDGE_CASES } from './cases/pll2look';
 export { crossDistance, solveCross } from './crossSearch';
 export { countTurns } from './helpers';
 export { CASE_IDS, caseIdsOf } from './caseIds';
+export {
+  MIN_STICKER_CONFIDENCE,
+  applyTileEdits,
+  confirmManually,
+  describeFace,
+  observationOf,
+  observeFace,
+  verifyCheckpoint,
+} from './checkpoint';
+export type { CheckpointOptions, TileEdit } from './checkpoint';
+export { MISTAKE_PRIORS, diagnoseMistake, enumerateMistakes } from './diagnose';
+export type { DiagnoseOptions, MistakeCandidate } from './diagnose';
+export { MAX_CORRECTIVE_TURNS, decideRecovery, replanFromScan, resumeFrom } from './recovery';
+export type { Recovery, RecoveryOptions, ResumePlan, ScanReplan } from './recovery';
