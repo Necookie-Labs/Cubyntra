@@ -29,7 +29,6 @@ describe('src/lib/tokens mirrors globals.css', () => {
   it('theme tokens match each theme', () => {
     for (const [theme, values] of [['light', light], ['dark', dark]] as const) {
       expect(TWIN_THEME_HEX[theme].ink, theme).toBe(values['--vx-ink']);
-      expect(TWIN_THEME_HEX[theme].leaf, theme).toBe(values['--vx-leaf']);
       expect(TWIN_THEME_HEX[theme].focus, theme).toBe(values['--vx-focus']);
     }
   });

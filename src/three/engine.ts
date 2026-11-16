@@ -18,6 +18,7 @@ import { moveLayers } from '../cube/transforms';
 import type { Layer } from '../cube/geometry';
 import { CubieMesh, VoxelKit } from './cubie';
 import { MoveArrow } from './arrows';
+import { TWIN_THEME_HEX, type ThemeName } from '../lib/tokens';
 
 interface QueuedMove {
   move: CubeMove;
@@ -106,6 +107,7 @@ export class CubeEngine {
 
   // Geometries and materials shared by all 27 cubies (disposed with the engine).
   private kit: VoxelKit;
+  private theme: ThemeName = 'light';
 
   private timer = new THREE.Timer();
   private elapsedS = 0;
@@ -284,6 +286,15 @@ export class CubeEngine {
       this.pendingSync = null;
       this.syncWithCubeState(state);
     }
+  }
+
+  /**
+   * Matches the twin's guidance colors to the page theme. Sticker colors are the same in both
+   * themes; the arrows use the theme's ink so they contrast with the page behind them.
+   */
+  public setTheme(theme: ThemeName): void {
+    this.theme = theme;
+    this.moveArrow.setColor(TWIN_THEME_HEX[theme].ink);
   }
 
   /**

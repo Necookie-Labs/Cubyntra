@@ -11,7 +11,7 @@ import { CubeColor, CubeMove, CubeState, Face } from '../src/cube/types';
 import { CANONICAL_CENTER_COLORS, createSolvedCubeState } from '../src/cube/constants';
 import { applyMoves, invertAlgorithm, parseAlgorithm } from '../src/cube/transforms';
 import type { CubieMesh } from '../src/three/cubie';
-import { STICKER_HEX } from '../src/lib/tokens';
+import { STICKER_HEX, TWIN_THEME_HEX } from '../src/lib/tokens';
 
 vi.mock('three', async (importOriginal) => {
   const actual = await importOriginal<typeof import('three')>();
@@ -375,6 +375,14 @@ describe('CubeEngine resources', () => {
     const spies = [kit.bodyGeometry, kit.tileGeometry, ...kit.materials()].map((r) => vi.spyOn(r, 'dispose'));
     engine.dispose();
     for (const spy of spies) expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  it('colors the arrows with the theme ink', () => {
+    const engine = makeEngine();
+    engine.setTheme('dark');
+    const arrow = (engine as unknown as { moveArrow: { material: THREE.MeshBasicMaterial } }).moveArrow;
+    expect(`#${arrow.material.color.getHexString()}`).toBe(TWIN_THEME_HEX.dark.ink.toLowerCase());
+    engine.dispose();
   });
 
   it('renders without tone mapping, so token colors reach the screen unchanged', () => {

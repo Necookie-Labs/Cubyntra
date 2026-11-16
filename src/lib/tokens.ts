@@ -24,18 +24,18 @@ export const STICKER_HEX: Readonly<Record<CubeColor, string>> = {
 /** Plastic between the stickers (`--vx-sticker-core`). */
 export const STICKER_CORE_HEX = '#1B2E13';
 
-/** Theme-dependent tokens the twin draws with (outlines and guidance). */
+/**
+ * Theme-dependent tokens the twin draws guidance with. Arrows and the slot outline sit over
+ * the page background, so they use the two tokens built to contrast with it in each theme.
+ */
 export interface TwinThemeTokens {
-  /** `--vx-ink`: slot outline. */
+  /** `--vx-ink`: move arrows. */
   ink: string;
-  /** `--vx-leaf`: move arrows. */
-  leaf: string;
-  /** `--vx-focus`: reserved for focus-style emphasis. */
+  /** `--vx-focus`: the target-slot outline. */
   focus: string;
 }
 
 export const TWIN_THEME_HEX: Readonly<Record<ThemeName, TwinThemeTokens>> = {
-  light: { ink: '#2E4A22', leaf: '#5FA83A', focus: '#1D5FB8' },
-  // --vx-leaf is not overridden in the dark theme.
-  dark: { ink: '#E4EFD8', leaf: '#5FA83A', focus: '#8CC4FF' },
+  light: { ink: '#2E4A22', focus: '#1D5FB8' },
+  dark: { ink: '#E4EFD8', focus: '#8CC4FF' },
 };
