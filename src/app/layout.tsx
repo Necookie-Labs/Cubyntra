@@ -23,7 +23,7 @@ const code = Geist_Mono({
 export const metadata: Metadata = {
   title: "Cubyntra — Computer Vision Rubik's Cube Scanner & Solver",
   description:
-    "High-precision, 100% client-side Computer Vision Rubik's Cube scanner, state validator, solver, and interactive 3D digital twin by Necookie Labs. See it. Solve it.",
+    "Rubik's Cube scanner, state validator, solver and interactive 3D digital twin by Necookie Labs, running on your own computer. Camera images never leave the device that took them. See it. Solve it.",
   icons: {
     icon: '/favicon.ico',
   },

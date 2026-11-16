@@ -7,6 +7,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { useCompanion } from '@/sync/CompanionSyncProvider';
+import { formatPairingCode } from '@/sync/pairingCode';
 import { FACES, CANONICAL_CENTER_COLORS } from '@/cube/constants';
 import {
   Smartphone,
@@ -16,7 +17,6 @@ import {
   ExternalLink,
   RefreshCw,
   Loader2,
-  RotateCcw,
   AlertTriangle,
 } from 'lucide-react';
 import { BlockButton, Chip, Dialog, IconButton, stickerColor } from '@/components/ui';
@@ -34,10 +34,12 @@ export const MobilePairingModal: React.FC<MobilePairingModalProps> = ({
 }) => {
   const {
     sessionId,
+    code,
     qrDataUrl,
     companionUrl,
+    companionBaseUrl,
     availableIps,
-    setCustomUrl,
+    selectHost,
     isCreating,
     mobileConnected,
     error,
@@ -84,7 +86,7 @@ export const MobilePairingModal: React.FC<MobilePairingModalProps> = ({
       onClose={onClose}
       icon={<Smartphone className="w-5 h-5" />}
       title="Scan with your phone"
-      description="Point your phone camera at the code to take sharp, glare-free photos. Nothing to install."
+      description="Point your phone camera at the code. Your phone reads the colors itself and sends only the colors here, never photos. Nothing to install."
       footer={
         <>
           {onSwitchToWebcam && (
@@ -113,6 +115,22 @@ export const MobilePairingModal: React.FC<MobilePairingModalProps> = ({
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={qrDataUrl} alt="Companion QR Code" className="w-52 h-52 object-contain [image-rendering:pixelated]" />
             </div>
+
+            {/* Typed code, for when the QR code cannot be scanned */}
+            {code && companionBaseUrl && (
+              <div className="flex flex-col items-center gap-1 text-center">
+                <span className="text-xs text-muted">
+                  Can’t scan it? Open <span className="font-mono text-ink">{companionBaseUrl}</span> on your phone
+                  and type
+                </span>
+                <span
+                  aria-label={`Pairing code ${code.split('').join(' ')}`}
+                  className="font-mono text-2xl font-bold tracking-widest text-ink"
+                >
+                  {formatPairingCode(code)}
+                </span>
+              </div>
+            )}
 
             {/* Status */}
             {mobileConnected ? (
@@ -161,17 +179,14 @@ export const MobilePairingModal: React.FC<MobilePairingModalProps> = ({
             </div>
             <div className="flex flex-wrap gap-2">
               {availableIps.map((ip) => {
-                const isSelected = Boolean(companionUrl?.includes(ip));
+                const isSelected = Boolean(companionBaseUrl?.includes(`//${ip}`));
                 return (
                   <button
                     key={ip}
                     type="button"
                     aria-pressed={isSelected}
                     onClick={() => {
-                      if (!sessionId) return;
-                      const proto = typeof window !== 'undefined' ? window.location.protocol : 'http:';
-                      const port = typeof window !== 'undefined' && window.location.port ? `:${window.location.port}` : ':3000';
-                      setCustomUrl(`${proto}//${ip}${port}/companion?session=${sessionId}`);
+                      if (sessionId) void selectHost(ip);
                     }}
                     className={`h-8 px-3 border-2 text-xs font-mono ${
                       isSelected
@@ -188,10 +203,11 @@ export const MobilePairingModal: React.FC<MobilePairingModalProps> = ({
         )}
 
         {/* Session Direct Link */}
-        {companionUrl && (
+        {companionUrl && companionBaseUrl && (
           <div className="flex items-center justify-between gap-2 w-full pl-3 pr-1 py-1 bg-panel border-2 border-line-soft text-xs text-muted font-mono">
+            {/* The pairing secret is in the copied link but never shown on screen. */}
             <span ref={linkRef} className="truncate max-w-[280px]">
-              {companionUrl}
+              {companionBaseUrl}
             </span>
             <div className="flex items-center gap-1 shrink-0">
               <span role="status" className="text-xs text-ink font-sans font-bold">
@@ -231,13 +247,7 @@ export const MobilePairingModal: React.FC<MobilePairingModalProps> = ({
               <li
                 key={face}
                 className={`h-16 border-2 flex flex-col items-center justify-center gap-1 ${
-                  status === 'accepted'
-                    ? 'bg-leaf-soft border-leaf-edge'
-                    : status === 'rejected'
-                    ? 'bg-warn-soft border-warn-edge'
-                    : status === 'analyzing'
-                    ? 'bg-panel border-line'
-                    : 'bg-panel border-line-soft'
+                  status === 'accepted' ? 'bg-leaf-soft border-leaf-edge' : 'bg-panel border-line-soft'
                 }`}
               >
                 <span aria-hidden className="w-4 h-4 border-2 border-line" style={{ backgroundColor: stickerColor(color) }} />
@@ -245,10 +255,6 @@ export const MobilePairingModal: React.FC<MobilePairingModalProps> = ({
                   {face}
                   {status === 'accepted' ? (
                     <CheckCircle2 className="w-3 h-3" aria-label="Read" />
-                  ) : status === 'analyzing' ? (
-                    <Loader2 className="w-3 h-3 animate-spin" aria-label="Reading" />
-                  ) : status === 'rejected' ? (
-                    <RotateCcw className="w-3 h-3" aria-label="Retake" />
                   ) : (
                     <span className="sr-only">waiting</span>
                   )}

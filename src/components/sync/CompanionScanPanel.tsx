@@ -4,17 +4,17 @@
  * Cubyntra - Desktop Progress Panel for a Phone Scan
  * Necookie Labs (c) 2026
  *
- * Shows each face as its photo lands from the phone and whether the desktop could read it.
+ * Shows each face's colors as the phone reads it. The phone does the reading; only colors reach
+ * this computer (ADR-015).
  */
 
 import React from 'react';
 import { useCompanion } from '@/sync/CompanionSyncProvider';
-import { FaceScanStatus } from '@/sync/useCompanionSync';
 import { useCubyntraStore } from '@/stores/useCubyntraStore';
 import { SCAN_SEQUENCE } from '@/cube/constants';
 import { Face } from '@/cube/types';
 import { BlockButton, Chip, ChipTone, Panel, ProgressBlocks, cx, stickerColor } from '@/components/ui';
-import { AlertTriangle, Camera, CheckCircle2, Link2, Loader2, QrCode, RotateCcw, Smartphone } from 'lucide-react';
+import { AlertTriangle, Camera, CheckCircle2, Link2, Loader2, QrCode, Smartphone } from 'lucide-react';
 
 const FACE_LABEL: Record<Face, string> = {
   U: 'Top',
@@ -43,28 +43,18 @@ const CONNECTION_STYLE: Record<Connection, { tone: ChipTone; Icon: typeof Link2;
   waiting: { tone: 'neutral', Icon: Smartphone, label: 'Waiting for your phone' },
 };
 
-const BADGE: Record<FaceScanStatus, string> = {
-  accepted: 'bg-leaf text-on-leaf',
-  rejected: 'bg-warn text-on-leaf',
-  analyzing: 'bg-panel text-ink',
-};
-
 export const CompanionScanPanel: React.FC<CompanionScanPanelProps> = ({
   onShowQr,
   onUseWebcam,
   onCancel,
   onNewPairing,
 }) => {
-  const { mobileConnected, isConnected, sessionEnded, sessionId, faceStatus, faceReasons, lastPhotos } =
-    useCompanion();
+  const { mobileConnected, isConnected, sessionEnded, sessionId } = useCompanion();
   const scannedFaces = useCubyntraStore((s) => s.scannedFaces);
 
-  // Older phones send colors instead of photos; count those as read too.
-  const statusOf = (face: Face): FaceScanStatus | undefined =>
-    faceStatus[face] ?? (scannedFaces[face] ? 'accepted' : undefined);
-
-  const doneCount = SCAN_SEQUENCE.filter((s) => statusOf(s.face) === 'accepted').length;
-  const nextStep = SCAN_SEQUENCE.find((s) => statusOf(s.face) !== 'accepted');
+  const isRead = (face: Face) => Boolean(scannedFaces[face]);
+  const doneCount = SCAN_SEQUENCE.filter((s) => isRead(s.face)).length;
+  const nextStep = SCAN_SEQUENCE.find((s) => !isRead(s.face));
 
   // A stream that has not opened yet is "waiting", not "reconnecting".
   const connection: Connection = sessionEnded
@@ -109,7 +99,7 @@ export const CompanionScanPanel: React.FC<CompanionScanPanelProps> = ({
             <p className="text-sm text-muted leading-relaxed">
               {connection === 'reconnecting'
                 ? 'The connection dropped. Reconnecting on its own; keep your phone on this page.'
-                : 'Take each photo on your phone. It shows up here within a second and is read on this computer.'}
+                : 'Your phone reads each face and sends only its colors here. No photos leave your phone.'}
             </p>
           )}
         </div>
@@ -125,8 +115,7 @@ export const CompanionScanPanel: React.FC<CompanionScanPanelProps> = ({
 
       <ol className="grid grid-cols-3 gap-4">
         {SCAN_SEQUENCE.map((step) => {
-          const status = statusOf(step.face);
-          const photo = lastPhotos[step.face];
+          const scanned = scannedFaces[step.face];
           const isNext = nextStep?.face === step.face;
           const sticker = stickerColor(step.centerColor);
 
@@ -135,22 +124,19 @@ export const CompanionScanPanel: React.FC<CompanionScanPanelProps> = ({
               <div
                 className={cx(
                   'relative aspect-square overflow-hidden border-2 transition-colors duration-100',
-                  status === 'accepted'
-                    ? 'border-leaf-edge shadow-block-sm'
-                    : status === 'rejected'
-                    ? 'border-warn-edge shadow-block-sm'
-                    : status === 'analyzing' || isNext
-                    ? 'border-line shadow-block-sm'
-                    : 'border-line-soft'
+                  scanned ? 'border-leaf-edge shadow-block-sm' : isNext ? 'border-line shadow-block-sm' : 'border-line-soft'
                 )}
               >
-                {photo ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={photo}
-                    alt={`${FACE_LABEL[step.face]} face photo`}
-                    className={cx('w-full h-full object-cover', status === 'rejected' && 'opacity-50')}
-                  />
+                {scanned ? (
+                  <div
+                    role="img"
+                    aria-label={`${FACE_LABEL[step.face]} face colors: ${scanned.stickers.join(', ')}`}
+                    className="grid grid-cols-3 gap-0.5 w-full h-full p-1 bg-line"
+                  >
+                    {scanned.stickers.map((color, i) => (
+                      <span key={i} style={{ backgroundColor: stickerColor(color) }} />
+                    ))}
+                  </div>
                 ) : (
                   <div className="w-full h-full grid place-items-center bg-well">
                     <span
@@ -160,18 +146,9 @@ export const CompanionScanPanel: React.FC<CompanionScanPanelProps> = ({
                   </div>
                 )}
 
-                {status && (
-                  <span
-                    className={cx(
-                      'absolute top-1 right-1 grid place-items-center w-6 h-6 border-2 border-line',
-                      BADGE[status]
-                    )}
-                  >
-                    {status === 'accepted' && <CheckCircle2 className="w-4 h-4" aria-label="Read" />}
-                    {status === 'analyzing' && (
-                      <Loader2 className="w-4 h-4 animate-spin motion-reduce:animate-none" aria-label="Reading" />
-                    )}
-                    {status === 'rejected' && <RotateCcw className="w-4 h-4" aria-label="Needs a retake" />}
+                {scanned && (
+                  <span className="absolute top-1 right-1 grid place-items-center w-6 h-6 border-2 border-line bg-leaf text-on-leaf">
+                    <CheckCircle2 className="w-4 h-4" aria-label="Read" />
                   </span>
                 )}
               </div>
@@ -180,11 +157,6 @@ export const CompanionScanPanel: React.FC<CompanionScanPanelProps> = ({
                 <span className="w-3 h-3 border-2 border-line" style={{ backgroundColor: sticker }} />
                 <span className={isNext ? 'text-ink font-bold' : 'text-muted'}>{FACE_LABEL[step.face]}</span>
               </div>
-              {status === 'rejected' && faceReasons[step.face] && (
-                <p className="text-xs leading-snug text-ink bg-warn-soft border-2 border-warn-edge p-1">
-                  {faceReasons[step.face]}
-                </p>
-              )}
             </li>
           );
         })}

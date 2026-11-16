@@ -43,3 +43,8 @@ The phone companion now sends each face as a small JPEG crop of the cube to the 
 
 - **Webcam scanning:** unchanged. Frames never leave the browser.
 - **Phone scanning:** photos pass through the server in memory only, capped at 1.5 MB, are never written to disk, and are deleted once the user confirms the scan. Color reading still happens entirely in the user's desktop browser; no vision runs on the server.
+
+---
+
+## Amendment (2026-11-17, [ADR-015](015-state-only-sync.md))
+The 2026-09-29 narrowing above is withdrawn. The phone now reads each face itself and sends only colors, confidences and tile mean colors to the laptop; no photo passes through the server. The original decision holds again for every scan path: camera pixels never leave the device that captured them.

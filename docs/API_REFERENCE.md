@@ -177,8 +177,9 @@ interface CubyntraStore {
   currentStepIndex: number;                               // next SCAN_SEQUENCE step still missing
   scannedFaces: Partial<Record<Face, ScannedFace>>;       // provisional colors per face
   faceSamples: Partial<Record<Face, StickerSample[]>>;    // raw tile measurements for resolution
-  faceImages: Partial<Record<Face, string>>;              // desktop-local photos for review
   resolution: ResolvedCube | null;                        // flags, rotated faces, duplicates
+  manualEdits: Partial<Record<Face, Partial<Record<number, CubeColor>>>>; // hand fixes, re-applied on re-resolution
+  pendingFaces: Partial<Record<Face, StickerSample[]>>;   // phone readings held during review
   cubeState: CubeState;
   originalScrambleState: CubeState;
   validationResult: ValidationResult | null;
@@ -190,8 +191,10 @@ interface CubyntraStore {
 
   startScanning(): void;                                  // webcam
   startCompanionScan(): void;                             // phone
-  ingestFaceSamples(face: Face, samples: StickerSample[], imageDataUrl?: string): void;
+  ingestFaceSamples(face: Face, samples: StickerSample[]): void;
   setReviewSticker(face: Face, index: number, color: CubeColor): void; // centers locked
+  applyPendingFaces(): void;                              // use held phone readings, keep other fixes
+  discardPendingFaces(): void;
   confirmReview(): Promise<void>;                         // solves only a valid cube
   rescanFace(face: Face): void;
   captureFace(face: ScannedFace): Promise<void>;          // legacy nine-color path
@@ -201,11 +204,12 @@ interface CubyntraStore {
   togglePlay(): void;
   setPlaybackSpeed(speed: number): void;
   resetToScramble(): void;
+  seekToMove(index: number): void;                        // jump without animating; pauses
   resetAll(): void;
 }
 ```
 
-`ingestFaceSamples` is keyed by face, so faces may arrive in any order. When all six are present it calls `resolveCubeColors` and enters `reviewing`.
+`ingestFaceSamples` is keyed by face, so faces may arrive in any order. When all six are present it calls `resolveCubeColors`, lays any hand fixes back over the result and enters `reviewing`. A face that arrives during `reviewing` while hand fixes exist is held in `pendingFaces` until the student chooses. `startScanning`, `startCompanionScan`, `loadMockScramble` and `resetAll` clear the previous cube, validation, samples, resolution and fixes; `resetAll` also clears `cameraError`.
 
 ---
 
@@ -216,28 +220,62 @@ interface CubyntraStore {
 | `mapElementRectToVideo(target, videoBox, videoW, videoH): ROIBounds` | `sampling.ts` | Maps the on-screen reticle into camera-frame pixels under `object-fit: cover`. |
 | `assessCaptureQuality(input): CaptureQuality` | `captureQuality.ts` | Framing, right face, light, glare, steady; `topHint` is the one fix to show. |
 | `measureGlare(ctx, roi): number[]` | `captureQuality.ts` | Share of clipped pixels per tile. |
-| `analyzeFaceContext(ctx, w, h, face, knownCenters?): FaceAnalysis` | `faceImageAnalyzer.ts` | Per-face samples, ML verdict, wrong-face check, provisional colors. |
-| `analyzeFaceImage(dataUrl, face, knownCenters?): Promise<FaceAnalysis>` | `faceImageAnalyzer.ts` | Browser wrapper: decodes a JPEG data URL, then `analyzeFaceContext`. |
+| `analyzeFaceContext(ctx, w, h, face, knownCenters?): FaceAnalysis` | `faceImageAnalyzer.ts` | Per-face samples, ML verdict, wrong-face check, provisional colors. Runs on the phone. |
+| `faceScannedFromSamples(face, samples, colors)` / `samplesFromFaceScanned(payload)` | `src/sync/faceSamples.ts` | Phone: a face reading as a `face-scanned` message. Laptop: tile samples rebuilt from it. |
 | `resolveCubeColors(samplesByFace): ResolvedCube` | `resolveCubeColors.ts` | Calibrate, nine-per-color assignment, orientation repair, review flags. |
 
 ---
 
-## 6. Session Relay API (`src/app/api/session/`)
+## 6. Phone ↔ Laptop Sync API (`src/sync/`, `src/app/api/session/`)
 
-| Method & path | Caller | Body / query | Effect |
-|---|---|---|---|
-| `POST /api/session` | desktop | – | Creates a session; returns `sessionId`, `companionUrl` (best LAN address first) and `availableIps`. |
-| `GET /api/session/[id]/events?role=desktop\|mobile` | both | – | Server-Sent Events. Initial `STATE_SYNC`, then session events. |
-| `POST /api/session/[id]/face` | phone | `{ face, imageDataUrl, capturedAt, quality? }` | Holds the JPEG in memory and broadcasts `FACE_IMAGE`. `413` over 1.5 MB. The legacy `{ face, stickers[9] }` body is still accepted. |
-| `GET /api/session/[id]/face?face=X` | desktop | – | Returns the held photo (`Cache-Control: no-store`), or `404`. |
-| `POST /api/session/[id]/verdict` | desktop | `{ face, accepted, reason?, previewColors? }` | Broadcasts `FACE_VERDICT` to the phone. |
-| `POST /api/session/[id]/rescan` | desktop | `{ face }` | Broadcasts `RESCAN_REQUEST`. |
-| `POST /api/session/[id]/confirm` | desktop | – | Deletes every held photo; broadcasts `SCAN_CONFIRMED`. |
-| `POST /api/session/[id]/reset` | phone | – | "Scan another cube": clears faces and photos and broadcasts `SESSION_RESET` from `mobile`. The desktop then starts a fresh phone scan on the same pairing. |
+See [ADR-015](ADR/015-state-only-sync.md). State messages only; no route accepts or returns image
+data. Every route except the first two needs the session secret in `x-cubyntra-session`
+(404 unknown session, 403 missing or wrong secret).
 
-Each open event stream's 15 s keep-alive also refreshes the session (`touch`), so a connected pairing never expires while idle; sessions idle for 30 minutes are removed by `purgeExpired`. When a session no longer exists its stream is closed, and the desktop shows "Pairing ended" with a New QR code button.
+| Method & path | Caller | Auth | Body / query | Result |
+|:---|:---|:---|:---|:---|
+| `POST /api/session` | laptop | `x-cubyntra-token` (app token), 20/min | ignored (no `preferredId`) | `{ sessionId, secret, code, codeExpiresAt, companionUrl, availableIps, primaryIp }`. `401` bad token, `429`, `503` all 8 slots in use. |
+| `POST /api/session/pair` | phone | none, 10/min overall | `{ code }`, ≤ 1 KB | `{ sessionId, secret, token }`. Code is single-use, 10 min. `400`, `404` wrong/used/expired, `413`, `429`. |
+| `GET /api/session/[id]` | either | secret | – | `{ snapshot: SessionSnapshot }` |
+| `DELETE /api/session/[id]` | laptop | secret | – | Ends the session; open streams get `ended`. |
+| `GET /api/session/[id]/events?role=desktop\|mobile` | either | secret | – | `text/event-stream` of `data: StreamEvent`: `snapshot` first, then `message`, `connections`, `ping` (15 s, keeps the session alive), `ended`. |
+| `POST /api/session/[id]/messages` | either | secret, 600/min | `SyncMessageInput`, ≤ 16 KB (streaming cap) | `{ seq }`. `400` invalid, `413`, `429`. |
 
-Photos are kept in a map separate from `SessionState`, so session snapshots and `STATE_SYNC` never contain pixels. Request bodies are parsed by the pure functions in `src/sync/validation.ts`.
+```typescript
+// QR link (src/sync/pairingLink.ts): credentials in the fragment, never sent to a server
+buildPairingUrl(origin, { sessionId, secret, token }) // -> `${origin}/companion#s=…&k=…&t=…`
+parsePairingFragment(hash): PairingCredentials | null
+// Phone storage (src/sync/pairingStorage.ts): sessionStorage key 'cubyntra.pairing'
+takePairingFromLocation(window)                       // save + history.replaceState strip
+
+// Messages (src/sync/types.ts); the server adds { seq, at } -> SyncEvent
+type SyncMessageInput = { role: 'desktop' | 'mobile'; clientId: string } & (
+  | { type: 'cube-state'; payload: { state: CubeState } }
+  | { type: 'face-scanned'; payload: { face; colors: CubeColor[9]; confidences: number[9]; tileRgb: [r, g, b][9]; capturedAt } }
+  | { type: 'step'; payload: { method: 'solver' | 'beginner' | 'cfop'; stepIndex; planId; algorithm?; stepCount? } }
+  | { type: 'playback'; payload: { action: 'play' | 'pause' | 'seek' | 'index' | 'speed'; index?; speed? } }
+  | { type: 'grip'; payload: { top: CubeColor; front: CubeColor } }
+  | { type: 'checkpoint-result'; payload: { planId; stepIndex; result: 'matched' | 'mismatch' | 'unsure'; mistakes? } }
+  | { type: 'presence'; payload: { visible: boolean; screen?: 'pairing' | 'scan' | 'review' | 'solve' | 'idle' } }
+  | { type: 'scan-control'; payload: { action: 'rescan'; face } | { action: 'confirmed' } | { action: 'reset' } }
+);
+parseSyncMessage(body: unknown): { ok: true; value: SyncMessageInput } | { ok: false; error: string }
+
+// Browser transport (src/sync/syncClient.ts)
+openSyncStream({ sessionId, secret, role, onEvent, onStatus?, onEnded? }): { close() } // fetch-based, reconnects
+postSyncMessage(sessionId, secret, message): Promise<{ ok: true; seq } | { ok: false; status }>
+deleteSyncSession(sessionId, secret): Promise<void>  // keepalive
+
+// Hooks
+useCompanionSync()   // laptop: initSession (single-flight, cancelled on unmount), disconnect (DELETE),
+                     // selectHost, send, subscribe, requestRescan, confirmScan, connections, code, …
+useMobileSession(creds, { onEnded? }) // phone: sendFace, rejectFace, controlPlayback, startOver, …
+usePlaybackSync(sync) // laptop: publishes the solution, two-way playback (src/sync/playbackSync.ts)
+```
+
+Playback is last-writer-wins by the server's sequence number: each device applies playback messages
+in `seq` order, its own included; `index` reports are not re-applied by their sender, and the
+animating device ignores others' reports while it plays.
 
 ---
 
@@ -274,5 +312,5 @@ templateText(facts: CoachFacts): string
 
 // Server only (src/lib/localAuth.ts)
 getAppSecret(): string          // creates data/app-secret on first use
-getPairingToken(): string       // the value to put in the phone pairing QR (Phase 8)
+getPairingToken(): string       // the app token carried by the pairing QR / typed code
 ```

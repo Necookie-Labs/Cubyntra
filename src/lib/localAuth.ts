@@ -13,7 +13,7 @@
  * localhost / 127.0.0.1 / [::1], no proxy headers may be present, and a browser Origin, if
  * any, must be loopback too. A phone on the network reaches the laptop by its LAN address, so
  * its Host is never loopback. Limitation: a program on the LAN that forges `Host: localhost`
- * could still read the secret; the phone gets it from the pairing QR instead (Phase 8).
+ * could still read the secret; the phone gets it from the pairing QR code or typed code instead (ADR-015).
  */
 
 import fs from 'node:fs';
@@ -48,7 +48,7 @@ export function getAppSecret(): string {
 }
 
 /**
- * The secret to put in the phone pairing QR code (Phase 8). Same value as the app token: a
+ * The secret carried by the phone pairing QR code and typed code (ADR-015). Same value as the app token: a
  * paired phone is trusted like the laptop's own browser.
  */
 export function getPairingToken(): string {

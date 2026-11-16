@@ -1,6 +1,6 @@
 # ADR-010: Desktop-Side Photo Analysis & Global 54-Sticker Color Resolution
 
-**Status**: Accepted
+**Status**: Accepted (transport and privacy sections amended by ADR-015)
 **Date**: 2026-09-29
 **Deciders**: Necookie Labs Core Engineering Team
 **Amends**: [ADR-001](001-client-side-processing.md), [ADR-009](009-mobile-companion-qr-pairing.md)
@@ -65,3 +65,11 @@ The product also needed the scan to be trustworthy "when returning to the websit
 - **Privacy scope changes (amends ADR-001).** Phone photos, small JPEG crops of the cube, now pass through the Cubyntra server process on their way to the desktop. They are held in memory only, capped at 1.5 MB, never written to disk, and deleted once the user confirms. Webcam frames still never leave the browser. If Cubyntra is hosted by a third party rather than run locally, that host's server process handles the photos in memory.
 - **The relay needs one long-running server.** Sessions live in a single process's memory and use long-lived event streams. This was already true under ADR-009. Phone pairing works with `next dev`, `next start` or a container, but not on multi-instance serverless hosting.
 - **Deferred:** a WebRTC data channel (alternative 2) would keep photos off the server entirely. The relay stays as its fallback.
+
+---
+
+## Amendment (2026-11-17, [ADR-015](015-state-only-sync.md))
+- **Transport replaced.** Face analysis moved to the phone; the photo upload (`POST/GET /api/session/[id]/face`), verdict, rescan, confirm and reset routes and the in-memory image store are deleted. The phone sends nine colors, nine confidences and the nine tile mean colors per face, which the laptop turns back into tile samples for the same global resolution described above.
+- **Review.** The review screen no longer shows the photo crop of a tile; the student checks it against the cube in hand.
+- The privacy trade-off recorded under Consequences no longer applies: no photo passes through the server.
+- Global resolution, orientation repair, review flags and capture coaching are unchanged.

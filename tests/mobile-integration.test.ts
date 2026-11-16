@@ -5,67 +5,48 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import { sessionManager } from '../src/sync/sessionManager';
-import { CapturedFacePayload } from '../src/sync/types';
-import { SCAN_SEQUENCE, CANONICAL_CENTER_COLORS, createSolvedCubeState } from '../src/cube/constants';
+import { FaceScannedPayload, SyncMessageInput } from '../src/sync/types';
+import { parseSyncMessage } from '../src/sync/validation';
+import { SCAN_SEQUENCE, FACES, createSolvedCubeState } from '../src/cube/constants';
 import { validateCubeState } from '../src/cube/validator';
 import { solveCube } from '../src/solver/solver';
 import { CubeState, Face, FaceStickers } from '../src/cube/types';
 import { buildDynamicPalette, classifyWithDynamicPalette } from '../src/vision/dynamicCalibration';
 
 describe('Mobile Companion End-to-End Solve Pipeline', () => {
-  const sessionId = 'mob-test-e2e';
-
   beforeEach(() => {
     sessionManager.clearAll();
   });
 
-  it('completes 6-face mobile capture sequence and solves the reconstructed puzzle', async () => {
-    // 1. Desktop creates session
-    const session = sessionManager.createSession(sessionId);
-    expect(session.id).toBe(sessionId);
-
-    // 2. Mock a known scramble (e.g. R U R' U')
-    // For test simplicity, let's use a pristine solved state to verify complete end-to-end pipeline
+  it('relays six phone-read faces as state messages and solves the reconstructed puzzle', async () => {
+    const { id } = sessionManager.createSession()!;
     const solvedState = createSolvedCubeState();
 
-    // 3. Mobile submits all 6 faces in the exact SCAN_SEQUENCE order
+    // The phone reads each face itself and sends only colors, confidences and tile means.
     for (const step of SCAN_SEQUENCE) {
-      const face = step.face;
-      const stickers = solvedState[face];
-
-      const payload: CapturedFacePayload = {
-        face,
-        centerColor: CANONICAL_CENTER_COLORS[face],
-        stickers: [...stickers],
+      const payload: FaceScannedPayload = {
+        face: step.face,
+        colors: [...solvedState[step.face]],
         confidences: Array(9).fill(0.99),
-        thumbnail: 'data:image/jpeg;base64,/9j/4AAQSkZJRg...',
+        tileRgb: Array(9).fill([128, 128, 128]),
         capturedAt: Date.now(),
       };
-
-      const updated = sessionManager.recordFace(sessionId, payload);
-      expect(updated).not.toBeNull();
+      const parsed = parseSyncMessage({ type: 'face-scanned', payload, role: 'mobile', clientId: 'phone-e2e-1' });
+      expect(parsed.ok).toBe(true);
+      expect(sessionManager.publish(id, (parsed as { value: SyncMessageInput }).value)).not.toBeNull();
     }
 
-    const completedSession = sessionManager.getSession(sessionId);
-    expect(completedSession?.isComplete).toBe(true);
-    expect(Object.keys(completedSession?.scannedFaces || {}).length).toBe(6);
+    const faces = sessionManager.snapshot(id)!.faces;
+    expect(Object.keys(faces)).toHaveLength(6);
 
-    // 4. Reconstruct CubeState from the completed mobile session
-    const reconstructed: CubeState = {
-      U: completedSession!.scannedFaces.U!.stickers as FaceStickers,
-      R: completedSession!.scannedFaces.R!.stickers as FaceStickers,
-      F: completedSession!.scannedFaces.F!.stickers as FaceStickers,
-      D: completedSession!.scannedFaces.D!.stickers as FaceStickers,
-      L: completedSession!.scannedFaces.L!.stickers as FaceStickers,
-      B: completedSession!.scannedFaces.B!.stickers as FaceStickers,
-    };
+    const reconstructed = Object.fromEntries(
+      FACES.map((f: Face) => [f, faces[f]!.colors as FaceStickers])
+    ) as unknown as CubeState;
 
-    // 5. Run physical validation
     const validation = validateCubeState(reconstructed);
     expect(validation.valid).toBe(true);
     expect(validation.status).toBe('valid');
 
-    // 6. Compute solution
     const solution = await solveCube(reconstructed);
     expect(solution.success).toBe(true);
     expect(solution.moves).toBeDefined();

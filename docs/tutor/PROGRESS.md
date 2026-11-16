@@ -80,10 +80,10 @@ Checklist for `docs/tutor/GOAL.md`. Tick an item only when it is done and tested
 - [ ] Phase gate passed and pushed
 
 ## Phase 8: Sync
-- [ ] State-only sync; photo relay removed
-- [ ] Pairing secret and typed code
-- [ ] Two-way playback control
-- [ ] ADR-015 and privacy docs
+- [x] State-only sync; photo relay removed
+- [x] Pairing secret and typed code
+- [x] Two-way playback control (solver playback; `grip` and `checkpoint-result` are relayed but not consumed until the Phase 7 tutor screens)
+- [x] ADR-015 and privacy docs
 - [ ] Phase gate passed and pushed
 
 ## Phase 9: Learning features

@@ -1,11 +1,12 @@
 /**
- * Cubyntra - Desktop Face Photo Analyzer
+ * Cubyntra - Face Crop Analyzer
  * Necookie Labs (c) 2026
  *
- * Measures one face photo sent by the companion: samples the nine tiles, asks the ML
- * detector whether it is really a cube, and checks the center against the face the user
- * was asked to show. It deliberately does NOT commit to final sticker colors; those are
- * resolved later across all 54 stickers at once (see resolveCubeColors).
+ * Measures one face crop on the device that took it (the phone companion, ADR-015): samples
+ * the nine tiles, asks the ML detector whether it is really a cube, and checks the center
+ * against the face the user was asked to show. It deliberately does NOT commit to final
+ * sticker colors; those are resolved later across all 54 stickers at once (see
+ * resolveCubeColors). Only the resulting colors and tile means are ever sent anywhere.
  */
 
 import { CubeColor, Face } from '../cube/types';
@@ -107,27 +108,4 @@ function detectWrongFace(
   return closest !== expected && distances[expected] - distances[closest] > WRONG_FACE_MARGIN_DELTA_E
     ? COLOR_TO_FACE[closest]
     : null;
-}
-
-/**
- * Browser entry point: decodes a JPEG data URL into an offscreen canvas and analyzes it.
- * Pixels stay in this tab; nothing here touches the network.
- */
-export async function analyzeFaceImage(
-  imageDataUrl: string,
-  face: Face,
-  knownCenters: Partial<Record<Face, RGBColor>> = {}
-): Promise<FaceAnalysis> {
-  const img = new Image();
-  img.src = imageDataUrl;
-  await img.decode();
-
-  const canvas = document.createElement('canvas');
-  canvas.width = img.naturalWidth;
-  canvas.height = img.naturalHeight;
-  const ctx = canvas.getContext('2d', { willReadFrequently: true });
-  if (!ctx) throw new Error('Canvas 2D context unavailable');
-  ctx.drawImage(img, 0, 0);
-
-  return analyzeFaceContext(ctx, canvas.width, canvas.height, face, knownCenters);
 }
