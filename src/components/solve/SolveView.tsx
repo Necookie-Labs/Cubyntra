@@ -13,6 +13,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { AlertTriangle, CheckCircle2, Home, RefreshCw, ScanLine, Shuffle } from 'lucide-react';
 import { useTutorStore } from '@/stores/useTutorStore';
+import type { CubeEngine } from '@/three/engine';
+import { useCompanion } from '@/sync/CompanionSyncProvider';
+import { useTutorSync } from '@/sync/useTutorSync';
 import { TeachingTwin } from '@/components/twin/TeachingTwin';
 import { BlockButton, Panel } from '@/components/ui';
 import { BlockLink } from '@/components/shell/BlockLink';
@@ -109,6 +112,10 @@ export function SolveView() {
   const hasSaved = useTutorStore((s) => s.profile.currentSolve !== null);
   const beginCheckpoint = useTutorStore((s) => s.beginCheckpoint);
   const [watched, setWatched] = useState<string | null>(null);
+  const [engine, setEngine] = useState<CubeEngine | null>(null);
+
+  // A paired phone mirrors the step, the grip and the twin's playback, and can drive them.
+  useTutorSync(useCompanion(), engine?.playback ?? null);
 
   useWakeLock(phase !== 'idle' && phase !== 'solved');
 
@@ -143,6 +150,7 @@ export function SolveView() {
         plainLanguage={settings.plainLanguage}
         stickerLetters={settings.stickerLetters}
         onStepPlayed={() => setWatched(stepKey)}
+        onEngineChange={setEngine}
         className="lg:sticky lg:top-8 lg:col-start-1 lg:row-span-3 lg:row-start-1 lg:min-h-[560px]"
       />
 
