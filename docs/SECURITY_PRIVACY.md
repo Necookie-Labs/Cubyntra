@@ -60,7 +60,9 @@ export function stopCameraStream(stream: MediaStream | null) {
 | **Another device on the Wi-Fi joins or drives a pairing** | High | Session ids are crypto UUIDs; every sync route requires a 128-bit session secret, compared in constant time (403 when wrong). Creating a session requires the app token, which only the laptop's own loopback browser can fetch. `preferredId` no longer exists, so a session cannot be chosen or overwritten. |
 | **Guessing the typed pairing code** | Medium | 6 characters from a 29-symbol alphabet (about 600 million codes), single use, valid 10 minutes, at most 10 guesses per minute across all devices. |
 | **Secrets leaking through URLs** | Medium | The QR link carries them in the URL fragment, which is never sent to a server. The phone moves them to sessionStorage and strips the address bar; the event stream is read with `fetch` so the secret travels in a header. |
-| **Memory or connection exhaustion through the relay** | Medium | Bodies are read with a streaming 16 KB cap (1 KB for the code route) and refused as soon as they pass it; at most 8 sessions, idle expiry after 30 minutes, hard expiry after 12 hours; 600 messages per minute per session; stream cleanup on cancel or request abort. |
+| **Memory or connection exhaustion through the relay** | Medium | Bodies are read with a streaming 16 KB cap (1 KB for the code route) and refused as soon as they pass it; at most 8 sessions, idle expiry after 30 minutes, hard expiry after 12 hours; 600 messages per minute per session; stream cleanup on cancel or request abort. Rate-limiter keys with no hit inside the window are swept away, and a deleted session's key is dropped at once, so the limiter maps stay small. A client drops and reopens a stream silent for 30 s (twice the ping interval). |
+| **A second device or tab overwriting the saved profile** | Medium | `PATCH /api/student` takes small operations, not whole profiles; the server merges them one request at a time (timer solves by id, trainer answers replayed, counts added, the saved solve only moves forward) and validates the result before the atomic write. There is no whole-profile PUT. |
+| **Oversized bodies on the coach and profile routes** | Low | `/api/coach` (8 KB) and `/api/student` (128 KB) read bodies with the same streaming cap, so a chunked body with no Content-Length gets a 413 without being buffered. |
 | **Denial of Service via Solver ReDoS / Hang** | Medium | Solver engine implements a strict 5,000ms execution timeout cap. If search exceeds threshold, it cleanly aborts. |
 | **Arbitrary Code Injection via Scramble String** | High | Input strings are strictly validated against `^[UDFBLR]{54}$` character whitelists before parsing. No `eval()` or dynamic code evaluation exists. |
 | **Memory Exhaustion (Three.js WebGL Leaks)** | Medium | Comprehensive `dispose()` hooks for all geometries, materials, and textures attached to component unmount lifecycle. |
@@ -108,7 +110,8 @@ validates incoming facts against a strict shape and drops unknown fields before 
 the machine.
 
 ### 5.3 Local files and access
-- `data/coach-usage.json`: token counts and cost per month (no content of any reply).
+- `data/coach-usage.json`: token counts and cost per month (no content of any reply), including
+  calls that were aborted or failed part-way.
 - `data/app-secret`: the per-install token that `/api/coach` and `/api/coach/status` require.
   `GET /api/auth/token` gives it only to requests addressed to `localhost` / `127.0.0.1` /
   `[::1]` with no proxy headers and a loopback (or absent) `Origin`. Route handlers cannot see

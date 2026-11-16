@@ -66,6 +66,11 @@ private off the laptop.
   "do", "then", "turn" or "try". So "R U R' U'" and a single invented "R2" are caught, while
   "plan B", "the F face" and "the L becomes a line" are prose. The cost: a lone invented capital
   in plain prose ("look at F") passes; it names a side, not a sequence to perform.
+- Condensed notation is split unit by unit: a word made only of move units, glued or joined by
+  hyphens ("RUR'U'", "R-U-R'-U'", "R2U"), counts as moves when it has a prime, a count or a
+  hyphen and a capital; a plain capital word ("URL", "FUR") counts only next to other moves. A
+  count other than 2 is quarter turns ("R3" is `R'`); one with no net turn ("R4") is rejected,
+  since it cannot be checked. "F2L", "3x3", possessives and "x3" stay words.
 - Allowed moves: the step's setup, algorithm and repeat unit, plus moves named in the top
   diagnosed mistake's description. Descriptions are checked when the facts are built: the top
   mistake's description may name step moves or moves the student most likely did (its
@@ -105,6 +110,13 @@ UTC month in `data/coach-usage.json` (atomic write). Before each call the worst 
 as a cache write plus 400 output tokens, well under a tenth of a cent) is reserved, and the call is
 refused if it could pass the cap. The cap is $10 a month, configurable with
 `COACH_MONTHLY_CAP_USD`. Cache read and write token counts are logged on the server.
+
+Usage is taken from the stream events as they arrive (`message_start` brings the input and cache
+counts, `message_delta` the cumulative output count), so a call that the student leaves or that
+fails part-way is still recorded. Cut off before the output count arrived, it is charged the full
+400 output tokens; with no usage at all it is charged the worst-case estimate, unless the API
+refused it with an HTTP status (nothing was billed). Saves of the usage file are serialized and,
+like every atomic write, retried after 20 / 50 / 100 / 200 ms if Windows briefly locks the file.
 
 ### 5. Access
 - `POST /api/coach` and `GET /api/coach/status` require the per-install app secret in the
