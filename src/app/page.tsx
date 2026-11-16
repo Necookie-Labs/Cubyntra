@@ -5,8 +5,9 @@
  * Necookie Labs (c) 2026
  */
 
-import React, { useRef, useCallback, useState } from 'react';
+import React, { useRef, useCallback, useEffect, useState } from 'react';
 import { useCubyntraStore } from '@/stores/useCubyntraStore';
+import { warmUpSolver } from '@/solver/client';
 import { CubeMove, CubeState, Face } from '@/cube/types';
 import { Header } from '@/components/branding/Header';
 import { CubeVisualizer, CubeVisualizerRef } from '@/components/cube/CubeVisualizer';
@@ -58,6 +59,9 @@ export default function Home() {
 }
 
 function Workspace() {
+  // Build the solver tables in the worker while the student scans, so solving is instant.
+  useEffect(() => warmUpSolver(), []);
+
   const {
     appState,
     scanSource,
