@@ -52,3 +52,23 @@ export const METHOD_INFO: Readonly<Record<MethodId, MethodInfo>> = {
 };
 
 export const METHOD_IDS: readonly MethodId[] = ['beginner', 'cfop'];
+
+/** Names of CFOP's one-look last-layer stages, used when the full last layer is switched on. */
+export const FULL_LAST_LAYER_STAGES: readonly { id: string; name: string }[] = [
+  { id: 'oll', name: 'Yellow top in one look' },
+  { id: 'pll', name: 'Top layer in one look' },
+];
+
+/**
+ * The stages a method runs through with the given last-layer setting, in the tutor engine's
+ * order, so stage indices from plans and progress line up with these names.
+ */
+export function methodStages(
+  method: MethodId,
+  lastLayer: '2-look' | 'full' | undefined = '2-look'
+): readonly { id: string; name: string }[] {
+  const stages = METHOD_INFO[method].stages;
+  if (method !== 'cfop' || lastLayer !== 'full') return stages;
+  const byId = (id: string) => stages.find((s) => s.id === id)!;
+  return [byId('cross'), byId('f2l'), ...FULL_LAST_LAYER_STAGES, byId('auf')];
+}

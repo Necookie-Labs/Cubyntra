@@ -10,13 +10,10 @@ import type { StudentProfile } from '@/lib/studentProfile';
 import { currentStreak, stageKey, stageStatus } from '@/learn/mastery';
 import { setProgress } from '@/learn/leitner';
 import { TRAINER_SETS } from '@/learn/trainerSets';
-import { METHOD_INFO } from './methodInfo';
+import { FULL_LAST_LAYER_STAGES, METHOD_INFO } from './methodInfo';
 
-/** CFOP's full last-layer stages, shown on the CFOP island once that setting is in use. */
-export const FULL_LAST_LAYER_STAGES: readonly { id: string; name: string }[] = [
-  { id: 'oll', name: 'Yellow top in one look' },
-  { id: 'pll', name: 'Top layer in one look' },
-];
+export { FULL_LAST_LAYER_STAGES };
+
 
 /** The CFOP stages the progress world shows: the full last-layer ones once they are in use. */
 export function cfopWorldStages(profile: Pick<StudentProfile, 'settings' | 'stats'>): readonly { id: string; name: string }[] {
