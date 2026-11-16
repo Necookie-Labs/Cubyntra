@@ -90,7 +90,7 @@ Checklist for `docs/tutor/GOAL.md`. Tick an item only when it is done and tested
 - [ ] Algorithm trainer
 - [ ] Timer
 - [ ] Progress world
-- [ ] Full OLL 57 / PLL 21
+- [x] Full OLL 57 / PLL 21 (engine side: `cases/oll.ts`, `cases/pll.ts`, `lastLayer: 'full'` setting, 10,000-scramble soak: 62.3 turns average; trainer UI and coach notes for the new ids still to come)
 - [ ] Phase gate passed and pushed
 
 ## Phase 10: Finish
