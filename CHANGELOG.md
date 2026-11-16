@@ -7,32 +7,64 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
-- Light theme, with a header switch for Light, Dark and System (follows the OS) and no flash of the wrong theme on load. The phone companion stays dark.
-- A way out of every screen: the logo returns home; Back on the webcam scan; Cancel on the phone scan; Try again on camera and pairing errors; "Scan another cube" after solving.
-- Error, root-error and 404 pages with Try again and Back to home.
-- Desktop shows "Reconnecting…" when the phone link drops and "Pairing ended" with a New QR code button when the session is gone. The QR dialog warns when its link is plain http:// and the phone camera will not open.
-- Phone scanning sends a photo of each face and the computer reads it. Colors are resolved across all 54 tiles at once: the centers calibrate the palette, an assignment enforces nine tiles per color, and a face photographed a quarter turn off is turned back automatically ([ADR-010](docs/ADR/010-desktop-side-analysis-and-global-color-resolution.md)).
-- Review screen before solving: an unfolded net with hard-to-read tiles marked, each tile comparable with the user's own photo and correctable, and solving enabled only for a valid cube. The webcam scanner uses it too.
-- Phone coaching: a first-run guide, a mini cube showing the grip for every face, live checks for framing, wrong face, light, glare and motion with one instruction at a time, and a shutter that takes the photo by itself once the frame holds steady.
-- The phone opens its own event stream, so the computer can accept a photo, ask for a retake, request a specific face again, and confirm the scan.
+## [2.0.0] - 2026-11-17
 
-### Fixed
-- Header buttons (Scan Cube, Scramble Demo, reset) left the phone session running.
-- The phone's "Scan another cube" sent photos to a desktop that was no longer listening.
-- A pairing expired after 30 minutes even while connected.
-- The error panel could be blank, guessed which face to rescan, and always restarted with the webcam.
-- An unexpected solver error left the solving spinner running forever.
-- Fullscreen hid the controls, and its icon went out of sync after Esc.
-- Several buttons used a non-existent color class and had no background.
-- 3D twin: the turning layer detached from the cube whenever the view was orbited; colors were repainted onto the wrong tiles after every turn; autoplay dropped moves at higher speeds and recolored the cube before the turn played; Next and Previous did not animate; orientation snapping was invalid near gimbal lock; orbit damping depended on the display refresh rate; the camera clipped the cube in tall containers.
-- The phone cropped a fixed region of the camera frame rather than the reticle the user aligned the cube in.
-- The pairing QR code could point at a VPN address (such as Tailscale) that a phone on ordinary Wi-Fi cannot reach.
-- Under `next dev` the phone page did not hydrate when opened by the computer's LAN address.
-- The bottom-face scan instruction produced a photo a quarter turn off when followed from the previous step.
+The tutor rebuild: Cubyntra changes from a scanner and solver into a local, single-student cube
+tutor (a PWA served from the laptop). Plan: `docs/tutor/GOAL.md`; checklist:
+`docs/tutor/PROGRESS.md`. This release also contains the September phone-scanning work that was
+listed here as unreleased, as amended by the tutor rebuild.
+
+### Added
+- **Tutor engine** (`src/tutor/`, [ADR-012](docs/ADR/012-deterministic-tutor-engine.md)): the beginner's method (daisy, white cross on top, white corners, flip, middle edges, yellow cross, yellow edges, position and orient the yellow corners) and CFOP (cross on the bottom in at most 8 turns, 41-case F2L, then 2-look OLL/PLL or, with `lastLayer: 'full'`, the full 57 OLL and 21 PLL). Methods are data; every step plan is replayed on the logical cube and must advance the stage. A fixed-seed scramble suite solves 1,000 scrambles per method and variant in `npm test` and 10,000 in `npm run test:tutor-soak`.
+- **Cube engine**: whole-cube rotations `x y z`, wide moves (`r` and `Rw`), slices `M E S`; a grip model (top and front colors) that instructions are relative to; piece queries (`findEdge`, `findCorner`, `isCrossSolved`, `isF2LSlotSolved`, `isLayerSolved`); a plain-language name for every move.
+- **Teaching twin**: a flat voxel restyle, the camera framed to the grip with animated regrips, a spotlight on the step's pieces with a slot outline, move chips in sync with the animation, play / step / 0.5× / loop, a faded "after" preview, WebGL context-loss recovery, and solver and tutor jobs in a Web Worker.
+- **Checkpoint checks** ([ADR-013](docs/ADR/013-checkpoint-verification.md)): a per-student palette from the full scan, partial-face verification with a confidence per sticker, mistake diagnosis (wrong direction, skipped, doubled, wrong face, wrong grip, stopped early, extra repeat), corrective steps, "show one more face", rescan and re-plan, tile edits and a manual "it matches". On synthetic photos the top diagnosis is right in 1819 of the 1819 detected mistakes (`docs/tutor/CHECKPOINTS.md`).
+- **Claude coach** ([ADR-014](docs/ADR/014-claude-coach.md)): `POST /api/coach` streams Claude Haiku 5.5 (`claude-haiku-5-5`, effort low, thinking off, at most 400 tokens) with a cached system prompt and a facts JSON; three hint levels; a template and teaching notes for every stage and case; mock mode without a key; a move guardrail; a monthly spend cap (default $10) tracked in `data/coach-usage.json`; `GET /api/coach/status`; `npm run coach:eval` with 50 recorded situations.
+- **App shell and PWA**: Home with the method picker, Scan, Solve, Trainer, Timer, Progress, Pair and Settings in one shell (phone tab bar, desktop side nav); a web app manifest and icons; Screen Wake Lock while solving; error states for a denied camera, an offline or capped coach and an unreadable cube.
+- **Student profile**: `data/student.json` (version 2; a version 1 file is migrated) read through `GET /api/student` and changed through `PATCH /api/student` operations that the server merges, so a phone and the laptop never overwrite each other; an interrupted solve resumes.
+- **Learning features**: an algorithm trainer (five sets, drills planned as tutor steps, Leitner boxes), a timer (20-move scramble, 15 s WCA inspection with +2 and DNF, best single, ao5 and ao12), a progress world (a voxel block per stage mastered, streaks, the algorithm collection) and graduation suggestions (beginner's to CFOP, 2-look to the full last layer).
+- **State-only phone ↔ laptop sync** ([ADR-015](docs/ADR/015-state-only-sync.md)): QR pairing with a 128-bit secret plus a six-character typed code; the phone reads each face itself and sends colors only; the step, grip, playback and checkpoint verdicts are mirrored both ways, and a solve can be done on the phone.
+- **Accessibility**: labels on every control, focus-trapped dialogs, an optional color-blind letter on every sticker, AA contrast for the token pairs, 44px tap targets on phones, reduced motion (system and student setting), and an axe audit of every screen in the tests.
+- Light and dark themes with a Light / Dark / System switch and no flash of the wrong theme on load.
+- Error, root-error and 404 pages with Try again and Back to home.
+- A review screen before solving: an unfolded net with hard-to-read tiles marked, each tile correctable, and solving enabled only for a valid cube. Colors are resolved across all 54 tiles at once: the centers calibrate the palette, an assignment enforces nine tiles per color, and a face read a quarter turn off is turned back automatically ([ADR-010](docs/ADR/010-desktop-side-analysis-and-global-color-resolution.md)).
+- Phone capture coaching: a first-run guide, a mini cube showing the grip for every face, live checks for framing, wrong face, light, glare and motion with one instruction at a time, and a shutter that reads the face by itself once the frame holds steady.
+- An HTTPS dev server (`npm run dev`) with a self-signed certificate for localhost and the laptop's network addresses, so the phone camera works over Wi-Fi.
 
 ### Changed
-- Phone photos, small JPEG crops of the cube, pass through the server in memory only and are deleted once the scan is confirmed. Webcam frames still never leave the browser. Phone pairing needs a single long-running server.
+- The product is a tutor: the engine picks every move and Claude only explains. The Kociemba solver still validates and solves every confirmed scan in the worker; the tutor's steps never come from it.
+- A light-green voxel design system ([ADR-011](docs/ADR/011-voxel-design-system.md)) with flat tokens, pixel headings (Pixelify Sans) and block components in `src/components/ui/`; `tests/design-rules.test.ts` rejects gradients, blur, glass, text shadows and colors outside the tokens. It supersedes the visual direction of ADR-008.
+- `next` and `eslint-config-next` 16.4.6.
+- `CubeMove` is now a tagged `Move` (face, wide, slice, rotation); `parseMove` accepts the new notation and rejects anything else.
+- The Python dataset scripts take the dataset path as an argument.
+
+### Removed
+- **The photo relay.** The phone no longer sends face photos: the `/api/session/[id]/face`, `verdict`, `rescan`, `confirm` and `reset` routes, the server's image store, the `thumbnail` field and the review screen's photo crops are gone. No picture leaves the device that took it (ADR-001, restored by ADR-015). This reverses the September change that let phone photos pass through the server in memory.
+- `preferredId` on `POST /api/session`: a session id can no longer be chosen.
+- The single-page scanner/solver UI (`src/app/page.tsx`, the header, `SolveControls`, `CVDebugger`, `ErrorRecoveryModal`, the pairing modal), the hexagon canvas background, every gradient and the PBR speedcube look.
+- The `canvas-confetti` dependency.
+
+### Fixed
+- Guidance arrows swept the wrong way; a clockwise turn now sweeps clockwise seen from outside the face, on all six faces.
+- The ML edge-gradient feature scaled only one term by 255; it now matches the Python training formula.
+- Orange could be read as red: the red/orange hue split moved from 12° to 8°.
+- `parseMove` accepted lower-case and unknown tokens.
+- The checkpoint camera could wait forever; it starts when its video mounts and fails after 30 s without a stream or 10 s without a frame.
+- A solve uses one WebGL context instead of one per step, and releases it on unmount.
+- Event streams that stay silent for two ping intervals reconnect.
+- Coach usage is recorded for aborted and failed calls too.
+- 3D twin: the turning layer detached from the cube whenever the view was orbited; colors were repainted onto the wrong tiles after every turn; autoplay dropped moves at higher speeds; orientation snapping was invalid near gimbal lock; orbit damping depended on the refresh rate; the camera clipped the cube in tall containers.
+- The phone cropped a fixed region of the camera frame rather than the reticle the user aligned the cube in.
+- The pairing QR code could point at a VPN address that a phone on ordinary Wi-Fi cannot reach, and under `next dev` the phone page did not hydrate when opened by the laptop's LAN address.
+- A pairing expired after 30 minutes even while connected.
+
+### Security
+- Every sync route requires the session's 128-bit secret (compared in constant time); creating a session requires the per-install app token, which `GET /api/auth/token` gives only to loopback requests. The QR credentials travel in the URL fragment and live in the phone tab's sessionStorage.
+- Typed pairing codes are single use, valid 10 minutes, and limited to 10 guesses per minute.
+- At most 8 sessions, expiring after 30 minutes idle or 12 hours; 600 messages per minute per session; bodies read through a streaming size cap (16 KB sync, 8 KB coach, 128 KB profile, 1 KB typed code).
+- `/api/coach` needs the app token and allows 30 requests per minute; `ANTHROPIC_API_KEY` is read only on the server and never sent to the browser.
+- `tests/sync-privacy.test.ts` fails if a route or message type can carry image data.
+- `npm audit --omit=dev` reports no critical or high issues.
 
 ## [1.0.0] - 2026-09-26
 
