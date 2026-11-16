@@ -6,11 +6,13 @@
  * when the monthly cap is reached, and whenever Claude's reply is refused, cut off, fails the
  * move guardrail or errors. The text is built from the plan's own facts (goal, lookFor, why,
  * case and stage names, setup and algorithm moves), so it works for any stage or case the tutor
- * produces, including ones the coach has never heard of. Stage notes only fill gaps. Templates
+ * produces, including ones the coach has never heard of. Stage notes only fill gaps; case notes
+ * (`caseNotes.ts`) add a cue, a common mistake or a fingertrick for the case. Templates
  * only ever name moves from the facts, so they always pass the guardrail.
  */
 
-import { describeMoves, taughtMoves } from './facts';
+import { caseTip } from './caseNotes';
+import { allowedMoves, describeMoves, taughtMoves } from './facts';
 import { stageNote } from './stages';
 import { CoachFacts, MistakeKind } from './types';
 
@@ -64,6 +66,11 @@ function mistakeSentence(facts: CoachFacts): string | null {
   return null;
 }
 
+/** The case's teaching note for this level, recomputed so a template never trusts the field. */
+function caseTipSentence(facts: CoachFacts): string {
+  return sentence(caseTip(facts, allowedMoves(facts)) ?? '');
+}
+
 function caseSentence(facts: CoachFacts): string {
   const caseName = facts.caseName.trim();
   const stageName = facts.stageName.trim();
@@ -92,14 +99,17 @@ export function templateText(facts: CoachFacts): string {
   if (facts.hintLevel === 1) {
     lines.push(sentence(facts.goal));
     lines.push(sentence(facts.lookFor) || stage?.lookTip || 'Look at the pieces lit up on the cube.');
+    lines.push(caseTipSentence(facts));
     lines.push('Can you spot it?');
   } else if (facts.hintLevel === 2) {
     lines.push(caseSentence(facts));
     lines.push(sentence(facts.why) || stage?.whyTip || sentence(facts.goal));
+    lines.push(caseTipSentence(facts));
   } else {
     lines.push(gripSentence(facts));
     lines.push(movesSentence(facts));
     lines.push(wordsSentence(facts));
+    lines.push(caseTipSentence(facts));
     lines.push('Then show the cube to the camera to check.');
   }
   return lines.filter(Boolean).join(' ');

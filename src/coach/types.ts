@@ -85,6 +85,12 @@ export interface CoachFacts {
    * notation (`src/cube/moveNames.ts`); the server recomputes it rather than trusting the client.
    */
   moveWords?: string[];
+  /**
+   * The case's own teaching note for this hint level (`src/coach/caseNotes.ts`): a recognition
+   * cue at level 1, the idea and a common mistake at level 2, a fingertrick or practice tip at
+   * level 3. Moves only at level 3, and only allowed ones. Recomputed by the server from `caseId`.
+   */
+  caseTip?: string;
   /** Earlier tries at this step, oldest first (at most `MAX_ATTEMPTS`). */
   attempts: AttemptRecord[];
   diagnosis?: CoachDiagnosisFacts;

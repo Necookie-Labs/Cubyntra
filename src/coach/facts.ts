@@ -10,6 +10,7 @@ import type { CubeColor, Face } from '../cube/types';
 import { moveName } from '../cube/moveNames';
 import { formatAlgorithm, parseAlgorithm } from '../cube/transforms';
 import type { Diagnosis, StepPlan } from '../tutor/types';
+import { caseTip } from './caseNotes';
 import { extractMoveTokens } from './guard';
 import {
   AttemptRecord,
@@ -56,7 +57,7 @@ export function buildCoachFacts(
   }
   const projected = diagnosis && projectDiagnosis(diagnosis, facts);
   if (projected) facts.diagnosis = projected;
-  return withMoveWords(facts);
+  return withDerivedFields(facts);
 }
 
 /** Side names for `Diagnosis.showNext`: words, never a lone face letter. */
@@ -123,11 +124,21 @@ export function describeMoves(notation: string): string[] {
   });
 }
 
-/** Sets `moveWords` at hint level 3 and removes it at the other levels. */
-export function withMoveWords(facts: CoachFacts): CoachFacts {
+/**
+ * Recomputes the derived fields (never trusted from a client): `moveWords` at hint level 3 only,
+ * and `caseTip`, the case's teaching note for the hint level (`src/coach/caseNotes.ts`), when the
+ * case has one.
+ */
+export function withDerivedFields(facts: CoachFacts): CoachFacts {
   const rest: CoachFacts = { ...facts };
   delete rest.moveWords;
-  return facts.hintLevel === 3 ? { ...rest, moveWords: describeMoves(taughtMoves(facts)) } : rest;
+  delete rest.caseTip;
+  const tip = caseTip(facts, allowedMoves(facts));
+  return {
+    ...rest,
+    ...(facts.hintLevel === 3 ? { moveWords: describeMoves(taughtMoves(facts)) } : {}),
+    ...(tip ? { caseTip: tip } : {}),
+  };
 }
 
 /** Phrases blanked out before the guardrail scan: the step's own case and stage names. */
@@ -305,5 +316,5 @@ export function parseCoachFacts(input: unknown): ParseResult<CoachFacts> {
     }
   }
 
-  return { ok: true, value: withMoveWords(facts) };
+  return { ok: true, value: withDerivedFields(facts) };
 }
