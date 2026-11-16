@@ -17,7 +17,7 @@ import { APP_TOKEN_HEADER, getAppSecret, getPairingToken } from '../src/lib/loca
 import { SESSION_SECRET_HEADER } from '../src/sync/pairing';
 import { parsePairingFragment } from '../src/sync/pairingLink';
 import { MAX_SESSIONS, SESSION_IDLE_MS, sessionManager } from '../src/sync/sessionManager';
-import { resetSyncLimitersForTests } from '../src/sync/server';
+import { messageLimiter, resetSyncLimitersForTests } from '../src/sync/server';
 import { MAX_SYNC_BODY_BYTES, StreamEvent } from '../src/sync/types';
 import { useScratchDataDir } from './helpers/scratchData';
 
@@ -181,6 +181,14 @@ describe('POST /api/session/[id]/messages', () => {
     const res = await postMessage(messageRequest(s.sessionId, s.secret), ctx(s.sessionId));
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ success: true, seq: 1 });
+  });
+
+  it('drops the message rate count of a deleted session', async () => {
+    const s = await create();
+    await postMessage(messageRequest(s.sessionId, s.secret), ctx(s.sessionId));
+    expect(messageLimiter.size).toBe(1);
+    sessionManager.deleteSession(s.sessionId);
+    expect(messageLimiter.size).toBe(0);
   });
 
   it('rejects invalid messages', async () => {

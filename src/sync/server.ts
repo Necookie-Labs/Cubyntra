@@ -14,6 +14,9 @@ export const pairingCodeLimiter = new SlidingWindowLimiter(10, 60_000);
 /** Messages per session; playback index reports arrive about twice a second. */
 export const messageLimiter = new SlidingWindowLimiter(600, 60_000);
 
+// A deleted session's message count is dropped with it.
+sessionManager.setDeleteHook('message-limiter', (id) => messageLimiter.forget(id));
+
 export function resetSyncLimitersForTests(): void {
   sessionCreateLimiter.reset();
   pairingCodeLimiter.reset();

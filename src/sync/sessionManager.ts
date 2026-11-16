@@ -73,6 +73,8 @@ const INITIAL_PLAYBACK: PlaybackState = { playing: false, index: -1, speed: 1, s
 export class SessionManager {
   private sessions = new Map<string, SessionRecord>();
   private cleanupInterval: ReturnType<typeof setInterval> | null = null;
+  /** Called with a session id once it is deleted, by name (a hot reload replaces, not adds). */
+  private deleteHooks = new Map<string, (id: string) => void>();
 
   constructor() {
     if (typeof setInterval !== 'undefined') {
@@ -275,6 +277,11 @@ export class SessionManager {
     return event;
   }
 
+  /** Registers (or replaces) the hook `name`, run with each deleted session's id. */
+  public setDeleteHook(name: string, hook: (id: string) => void): void {
+    this.deleteHooks.set(name, hook);
+  }
+
   /** Removes a session; open streams are told why and then closed. */
   public deleteSession(id: string, reason: 'expired' | 'deleted' = 'deleted'): void {
     const session = this.sessions.get(id);
@@ -282,6 +289,13 @@ export class SessionManager {
     this.sessions.delete(id);
     this.broadcast(session, { kind: 'ended', reason });
     session.listeners.clear();
+    for (const hook of this.deleteHooks.values()) {
+      try {
+        hook(id);
+      } catch (err) {
+        console.error('[SessionManager] Delete hook error:', err);
+      }
+    }
   }
 
   /** Deletes sessions idle past SESSION_IDLE_MS or older than SESSION_MAX_LIFETIME_MS. */

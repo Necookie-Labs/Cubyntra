@@ -86,6 +86,30 @@ describe('SlidingWindowLimiter', () => {
     expect(limiter.hit('b', 3000).ok).toBe(true);
     expect(limiter.hit('a', 60_001).ok).toBe(true);
   });
+
+  it('drops keys whose hits have all left the window', () => {
+    const limiter = new SlidingWindowLimiter(3, 60_000);
+    for (let i = 0; i < 500; i++) limiter.hit(`key-${i}`, i);
+    expect(limiter.size).toBe(500);
+    // One window later, the next hit sweeps every stale key away.
+    limiter.hit('fresh', 60_000 + 500);
+    expect(limiter.size).toBe(1);
+    // A key still inside the window survives a sweep.
+    limiter.hit('recent', 100_000);
+    limiter.hit('fresh', 120_600);
+    expect(limiter.size).toBe(2);
+    limiter.prune(180_601);
+    expect(limiter.size).toBe(0);
+  });
+
+  it('forgets a key on request, resetting its count', () => {
+    const limiter = new SlidingWindowLimiter(1, 60_000);
+    expect(limiter.hit('a', 0).ok).toBe(true);
+    expect(limiter.hit('a', 1).ok).toBe(false);
+    limiter.forget('a');
+    expect(limiter.size).toBe(0);
+    expect(limiter.hit('a', 2).ok).toBe(true);
+  });
 });
 
 describe('guardRequest', () => {

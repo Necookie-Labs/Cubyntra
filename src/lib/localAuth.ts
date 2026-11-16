@@ -115,17 +115,41 @@ export function isLoopbackRequest(req: Request): boolean {
   return true;
 }
 
-/** In-memory sliding-window rate limiter: at most `limit` hits per `windowMs` per key. */
+/**
+ * In-memory sliding-window rate limiter: at most `limit` hits per `windowMs` per key. Keys
+ * whose hits have all left the window are dropped (swept at most once per window), so the map
+ * holds only keys used recently; `forget` drops a key at once (e.g. a deleted session).
+ */
 export class SlidingWindowLimiter {
   private readonly hits = new Map<string, number[]>();
+  private lastSweep = 0;
 
   constructor(
     readonly limit: number,
     readonly windowMs: number
   ) {}
 
+  /** How many keys are tracked (tests). */
+  get size(): number {
+    return this.hits.size;
+  }
+
+  /** Drops every key with no hit inside the window. */
+  prune(now: number = Date.now()): void {
+    const since = now - this.windowMs;
+    for (const [key, times] of this.hits) {
+      if (!times.length || times[times.length - 1] <= since) this.hits.delete(key);
+    }
+    this.lastSweep = now;
+  }
+
+  forget(key: string): void {
+    this.hits.delete(key);
+  }
+
   /** Counts a hit. Returns whether it is allowed and, if not, how many seconds to wait. */
   hit(key: string, now: number = Date.now()): { ok: boolean; retryAfterSec: number } {
+    if (now - this.lastSweep >= this.windowMs) this.prune(now);
     const since = now - this.windowMs;
     const recent = (this.hits.get(key) ?? []).filter((t) => t > since);
     if (recent.length >= this.limit) {
@@ -139,6 +163,7 @@ export class SlidingWindowLimiter {
 
   reset(): void {
     this.hits.clear();
+    this.lastSweep = 0;
   }
 }
 
