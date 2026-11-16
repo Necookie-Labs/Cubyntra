@@ -13,54 +13,12 @@
  * 8. Overall permutation parity: corner_parity === edge_parity
  */
 
-import { CubeColor, CubeState, Face, ValidationIssue, ValidationResult } from './types';
+import { CubeColor, CubeState, ValidationIssue, ValidationResult } from './types';
 import { CANONICAL_CENTER_COLORS, COLORS, FACES } from './constants';
 import { cubeStateToFaceletString } from './transforms';
 import { normalizeOrientation } from './orientation';
+import { CORNER_SLOTS as CORNERS, EDGE_SLOTS as EDGES } from './pieces';
 import { Cube } from 'rubik-solver';
-
-interface CornerDefinition {
-  name: string;
-  stickers: [
-    { face: Face; index: number }, // primary (U or D)
-    { face: Face; index: number },
-    { face: Face; index: number }
-  ];
-}
-
-interface EdgeDefinition {
-  name: string;
-  stickers: [
-    { face: Face; index: number }, // primary (U/D, or F/B for E-slice)
-    { face: Face; index: number }
-  ];
-}
-
-const CORNERS: CornerDefinition[] = [
-  { name: 'UBL', stickers: [{ face: 'U', index: 0 }, { face: 'B', index: 2 }, { face: 'L', index: 0 }] },
-  { name: 'UBR', stickers: [{ face: 'U', index: 2 }, { face: 'R', index: 2 }, { face: 'B', index: 0 }] },
-  { name: 'UFL', stickers: [{ face: 'U', index: 6 }, { face: 'L', index: 2 }, { face: 'F', index: 0 }] },
-  { name: 'UFR', stickers: [{ face: 'U', index: 8 }, { face: 'F', index: 2 }, { face: 'R', index: 0 }] },
-  { name: 'DFL', stickers: [{ face: 'D', index: 0 }, { face: 'F', index: 6 }, { face: 'L', index: 8 }] },
-  { name: 'DFR', stickers: [{ face: 'D', index: 2 }, { face: 'R', index: 6 }, { face: 'F', index: 8 }] },
-  { name: 'DBL', stickers: [{ face: 'D', index: 6 }, { face: 'L', index: 6 }, { face: 'B', index: 8 }] },
-  { name: 'DBR', stickers: [{ face: 'D', index: 8 }, { face: 'B', index: 6 }, { face: 'R', index: 8 }] },
-];
-
-const EDGES: EdgeDefinition[] = [
-  { name: 'UB', stickers: [{ face: 'U', index: 1 }, { face: 'B', index: 1 }] },
-  { name: 'UL', stickers: [{ face: 'U', index: 3 }, { face: 'L', index: 1 }] },
-  { name: 'UR', stickers: [{ face: 'U', index: 5 }, { face: 'R', index: 1 }] },
-  { name: 'UF', stickers: [{ face: 'U', index: 7 }, { face: 'F', index: 1 }] },
-  { name: 'FL', stickers: [{ face: 'F', index: 3 }, { face: 'L', index: 5 }] },
-  { name: 'FR', stickers: [{ face: 'F', index: 5 }, { face: 'R', index: 3 }] },
-  { name: 'BL', stickers: [{ face: 'B', index: 5 }, { face: 'L', index: 3 }] },
-  { name: 'BR', stickers: [{ face: 'B', index: 3 }, { face: 'R', index: 5 }] },
-  { name: 'DF', stickers: [{ face: 'D', index: 1 }, { face: 'F', index: 7 }] },
-  { name: 'DL', stickers: [{ face: 'D', index: 3 }, { face: 'L', index: 7 }] },
-  { name: 'DR', stickers: [{ face: 'D', index: 5 }, { face: 'R', index: 7 }] },
-  { name: 'DB', stickers: [{ face: 'D', index: 7 }, { face: 'B', index: 7 }] },
-];
 
 /**
  * Validates a CubeState thoroughly. Returns a ValidationResult with granular diagnostic issues.
