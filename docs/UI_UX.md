@@ -97,10 +97,10 @@ own full-screen camera layout.
 ```
                  ┌──────────── phone tab bar / desktop side nav ────────────┐
    Learn         │ Home (/)        Scan (/scan)        Solve (/solve)       │
-   Practice      │ Trainer (/trainer)*  Timer (/timer)*  Progress (/progress)│
-   This device   │ Pair phone (/pair)**                 Settings (/settings) │
+   Practice      │ Trainer (/trainer)   Timer (/timer)   Progress (/progress)│
+   This device   │ Pair phone (/pair)*                  Settings (/settings) │
                  └──────────────────────────────────────────────────────────┘
-   * layout shell, "Coming soon" (Phase 9)   ** QR code and typed code (Phase 8 state-only sync)
+   * QR code and typed code (Phase 8 state-only sync)
 
    Home ──Scan my cube──► Scan ──confirm review──► Solve ──solved──► Home / Scan
      │  ──Try a demo cube──────────────────────────►  │
@@ -126,7 +126,12 @@ own full-screen camera layout.
 - **Method**: two radio cards, Beginner's and CFOP, each with one honest line on what it is and
   who it suits, and its stage count. The choice is the profile's default method.
 - **Scan my cube** (primary) and **Try a demo cube** when nothing is in progress.
-- **Progress** glance (steps done, checks passed, solves) and **More** (Trainer, Timer, Pair).
+- **Graduation card** (when earned, above Method): "Ready for CFOP" once every beginner's stage is
+  mastered (Switch to CFOP sets CFOP with the 2-look last layer), or "Ready for the full last layer"
+  once CFOP's four 2-look stages are (Use the full last layer, Open the trainer). "Not yet" hides it
+  for this visit. Rules in `docs/tutor/METHODS.md` §10.4.
+- **Progress** glance: stages mastered (of 15, or 17 with the full last layer), days in a row,
+  cases learned in the trainer and solves; **More** (Trainer, Timer, Pair).
 
 ### 3.3 Scan (`/scan`)
 The six-face webcam scan (`CameraScanner`) and the review (`ScanReview`, letters on tiles when
@@ -142,7 +147,8 @@ lighting and glare tips with Scan again and Use a demo cube.
 - **Desktop:** the twin large on the left (sticky); header, coach and I did it on the right.
 - **Coach panel:** the step's own notes (goal, what to look for) always show and need no
   network. Three hint buttons ask the coach: 1 What to look for, 2 Why it works, 3 Show the moves.
-  The reply streams into a polite live region. "Templates" or "Cap reached" chips and the
+  The reply streams into a polite live region. The highest hint asked for on a stage is saved for
+  mastery (Progress). "Templates" or "Cap reached" chips and the
   route's notice show when the coach answers from templates.
 - **Checkpoint sheet** (a `Dialog`): a flat mini-cube (unfolded, centers only, in the student's
   grip) outlines the face to show; the instruction names the grip and the face. "Check this face"
@@ -163,18 +169,65 @@ lighting and glare tips with Scan again and Use a demo cube.
   visible again).
 
 ### 3.5 Settings (`/settings`)
-Name; method to start with; Moves in words; Letters on stickers (with a preview grid); Theme
+Name; method to start with; CFOP last layer (2-look or Full OLL and PLL, shown only while CFOP is
+the method; passed to every plan as the tutor's `lastLayer` option); Moves in words; Letters on stickers (with a preview grid); Theme
 (Light / Dark / System); Reduce motion; Coach (Live, Templates only or Monthly cap reached, with
 "$x of $10.00" spent this month, or Offline: "the built-in notes still work"); Install (Android
 install button, iOS "Share → Add to Home Screen" hint, or "Installed").
 
-### 3.6 Trainer, Timer, Progress, Pair
-Trainer, Timer and Progress have their real layout with a plain "Coming soon" chip and disabled
-controls; Progress already shows the profile's real counts. **Pair** shows the QR code, the
+### 3.6 Trainer (`/trainer`)
+- **Set picker**: five cards in a radiogroup (Beginner's algorithms, F2L, 2-look OLL and PLL, Full
+  OLL, Full PLL), each with a flat bar and "n/N learned". The choice is saved in the profile.
+- **Group filter**: block buttons (`aria-pressed`) for the set's groups, plus All.
+- **Drill** (phone: below the twin; desktop: right of it). The twin shows the case with its pieces
+  lit and its moves hidden. The drill card has four numbered rows: *Set it up* (hold a solved cube
+  with this color on top, green in front, and do the setup moves), *Name it* (Show the name: the
+  name, group and recognition text), *Solve it* (Show the algorithm: the notation, and the twin's
+  move chips and playback appear; Ask the coach opens the coach panel with this case's plan),
+  *Check it* (Got it / Missed it, or Check with the camera, the same checkpoint sheet as the solve
+  screen with "Case solved" and "Next case"). A camera mismatch shows "Not solved yet." with the
+  likely mistake, Check again and Count it as missed.
+- **Case grid**: one square per case of the set or group: empty well (not drilled yet), leaf tint
+  (drilling), solid leaf (learned) and leaf with a dark base (known well), with a key; each square
+  is a button that drills that case next, and its name says the state.
+- Missed cases come back within two drills (Leitner boxes, `docs/tutor/METHODS.md` §10.3).
+
+### 3.7 Timer (`/timer`)
+- **Scramble** panel: 20 moves of notation in a well, "White on top, green in front", the twin
+  showing the scrambled cube, and New scramble.
+- **Pad**: a large block, the whole area is the button (pointer and touch), and Space works the
+  same anywhere except on another control; Escape cancels. Tap to start the 15 s inspection (a
+  countdown); hold until the pad turns leaf ("Let go to start", after 0.3 s; it is warn-tinted
+  while held but not ready); let go to start; tap or Space to stop. Chips call out 8 seconds and 12
+  seconds, then "Start now: +2" and DNF. The clock is Geist Mono, tabular figures.
+- **Last solve**: +2, DNF (toggles) and Delete.
+- **Personal bests**: best single, best ao5, current ao5 and current ao12, with one line on how
+  averages drop the best and worst; **Recent solves**: the newest twelve. History keeps 100.
+
+### 3.8 Progress (`/progress`)
+- **Summary**: blocks placed, days in a row, cases learned, solves.
+- **Your world**: two isometric islands drawn in flat SVG polygons (top, left and right faces in
+  three token tones, line-colored outlines; no gradients or blur): a meadow for the beginner's
+  method and sand for CFOP (with two more tiles once the full last layer is used). Each stage is
+  a ground tile; mastered stages get a full block (dropping in with `vx-place`), started ones a
+  low slab. A numbered stage list beside each island says the same in words (Mastered /
+  Practising n/3 / Not started), and the picture has its own label. One line states the mastery
+  rule.
+- **Streak**: the current and longest streak, and the last four weeks as a 7-column calendar of
+  blocks (today outlined, each day labelled).
+- **Algorithm collection**: every trainer set with its learned count and small case squares.
+- **Totals**: steps done, checks passed, solves.
+
+### 3.9 Pair
+**Pair** shows the QR code, the
 six-character typed code with its expiry, a status chip (waiting, phone connected, ended), the
 laptop address choice and Unpair. The pairing lives in the shell, so it survives navigation; once
 the phone is connected `/scan` offers "Scan with the phone" and `/solve` mirrors the step, grip
-and playback on the phone. `/companion` (the phone) is inside the shell but full screen, with no
+and playback on the phone. After a confirmed scan the phone shows the laptop's step as the solve
+screen does (method, step number, move chips following the laptop's twin, the next move in words,
+playback controls) with **Solve on this phone**, which opens `/solve` on the phone. A paired phone's
+`/solve` joins the laptop's step and sends its own step, grip, playback and checkpoint verdicts back,
+so the laptop mirrors a solve done on the phone. `/companion` (the phone) is inside the shell but full screen, with no
 navigation over the viewfinder.
 
 ---
@@ -197,6 +250,10 @@ navigation over the viewfinder.
 | `StickerGrid` | one face as a 3x3; optional letters, marked tiles and tap-to-correct |
 | `MiniCube` | flat unfolded cube, centers only, the face to show outlined |
 | `BlockPlaced` | the "block placed" moment after a passed check |
+| `CheckpointSheetView` | the checkpoint sheet driven by props (the trainer uses it; `CheckpointSheet` wires it to the solve) |
+| `CaseTiles`, `CaseLegend` | one square per trainer case by how well it is known, and the key |
+| `VoxelWorld` | the progress island: flat isometric SVG, a block per stage mastered |
+| `PhoneStepCard` | the phone's view of the laptop's step after a scan |
 
 ---
 
@@ -286,5 +343,9 @@ Every screen has a labeled way forward; the logo and the Home tab always return 
 | Mismatch | Replay the step, Fix it from here, Rescan the cube, It actually matches |
 | Planning failed | Try again, Scan again |
 | Solved | Solve another, Home |
+| Trainer | Set picker, group filter, Show the name, Show the algorithm, Ask the coach, Got it, Missed it, Check with the camera, case grid |
+| Timer | Pad (tap / hold / release, Space, Escape), New scramble, +2, DNF, Delete |
+| Progress | Open the trainer |
+| Phone after a scan | Play / Pause, Previous / Next move, a move chip, Solve on this phone, Scan another cube |
 | Pairing dialog | Close, Switch to webcam; Try again if the pairing could not be created |
 | Crash / 404 | Try again, Back to home |
