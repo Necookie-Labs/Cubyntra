@@ -2,14 +2,14 @@
 
 **Product**: Cubyntra  
 **Organization**: Necookie Labs  
-**Document Version**: 1.0  
-**Status**: V1 Release  
-**Last Updated**: 2026-09-26  
+**Document Version**: 2.0  
+**Status**: Implemented (2.0.0)  
+**Last Updated**: 2026-11-17  
 
 ---
 
 ## 1. Computer Vision Overview
-Cubyntra features a 100% client-side, privacy-first computer vision pipeline capable of running in standard browser sandboxes without WebAssembly overhead or server-side vision APIs. The perceptual pipeline transforms raw WebRTC video frames into a discrete 54-facelet physical cube model with high confidence and resilience to ambient illumination shifts.
+All computer vision runs in the browser tab that owns the camera (the laptop webcam scanner, the phone companion, or the checkpoint sheet on either device), in plain TypeScript without WebAssembly or server-side vision. Frames are reduced to nine tile samples per face and discarded; only tile colors and means ever leave that tab ([ADR-015](ADR/015-state-only-sync.md)). The pipeline serves three uses: the six-face scan (§1–§11), the student palette built from that scan, and reading one or two faces at a checkpoint (§12).
 
 ```mermaid
 flowchart LR
@@ -218,7 +218,7 @@ When the ML detector flags `isCube: false` (due to human face or empty backgroun
 - Immediately zeroes its match counter (`consecutiveMatches = 0`).
 - Clamps `stabilityProgress` to $0\%$.
 - Disables the on-screen capture trigger.
-- Displays a prominent alert badge: `⚠️ FACE DETECTED — ALIGN RUBIK'S CUBE`.
+- Shows "Face detected. Show the cube instead" and "Face detected, scanning paused" in the webcam scanner.
 
 ---
 
@@ -235,16 +235,14 @@ When the ML detector flags `isCube: false` (due to human face or empty backgroun
 ---
 
 ## 10. Benchmark Status
-- Synthetic Color Space Unit Tests: **PASSED (11/11 tests)**
-- ML Cube & Face Detector Unit Tests: **PASSED (10/10 tests)**
-- Overall Computer Vision Tests: **PASSED (21/21 tests)**
+Vision tests as of 2026-11-17 (all passing): `vision` 14, `color-boundary` 4, `calibration` 4, `ml-detector` 10, `feature-extractor` 2, `capture-quality` 7, `face-analyzer` 8, `reticle-mapping` 4, `resolve-colors` 5, `vision-palette` 12, `vision-checkpoint-capture` 5, `vision-camera-start` 6, and the end-to-end `checkpoint-synthetic` 9. See [TESTING.md](TESTING.md).
 
 ---
 
-## 11. Phone Photo Pipeline & Global Color Resolution ([ADR-010](ADR/010-desktop-side-analysis-and-global-color-resolution.md))
+## 11. Phone Capture & Global Color Resolution ([ADR-010](ADR/010-desktop-side-analysis-and-global-color-resolution.md))
 
 ### 11.1 Reticle-Exact Crop
-The camera preview uses `object-fit: cover`, so which part of the frame is visible depends on the screen and stream aspect ratios. `mapElementRectToVideo` inverts the cover transform. With $s = \max(w_{box}/w_{video},\ h_{box}/h_{video})$ and the centering offset $o$, a screen point $p$ maps to $(p - o)/s$ in video pixels. The photo is cropped to exactly the square the user saw. The old fixed crop (65% of the short side) was about 1.76x too wide on a portrait phone with a landscape stream.
+The camera preview uses `object-fit: cover`, so which part of the frame is visible depends on the screen and stream aspect ratios. `mapElementRectToVideo` inverts the cover transform. With $s = \max(w_{box}/w_{video},\ h_{box}/h_{video})$ and the centering offset $o$, a screen point $p$ maps to $(p - o)/s$ in video pixels. The phone reads exactly the square the user saw. The old fixed crop (65% of the short side) was about 1.76x too wide on a portrait phone with a landscape stream.
 
 ### 11.2 Live Capture Checks (`captureQuality.ts`)
 Evaluated every 150 ms on the same region, in priority order. The first failure is the one instruction shown.
@@ -257,21 +255,21 @@ Evaluated every 150 ms on the same region, in priority order. The first failure 
 | Glare | share of clipped pixels (all channels ≥ 252) per tile | ≤ 8% |
 | Steady | mean $\Delta E$ per tile vs the previous frame | ≤ 6 |
 
-When every check holds for 600 ms the photo takes itself. After a photo the shutter stays disarmed until a check fails once, so a rejected photo is never retaken in a loop. White balance is locked (`whiteBalanceMode: 'manual'`) 1.5 s after the camera opens, where supported.
+When every check holds for 600 ms the shutter fires by itself. After a capture the shutter stays disarmed until a check fails once, so a rejected face is never retaken in a loop. White balance is locked (`whiteBalanceMode: 'manual'`) 1.5 s after the camera opens, where supported.
 
 ### 11.3 Per-Face Analysis (`faceImageAnalyzer.ts`)
-Samples the nine tiles and runs the ML detector. A photo is rejected only if it is not a cube, or its center is more than 15 $\Delta E$ closer to another face's color than to its own. That margin is deliberately high: a false rejection blocks the user, while subtler mix-ups are caught by §11.4.
+Runs on the phone: samples the nine tiles and runs the ML detector, then the crop is discarded and only a `face-scanned` message (9 colors, 9 confidences, 9 tile mean colors) is sent. A reading is rejected only if it is not a cube, or its center is more than 15 $\Delta E$ closer to another face's color than to its own. That margin is deliberately high: a false rejection blocks the user, while subtler mix-ups are caught by §11.4.
 
 ### 11.4 Global Resolution (`resolveCubeColors.ts`)
 1. **Calibrate.** The six observed centers replace the reference palette (`buildDynamicPalette`).
 2. **Assign.** Cost $C_{t,c} = \Delta E(\text{tile}_t, \text{palette}_c)$. Minimize $\sum C$ over the 48 non-center tiles subject to eight tiles per color (Hungarian algorithm, `resolve54StickerInvariant`). Centers are fixed.
-3. **Repair orientation.** If `validateCubeState` fails, try quarter-turn rotations of the face photos, fewest rotated first, top and bottom preferred, and keep the first valid state.
+3. **Repair orientation.** If `validateCubeState` fails, try quarter-turn rotations of the face readings, fewest rotated first, top and bottom preferred, and keep the first valid state.
 4. **Flag.** `lowMargin` when the best two colors are within 8 $\Delta E$. `overridden` when the assignment differs from the tile's nearest color. Two centers within 7 $\Delta E$ are reported as the same face shot twice.
 
 On synthetic photos of a 14-move scramble with different lighting per face, the state is recovered exactly. A tile placed at the calibrated red/orange midpoint is resolved by the nine-per-color constraint and flagged.
 
 ### 11.5 Human Review
-The desktop always shows the resolved net before solving. Flagged tiles are ringed. Each tile can be compared with its crop from the user's own photo (rotation-aware) and corrected. Solving is offered only for a valid cube. This last step is what makes the result verifiably the user's cube rather than a statistically likely one.
+The desktop always shows the resolved net before solving. Flagged tiles are ringed. Each tile can be checked against the cube in hand and corrected (the review no longer shows photo crops: no photo leaves the phone). Solving is offered only for a valid cube. This last step is what makes the result verifiably the user's cube rather than a statistically likely one.
 
 ---
 
