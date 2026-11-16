@@ -7,6 +7,7 @@
  */
 
 import type { CubeColor } from '../cube/types';
+import { moveName } from '../cube/moveNames';
 import { formatAlgorithm, parseAlgorithm } from '../cube/transforms';
 import type { StepPlan } from '../tutor/types';
 import {
@@ -54,7 +55,33 @@ export function buildCoachFacts(
   if (diagnosis?.likelyMistakes.length) {
     facts.diagnosis = { likelyMistakes: diagnosis.likelyMistakes.slice(0, MAX_MISTAKES) };
   }
-  return facts;
+  return withMoveWords(facts);
+}
+
+/** The moves a level-3 hint walks through: setup, then the repeated unit or the whole algorithm. */
+export function taughtMoves(facts: Pick<CoachFacts, 'setupMoves' | 'algorithm' | 'repeat'>): string {
+  return [facts.setupMoves, facts.repeat?.unit ?? facts.algorithm].join(' ').trim();
+}
+
+/** `R = turn the right side up` for each move of `notation`. */
+export function describeMoves(notation: string): string[] {
+  if (!notation.trim()) return [];
+  return parseAlgorithm(notation).map((m) => {
+    const name = moveName(m);
+    return `${m.notation} = ${name.charAt(0).toLowerCase()}${name.slice(1)}`;
+  });
+}
+
+/** Sets `moveWords` at hint level 3 and removes it at the other levels. */
+export function withMoveWords(facts: CoachFacts): CoachFacts {
+  const rest: CoachFacts = { ...facts };
+  delete rest.moveWords;
+  return facts.hintLevel === 3 ? { ...rest, moveWords: describeMoves(taughtMoves(facts)) } : rest;
+}
+
+/** Phrases blanked out before the guardrail scan: the step's own case and stage names. */
+export function guardNames(facts: Pick<CoachFacts, 'caseName' | 'stageName'>): string[] {
+  return [facts.caseName, facts.stageName];
 }
 
 /** Every move the step may mention (setup, algorithm, repeated unit), in canonical notation. */
@@ -196,5 +223,5 @@ export function parseCoachFacts(input: unknown): ParseResult<CoachFacts> {
     if (parsed.length) facts.diagnosis = { likelyMistakes: parsed as LikelyMistake[] };
   }
 
-  return { ok: true, value: facts };
+  return { ok: true, value: withMoveWords(facts) };
 }

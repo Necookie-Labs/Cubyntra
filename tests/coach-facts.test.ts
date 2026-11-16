@@ -8,7 +8,7 @@ import { applyMoves, invertAlgorithm, parseAlgorithm } from '../src/cube/transfo
 import { createSolvedCubeState } from '../src/cube/constants';
 import { planNextStepIn } from '../src/tutor/engine';
 import { CFOP_METHOD } from '../src/tutor/methods/cfop';
-import { allowedMoves, buildCoachFacts, parseCoachFacts } from '../src/coach/facts';
+import { allowedMoves, buildCoachFacts, describeMoves, parseCoachFacts, taughtMoves } from '../src/coach/facts';
 import { MAX_ATTEMPTS } from '../src/coach/types';
 import { SAMPLE_FACTS } from './helpers/coachFacts';
 
@@ -53,6 +53,39 @@ describe('buildCoachFacts', () => {
     const facts = buildCoachFacts(sunePlan(), 2, [{ result: 'mismatch', mistakes: ['skipped-move'] }]);
     const parsed = parseCoachFacts(JSON.parse(JSON.stringify(facts)));
     expect(parsed).toEqual({ ok: true, value: facts });
+  });
+});
+
+describe('plain-language move names', () => {
+  it('adds moveWords at hint level 3 only, from the setup and algorithm', () => {
+    const plan = sunePlan();
+    expect(buildCoachFacts(plan, 1).moveWords).toBeUndefined();
+    expect(buildCoachFacts(plan, 2).moveWords).toBeUndefined();
+    const facts = buildCoachFacts(plan, 3);
+    const taught = [...plan.setupMoves, ...plan.algorithm];
+    expect(facts.moveWords).toHaveLength(taught.length);
+    expect(facts.moveWords![0]).toMatch(/^\S+ = turn /);
+    expect(facts.moveWords).toContain('R = turn the right side up');
+    expect(facts.moveWords).toContain("R' = turn the right side down");
+    expect(facts.moveWords).toContain('U2 = turn the top twice');
+  });
+
+  it('names the repeated unit instead of the long algorithm', () => {
+    const words = describeMoves(taughtMoves({ setupMoves: 'y', algorithm: "R' D' R D R' D' R D", repeat: { unit: "R' D' R D", times: 2 } }));
+    expect(words).toEqual([
+      'y = turn the whole cube to the left',
+      "R' = turn the right side down",
+      "D' = turn the bottom to the left",
+      'R = turn the right side up',
+      'D = turn the bottom to the right',
+    ]);
+  });
+
+  it('is recomputed by the validator, never taken from the request', () => {
+    const parsed = parseCoachFacts({ ...SAMPLE_FACTS, hintLevel: 3, moveWords: ['R = jump off a bridge'] });
+    expect(parsed.ok && parsed.value.moveWords).toEqual(describeMoves("U R U R' U R U2 R'"));
+    const level1 = parseCoachFacts({ ...SAMPLE_FACTS, hintLevel: 1, moveWords: ['R = spin'] });
+    expect(level1.ok && 'moveWords' in level1.value).toBe(false);
   });
 });
 

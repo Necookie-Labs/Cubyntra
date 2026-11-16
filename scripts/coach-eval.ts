@@ -12,11 +12,10 @@
  */
 
 import { checkReplyMoves } from '../src/coach/guard';
-import { allowedMoves } from '../src/coach/facts';
+import { allowedMoves, guardNames } from '../src/coach/facts';
 import { coachReply, coachStatus } from '../src/coach/service';
 import { getSpendTracker } from '../src/coach/spend';
 import { stageNote } from '../src/coach/stages';
-import { CASE_NOTES } from '../src/coach/templates';
 import { CoachFacts, CoachStreamEvent, HintLevel, MistakeKind } from '../src/coach/types';
 import { dataPath, writeFileAtomic } from '../src/lib/dataDir';
 import { F2L_CASES } from '../src/tutor/cases/f2l';
@@ -88,8 +87,7 @@ async function run(facts: CoachFacts): Promise<Row> {
     else if (event.type === 'replace') text = event.text;
     else done = event;
   }
-  const names = [facts.caseName, facts.stageName, CASE_NOTES[facts.caseId]?.name ?? ''];
-  const guard = checkReplyMoves(text, allowedMoves(facts), names);
+  const guard = checkReplyMoves(text, allowedMoves(facts), guardNames(facts));
   return {
     facts,
     text,

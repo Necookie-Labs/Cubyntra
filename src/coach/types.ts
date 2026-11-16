@@ -76,6 +76,12 @@ export interface CoachFacts {
   goal: string;
   lookFor: string;
   why: string;
+  /**
+   * Hint level 3 only: one plain-language line per move, as `R = turn the right side up`, for
+   * `setupMoves` then the algorithm (the repeated unit when `repeat` is set). Derived from the
+   * notation (`src/cube/moveNames.ts`); the server recomputes it rather than trusting the client.
+   */
+  moveWords?: string[];
   /** Earlier tries at this step, oldest first (at most `MAX_ATTEMPTS`). */
   attempts: AttemptRecord[];
   diagnosis?: CoachDiagnosis;

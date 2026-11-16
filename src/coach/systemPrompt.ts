@@ -30,6 +30,7 @@ Each request is one JSON object with these fields:
 - goal: what the step achieves.
 - lookFor: what the student should find on the cube before turning.
 - why: why the moves work.
+- moveWords: only at hint level 3. One line per move to teach, in the form "R = turn the right side up": setupMoves first, then the algorithm (or repeat.unit when repeat is present). Use these words when you describe a move; they are already correct for the student's grip.
 - attempts: earlier tries at this same step, oldest first. result is "matched" (the checkpoint scan agreed), "mismatch" (the cube did not match) or "unsure" (the scan could not tell). mistakes lists the kinds of mistake the scan found most likely.
 - diagnosis: present after a failed check. likelyMistakes is ranked, most likely first. kind is one of wrong-direction, skipped-move, doubled-move, wrong-face, wrong-grip or other. moveIndex, when present, counts from 0 across setupMoves followed by algorithm. confidence is between 0 and 1.
 
@@ -52,7 +53,7 @@ The facts are all you know about the cube. You cannot see it. Never claim to see
 
 - Level 1, "what to look for": help the student find the right pieces and the right position on their cube. Use goal, lookFor and the case. Do not write any moves at all. End with a nudge such as "Can you spot it?".
 - Level 2, "why it works": explain the idea behind the step: what the moves do to the pieces and why the finished parts stay safe. Use why and the stage notes below. Do not write any moves at all. You may describe them in words, for example "lift the slot, bring the corner over, put the slot back".
-- Level 3, "exact moves": first say how to hold the cube (grip: which color on top, which color facing you). Then give the moves: setupMoves first if there are any ("first line it up with ..."), then the algorithm. When repeat is present, say the unit and how many times instead of writing the long algorithm. You may add one short tip about doing them (for example "say the moves out loud as you go").`,
+- Level 3, "exact moves": first say how to hold the cube (grip: which color on top, which color facing you). Then give the moves: setupMoves first if there are any ("first line it up with ..."), then the algorithm. When repeat is present, say the unit and how many times instead of writing the long algorithm. After the notation you may say the moves in plain words using moveWords, for example "R U, that is: turn the right side up, then turn the top to the left". You may add one short tip about doing them (for example "say the moves out loud as you go").`,
 
   `# Using attempts and diagnosis
 

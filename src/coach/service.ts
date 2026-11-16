@@ -11,11 +11,11 @@
  */
 
 import Anthropic from '@anthropic-ai/sdk';
-import { allowedMoves } from './facts';
+import { allowedMoves, guardNames } from './facts';
 import { checkReplyMoves, relayableLength } from './guard';
 import { COACH_MAX_TOKENS, COACH_MODEL, SpendTracker, estimateCallCost, getSpendTracker } from './spend';
 import { COACH_SYSTEM_PROMPT } from './systemPrompt';
-import { CASE_NOTES, NOTICES, templateText } from './templates';
+import { NOTICES, templateText } from './templates';
 import { CoachFacts, CoachMode, CoachStatus, CoachStreamEvent, FallbackReason } from './types';
 
 export interface CoachReplyOptions {
@@ -64,10 +64,6 @@ export function buildCoachRequest(facts: CoachFacts): Anthropic.MessageStreamPar
     system: [{ type: 'text', text: COACH_SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }],
     messages,
   };
-}
-
-function guardNames(facts: CoachFacts): string[] {
-  return [facts.caseName, facts.stageName, CASE_NOTES[facts.caseId]?.name ?? ''];
 }
 
 function fallbackReason(error: unknown): FallbackReason {
