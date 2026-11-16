@@ -1,102 +1,106 @@
 /**
- * Cubyntra - Server-Sent Events (SSE) Real-Time Relay
- * GET /api/session/[id]/events
+ * Cubyntra - Sync Event Stream
+ * GET /api/session/[id]/events?role=desktop|mobile
+ *
+ * Server-Sent Events. Requires the session secret in `x-cubyntra-session` (clients read the stream
+ * with `fetch`, not `EventSource`, so the secret travels in a header and never in a URL). Each
+ * frame is `data: <StreamEvent JSON>`: first a `snapshot`, then `message`, `connections`, a `ping`
+ * every 15 s (which also keeps the session alive), and `ended` before the stream closes when the
+ * session is deleted or expires.
+ *
+ * Cleanup (unsubscribe, stop the ping, release the connection count) runs exactly once, on
+ * whichever comes first: the client cancelling the stream, the request's abort signal, or the
+ * session ending.
  */
 
-import { NextRequest } from 'next/server';
 import { sessionManager } from '@/sync/sessionManager';
-import { SessionEvent } from '@/sync/types';
+import { guardSession, jsonError } from '@/sync/server';
+import { DeviceRole, StreamEvent } from '@/sync/types';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(
-  req: NextRequest,
-  context: { params: Promise<{ id: string }> }
-) {
+const PING_INTERVAL_MS = 15_000;
+
+export async function GET(req: Request, context: { params: Promise<{ id: string }> }) {
   const { id } = await context.params;
-  const session = sessionManager.getSession(id);
+  const denied = guardSession(req, id);
+  if (denied) return denied;
 
-  if (!session) {
-    return new Response('Session not found', { status: 404 });
-  }
-
-  const role = req.nextUrl.searchParams.get('role') || 'desktop';
+  const roleParam = new URL(req.url).searchParams.get('role');
+  if (roleParam !== 'desktop' && roleParam !== 'mobile') return jsonError(400, 'role must be desktop or mobile');
+  const role: DeviceRole = roleParam;
 
   const encoder = new TextEncoder();
-  let unsubscribe: (() => void) | null = null;
-  let pingInterval: NodeJS.Timeout | null = null;
+  let finish: () => void = () => {};
 
-  const stream = new ReadableStream({
+  const stream = new ReadableStream<Uint8Array>({
     start(controller) {
-      // Announce client connection
-      sessionManager.publish({
-        type: 'CLIENT_CONNECTED',
-        sessionId: id,
-        sender: role === 'mobile' ? 'mobile' : 'desktop',
-        timestamp: Date.now(),
-      });
+      let done = false;
+      let ping: ReturnType<typeof setInterval> | null = null;
+      let unsubscribe: () => void = () => {};
+      let release: () => void = () => {};
 
-      // Send initial state snapshot
-      const initialEvent: SessionEvent = {
-        type: 'STATE_SYNC',
-        sessionId: id,
-        sender: 'system',
-        payload: sessionManager.getSession(id),
-        timestamp: Date.now(),
+      finish = () => {
+        if (done) return;
+        done = true;
+        if (ping) clearInterval(ping);
+        unsubscribe();
+        release();
+        req.signal?.removeEventListener('abort', finish);
+        try {
+          controller.close();
+        } catch {
+          // Already closed or cancelled.
+        }
       };
-      controller.enqueue(encoder.encode(`data: ${JSON.stringify(initialEvent)}\n\n`));
 
-      // Subscribe to subsequent session events
-      unsubscribe = sessionManager.subscribe(id, (event: SessionEvent) => {
+      const send = (event: StreamEvent) => {
+        if (done) return;
         try {
           controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
         } catch {
-          // Stream closed or error
+          finish();
         }
+      };
+
+      // Count this stream before listening, so its own connect notice is not echoed to it; the
+      // snapshot below already carries the new counts.
+      release = sessionManager.connect(id, role);
+      unsubscribe = sessionManager.subscribe(id, (event) => {
+        send(event);
+        if (event.kind === 'ended') finish();
       });
 
-      // Periodic ping every 15s keeps the connection alive across proxies and marks the
-      // session as in use, so a connected pairing never expires while idle.
-      pingInterval = setInterval(() => {
+      const snapshot = sessionManager.snapshot(id);
+      if (!snapshot) {
+        send({ kind: 'ended', reason: 'expired' });
+        finish();
+        return;
+      }
+      send({ kind: 'snapshot', snapshot });
+
+      ping = setInterval(() => {
         if (!sessionManager.touch(id)) {
-          // The session is gone (expired or deleted): end the stream so the client notices.
-          if (pingInterval) clearInterval(pingInterval);
-          try {
-            controller.close();
-          } catch {
-            // Already closed
-          }
+          send({ kind: 'ended', reason: 'expired' });
+          finish();
           return;
         }
-        try {
-          const pingEvent: SessionEvent = {
-            type: 'PING',
-            sessionId: id,
-            sender: 'system',
-            timestamp: Date.now(),
-          };
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify(pingEvent)}\n\n`));
-        } catch {
-          // Closed
-        }
-      }, 15000);
+        send({ kind: 'ping', at: Date.now() });
+      }, PING_INTERVAL_MS);
+
+      if (req.signal?.aborted) finish();
+      else req.signal?.addEventListener('abort', finish, { once: true });
     },
     cancel() {
-      if (unsubscribe) unsubscribe();
-      if (pingInterval) clearInterval(pingInterval);
-      sessionManager.publish({
-        type: 'CLIENT_DISCONNECTED',
-        sessionId: id,
-        sender: role === 'mobile' ? 'mobile' : 'desktop',
-        timestamp: Date.now(),
-      });
+      finish();
     },
   });
 
   return new Response(stream, {
     headers: {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache, no-transform',
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'Cache-Control': 'no-cache, no-store, no-transform',
+      'X-Accel-Buffering': 'no',
       Connection: 'keep-alive',
     },
   });
