@@ -441,19 +441,19 @@ export const useTutorStore = create<TutorStore>((set, get) => {
     cancelCheckpoint: () => set({ phase: 'step', observations: [], checkpoint: null }),
 
     submitObservation: (observation) => {
-      const { plan, observations, phase } = get();
+      const { plan, observations, phase, checkpoint } = get();
       // Only while the camera sheet is waiting: a verdict has already been given otherwise.
       if (!plan || phase !== 'checking') return;
       const next = [...observations.filter((o) => o.face !== observation.face), observation];
       set({ observations: next });
-      runCheck(() => checkCheckpoint(plan, next));
+      runCheck(() => checkCheckpoint(plan, next, checkpoint));
     },
 
     editTiles: (face, edits) => {
-      const { plan, observations } = get();
+      const { plan, observations, checkpoint } = get();
       if (!plan) return;
       set({ observations: observations.map((o) => (o.face === face ? applyTileEdits(o, edits) : o)) });
-      runCheck(() => checkWithEdits(plan, observations, face, edits));
+      runCheck(() => checkWithEdits(plan, observations, face, edits, checkpoint));
     },
 
     confirmByHand: () => {

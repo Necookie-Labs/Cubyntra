@@ -157,9 +157,14 @@ lighting and glare tips with Scan again and Use a demo cube.
   mastery (Progress). "Templates" or "Cap reached" chips and the
   route's notice show when the coach answers from templates.
 - **Checkpoint sheet** (a `Dialog`): a flat mini-cube (unfolded, centers only, in the student's
-  grip) outlines the face to show; the instruction names the grip and the face. "Check this face"
-  reads the reticle square with the student's palette. Outcomes, announced in a live region:
-  - *uncertain* → "Show me … again" (unclear tiles marked; tap a tile to correct it);
+  grip) outlines the face to show and marks with a bar the edge that goes at the top of the
+  picture; the instruction (`showFaceInstruction`) names the grip, the face and how to hold it
+  ("tilt the cube toward you so the top face faces the camera, keeping the front face at the
+  bottom of the picture"). "Check this face" reads the reticle square with the student's palette.
+  Outcomes, announced in a live region:
+  - *uncertain* → "Show me … again" (unclear tiles marked; tap a tile to correct it), or, when the
+    face fits only turned and a turn of that layer would look the same, "… again, with … at the
+    top of the picture";
   - *wrong face* → which face to show instead;
   - *match* → a leaf block drops onto the row ("Block placed"), next step after 1.8 s or on
     "Next step";

@@ -46,9 +46,15 @@ they are evidence for the diagnosis.
 ### 3. A face is identified by its center
 The center of each shown face is compared with the expected center first. A different, clearly
 read center is a `wrong-face` result that names the face to show, not a mistake in the moves.
-Observations are in the frame of the plan's `gripAfter`, in the cube model's tile layout; the
-check never tries the in-plane turns of a photo, because on the top face that turn is the
-difference between right and wrong.
+Observations are in the frame of the plan's `gripAfter`, in the cube model's tile layout.
+A center cannot tell which way up a face was held, so (amended 2026-11) the sheet says which
+neighbouring face goes at the top of the picture (`PICTURE_TOP`), and the check tries the three
+in-plane turns of a face that does not fit as shown. A turn is used only when it is the one turn
+that makes every shown face fit and no turn of that face's own layer explains the readings as
+shown; when a layer turn would look the same (on the top face a quarter turn is exactly the
+difference between right and wrong) the result is `uncertain` with "hold it with X at the top",
+and the face shown again is then taken as held. The diagnosis, when nothing fits as shown, uses
+a turned reading only if exactly one way of turning the pictures makes a slip fit.
 
 ### 4. Diagnosis by replaying slips on the logical cube
 On a mismatch, `diagnoseMistake` enumerates the slips learners make (other direction, skipped,
@@ -90,7 +96,7 @@ and confidences, not pixels. Pixels are read in `src/vision/checkpointCapture.ts
 - The palette is tied to one cube. A new cube, or a full rescan, rebuilds it.
 - Overexposed white tiles and glare read as "not seen". The cost is an occasional "show me
   again"; the alternative is guessing.
-- The UI must show the student which way up to hold each face, since the check does not try
-  rotated photos.
+- The UI must show the student which way up to hold each face. A face held rotated is read
+  turned when that is unambiguous, otherwise it costs one "show it again, X at the top".
 - Everything above is measured on synthetic photos. Real-camera behaviour is unverified and is
   listed for manual checking.

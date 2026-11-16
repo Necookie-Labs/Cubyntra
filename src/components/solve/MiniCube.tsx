@@ -4,12 +4,16 @@
  *
  * A flat unfolded cube showing how to hold it: each face is a small 3x3 with only its center
  * colored, in the student's grip. The face to show the camera is outlined and labelled, so the
- * instruction does not rely on color or on reading "the right face" correctly.
+ * instruction does not rely on color or on reading "the right face" correctly. A bar on one edge
+ * of that face marks the edge that goes at the top of the camera picture: in this net it is
+ * always the face's upper edge (the back edge of the top face, the front edge of the bottom
+ * face, the top edge of the sides), matching `PICTURE_TOP`.
  */
 
 import React from 'react';
 import type { CubeColor, Face } from '@/cube/types';
 import { cx, stickerColor, stickerLetter, stickerLetterClass } from '@/components/ui';
+import { PICTURE_TOP } from '@/tutor/checkpoint';
 
 const NET: Record<Face, { col: number; row: number }> = {
   U: { col: 2, row: 1 },
@@ -39,9 +43,11 @@ export interface MiniCubeProps {
 }
 
 export function MiniCube({ centers, highlight, letters = false, className }: MiniCubeProps) {
-  const label = highlight
-    ? `Cube held with ${centers.U} on top and ${centers.F} in front. Show the ${FACE_WORD[highlight]} face, ${centers[highlight]} center.`
-    : `Cube held with ${centers.U} on top and ${centers.F} in front.`;
+  const up = highlight ? PICTURE_TOP[highlight] : null;
+  const label =
+    highlight && up
+      ? `Cube held with ${centers.U} on top and ${centers.F} in front. Show the ${FACE_WORD[highlight]} face, ${centers[highlight]} center, with the ${FACE_WORD[up]} face (${centers[up]} center) at the top of the picture.`
+      : `Cube held with ${centers.U} on top and ${centers.F} in front.`;
   return (
     <div role="img" aria-label={label} className={cx('inline-grid grid-cols-4 grid-rows-3 gap-1', className)}>
       {(Object.keys(NET) as Face[]).map((face) => {
@@ -52,6 +58,7 @@ export function MiniCube({ centers, highlight, letters = false, className }: Min
             className={cx('relative flex flex-col items-center gap-0.5')}
             style={{ gridColumn: NET[face].col, gridRow: NET[face].row }}
           >
+            {active && <span data-picture-top className="absolute -top-3 left-0 h-1 w-full bg-ink" />}
             <div
               className={cx(
                 'grid grid-cols-3 gap-px bg-sticker-core p-px',

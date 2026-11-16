@@ -43,9 +43,29 @@ interface FaceObservation {
 interface StickerObservation { color: CubeColor; confidence: number; edited?: boolean }
 ```
 
-The tile layout must match the face layout of the cube model (`src/cube/geometry.ts`). The check
-does not try the four in-plane turns of a photo: on the top face a quarter turn is exactly what
-separates a correct last-layer step from a wrong one.
+The tile layout must match the face layout of the cube model (`src/cube/geometry.ts`), so the
+student is told which way up to hold each face: `showFaceInstruction(grip, face)` gives the
+sentence and `PICTURE_TOP[face]` the face whose edge goes at the top of the picture (the back
+edge for the top face, "tilt the cube toward you, front at the bottom of the picture"; the front
+edge for the bottom face, "tilt it back, front at the top"; the top for the four sides). The
+mini-cube marks that edge.
+
+A center cannot tell which way up a face was held, so a face that does not fit as shown is also
+tried with its picture turned 90°, 180° and 270° (`turnPicture`):
+- every shown face fits the expected cube, each at exactly one turn, and no turn of the turned
+  face's own layer explains the readings as shown → the turned reading is used and the turn is
+  reported in `result.rotations` (quarter turns clockwise applied to the picture);
+- a layer turn would explain them as well (a single shown top face turned a quarter is exactly a
+  missed `U`), or a face fits at two turns → `uncertain` with `rotationUnclear` and the message
+  "I could not tell which way up that face was. Show me … again, with … at the top of the
+  picture." The next check of that step passes `trustHold` for the face (the adapter's
+  `checkCheckpoint(plan, observations, previous)`), so the same reading is then taken as held and
+  a real slip is diagnosed instead of asked about twice;
+- otherwise the face is compared as shown, as before.
+
+`diagnoseMistake` does the same when no slip fits the faces as shown: each way of turning the
+shown pictures is tried with single slips, and one is used (reported in `diagnosis.rotations`)
+only if it is the only way that makes a slip fit.
 
 ## 3. Reading a face: the student's palette
 
@@ -80,7 +100,7 @@ readings it rejects as non-cube get confidence 0.
 |---|---|---|
 | `wrong-face` | A shown face's center is read clearly and is not the asked face's center | Says which face was shown and which to show (`wrongFace`) |
 | `mismatch` | At least one check-spec sticker is read clearly and is the wrong color | Diagnose |
-| `uncertain` | No clear mismatch, but a check-spec sticker or its face's center is below `minConfidence`, or a face has not been shown | "Show me again" / "Show me the … face" |
+| `uncertain` | No clear mismatch, but a check-spec sticker or its face's center is below `minConfidence`, or a face has not been shown, or the face fits only turned and a layer turn would look the same (`rotationUnclear`) | "Show me again" / "Show me the … face" / "… with … at the top of the picture" |
 | `match` | Every check-spec sticker is read clearly and is right | Next step |
 
 Only `plan.checkpoint.stickers` decide the status. Clearly read differences elsewhere on the
@@ -155,6 +175,7 @@ are injected by `tests/helpers/mistakes.ts`, which is written without the diagno
 | Glare on a check-spec sticker → `uncertain` | 311 / 311 | all |
 | Glare on a sticker outside the check spec → `match` | 254 / 254 | all |
 | Another face shown → `wrong-face`, naming the face | 311 / 311 | all |
+| One shown face held rotated (random 90/180/270°, correct step) → `match` with the turn reported | 277 / 277 (100%); 0 asked again, 0 mismatch | no mismatch |
 | No palette (static classifier, reference plastics, scan lighting) → `match` | 152 / 152 (100%) | ≥ 99% |
 
 Injected single mistakes (one random position per kind per plan):
@@ -163,12 +184,18 @@ Injected single mistakes (one random position per kind per plan):
 |---|---|---|---|---|---|---|
 | wrong-direction | 284 | 281 | 281 (100%) | 281 (100%) | 281 | 281 |
 | skipped-move | 311 | 311 | 311 (100%) | 311 (100%) | 311 | 311 |
-| doubled-move | 284 | 284 | 284 (100%) | 284 (100%) | 284 | 284 |
+| doubled-move | 284 | 284 | 283 (99.65%) | 283 (100%) | 283 | 283 |
 | wrong-face | 311 | 311 | 311 (100%) | 311 (100%) | 310 | 308 |
 | wrong-grip | 285 | 285 | 285 (100%) | 285 (100%) | 285 | 280 |
-| stopped-early | 272 | 272 | 272 (100%) | 272 (100%) | 272 | 271 |
+| stopped-early | 272 | 272 | 271 (99.63%) | 271 (100%) | 271 | 270 |
 | extra-repeat | 77 | 77 | 77 (100%) | 77 (100%) | 77 | 74 |
-| **all** | **1824** | **1821** | **1821 (100%)** | **1821 (100%)**, required ≥ 95% | **1820 (99.95%)** | **1809 (99.34%)** |
+| **all** | **1824** | **1821** | **1819 (99.89%)**, required ≥ 99% | **1819 (100%)**, required ≥ 95% | **1818 (99.95%)** | **1807 (99.34%)** |
+
+The two visible slips not reported as `mismatch` (one doubled move, one stopped early) leave the
+shown faces looking exactly like the expected cube with one face held rotated, so the first check
+asks for that face again "with … at the top of the picture"; shown again, it is taken as held and
+is a `mismatch` (`tests/tutor-checkpoint-rotation.test.ts` covers that second check). Before the
+rotation check all 1821 were `mismatch` on the first photo.
 
 Two slips in one step (one move the other way and another skipped): 198 detected, top diagnosis
 correct in 198 (100%).
@@ -182,7 +209,7 @@ Definitions:
   identical observed stickers are ties; the top one counts as correct when the injected cube is
   among those tied with it, which is exactly this condition.
 - **Exact cube**: the first diagnosis equals the injected cube on all 54 stickers.
-- **Confident**: `diagnosis.confident`. In all 1809 confident cases the diagnosis is the exact
+- **Confident**: `diagnosis.confident`. In all 1807 confident cases the diagnosis is the exact
   cube (the test requires zero confident-but-wrong results), so resuming without a rescan is
   safe; the other 12 go to "show one more face" or a rescan.
 

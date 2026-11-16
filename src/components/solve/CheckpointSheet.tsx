@@ -19,7 +19,7 @@ import { Camera, Check, RefreshCw } from 'lucide-react';
 import type { CubeColor, Face } from '@/cube/types';
 import { COLORS } from '@/cube/constants';
 import { gripCenters } from '@/cube/grip';
-import { observeFace, type TileEdit } from '@/tutor/checkpoint';
+import { observeFace, showFaceInstruction, type TileEdit } from '@/tutor/checkpoint';
 import type { FaceObservation, StepPlan } from '@/tutor/types';
 import type { StudentPalette } from '@/vision/palette';
 import { faceToShowNext, type CheckpointOutcome } from '@/app-shell/checkpointAdapter';
@@ -110,7 +110,7 @@ export function CheckpointSheetView({
 
   const face = askedFace(plan, outcome);
   const centers = gripCenters(plan.gripAfter);
-  const instruction = `Hold the cube with ${plan.gripAfter.top} on top and ${plan.gripAfter.front} facing you. Point the ${FACE_WORD[face]} face (${centers[face]} center) at the camera.`;
+  const instruction = showFaceInstruction(plan.gripAfter, face);
   const status = faceToShowNext(outcome)
     ? `One more face will tell what happened. ${instruction}`
     : outcome && outcome.result.status !== 'match'

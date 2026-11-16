@@ -213,13 +213,13 @@ export function TrainerView() {
   const onObservation = (o: FaceObservation) => {
     const next = [...observations.filter((x) => x.face !== o.face), o];
     setObservations(next);
-    record(checkCheckpoint(plan, next));
+    record(checkCheckpoint(plan, next, outcome));
   };
 
   const onEditTiles = (face: FaceObservation['face'], edits: readonly TileEdit[]) => {
     const next = observations.map((o) => (o.face === face ? applyTileEdits(o, edits) : o));
     setObservations(next);
-    record(checkCheckpoint(plan, next));
+    record(checkCheckpoint(plan, next, outcome));
   };
 
   const mismatch = check === 'closed' && outcome?.result.status === 'mismatch' ? outcome : null;

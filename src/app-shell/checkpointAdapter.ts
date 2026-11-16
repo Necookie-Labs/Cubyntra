@@ -29,11 +29,28 @@ export interface CheckpointOutcome {
   recovery: Recovery | null;
 }
 
-/** Verifies the shown faces and, on a mismatch, diagnoses what probably happened. */
-export function checkCheckpoint(plan: StepPlan, observations: readonly FaceObservation[]): CheckpointOutcome {
-  const result = verifyCheckpoint(plan, observations);
+/**
+ * The faces to take as held the asked way up on the next check: the face the last check could
+ * not tell the way up of has now been shown again as asked.
+ */
+export function trustedHold(previous: CheckpointOutcome | null): Face[] {
+  const face = previous?.result.rotationUnclear;
+  return face ? [face] : [];
+}
+
+/**
+ * Verifies the shown faces and, on a mismatch, diagnoses what probably happened. `previous` is
+ * the outcome of the last check of this step (its "which way up?" question is not asked twice).
+ */
+export function checkCheckpoint(
+  plan: StepPlan,
+  observations: readonly FaceObservation[],
+  previous: CheckpointOutcome | null = null
+): CheckpointOutcome {
+  const trustHold = trustedHold(previous);
+  const result = verifyCheckpoint(plan, observations, { trustHold });
   if (result.status !== 'mismatch') return { result, diagnosis: null, recovery: null };
-  const diagnosis = diagnoseMistake(plan, observations);
+  const diagnosis = diagnoseMistake(plan, observations, { trustHold });
   return { result, diagnosis, recovery: decideRecovery(plan, diagnosis) };
 }
 
@@ -47,10 +64,11 @@ export function checkWithEdits(
   plan: StepPlan,
   observations: readonly FaceObservation[],
   face: Face,
-  edits: readonly TileEdit[]
+  edits: readonly TileEdit[],
+  previous: CheckpointOutcome | null = null
 ): CheckpointOutcome {
   const edited = observations.map((o) => (o.face === face ? applyTileEdits(o, edits) : o));
-  return checkCheckpoint(plan, edited);
+  return checkCheckpoint(plan, edited, previous);
 }
 
 /** Plans from a full rescan taken in the middle of a solve, held as the student last was, on the same variant. */

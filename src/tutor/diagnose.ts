@@ -25,7 +25,7 @@ import {
   moveReferenceFace,
   parseAlgorithm,
 } from '../cube/transforms';
-import { MIN_STICKER_CONFIDENCE } from './checkpoint';
+import { MIN_STICKER_CONFIDENCE, turnPicture } from './checkpoint';
 import {
   Diagnosis,
   FaceObservation,
@@ -40,6 +40,8 @@ export interface DiagnoseOptions {
   topK?: number;
   /** Stickers read below this confidence never count against a mistake (default 0.5). */
   minConfidence?: number;
+  /** Faces taken as held the asked way up: their pictures are never tried turned. */
+  trustHold?: readonly Face[];
 }
 
 /** One slip and the moves the student would have done, before it is scored. */
@@ -391,6 +393,43 @@ export function diagnoseMistake(
   observations: readonly FaceObservation[],
   options: DiagnoseOptions = {}
 ): Diagnosis {
+  const asShown = diagnoseAsShown(plan, observations, options, true);
+  if (asShown.likelyMistakes.length) return asShown;
+
+  // Nothing fits the faces as shown: maybe a face was held rotated (a center cannot tell).
+  // Each way of turning the shown pictures is tried with single slips; one that alone makes a
+  // mistake fit is used, several are a tie and the cube is rescanned.
+  const latest = new Map<Face, FaceObservation>();
+  for (const observation of observations) latest.set(observation.face, observation);
+  const trusted = new Set(options.trustHold ?? []);
+  const faces = [...latest.keys()].filter((face) => !trusted.has(face));
+  if (!faces.length) return asShown;
+  const ways = faces.reduce<(0 | 1 | 2 | 3)[][]>((acc) => acc.flatMap((a) => ([0, 1, 2, 3] as const).map((k) => [...a, k])), [[]]);
+  let found: { diagnosis: Diagnosis; rotations: Partial<Record<Face, 1 | 2 | 3>> } | null = null;
+  for (const way of ways) {
+    if (way.every((k) => k === 0)) continue;
+    const turned = [...latest.values()].map((o) => {
+      const k = way[faces.indexOf(o.face)] ?? 0;
+      return k ? { face: o.face, stickers: turnPicture(o.stickers, k) } : o;
+    });
+    const diagnosis = diagnoseAsShown(plan, turned, options, false);
+    if (!diagnosis.likelyMistakes.length) continue;
+    if (found) return asShown;
+    const rotations: Partial<Record<Face, 1 | 2 | 3>> = {};
+    faces.forEach((face, i) => {
+      if (way[i]) rotations[face] = way[i] as 1 | 2 | 3;
+    });
+    found = { diagnosis, rotations };
+  }
+  return found ? { ...found.diagnosis, rotations: found.rotations } : asShown;
+}
+
+function diagnoseAsShown(
+  plan: StepPlan,
+  observations: readonly FaceObservation[],
+  options: DiagnoseOptions,
+  withPairs: boolean
+): Diagnosis {
   const topK = options.topK ?? 3;
   const seen = readings(observations, options.minConfidence ?? MIN_STICKER_CONFIDENCE);
   if (!seen.some((s) => s.clear)) return { likelyMistakes: [], confident: false };
@@ -403,7 +442,7 @@ export function diagnoseMistake(
     );
 
   let cubes = score(enumerateMistakes(plan));
-  if (!cubes.some((c) => c.contradictions === 0)) {
+  if (withPairs && !cubes.some((c) => c.contradictions === 0)) {
     const known = new Set(cubes.map((c) => c.key));
     cubes = [...cubes, ...score(enumeratePairs(plan)).filter((c) => !known.has(c.key))];
   }

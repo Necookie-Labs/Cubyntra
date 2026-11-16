@@ -204,6 +204,17 @@ export interface CheckpointResult {
   elsewhere: StickerResult[];
   /** True when the student confirmed by hand instead of the camera. */
   manual: boolean;
+  /**
+   * Faces whose picture was read turned (the student held the face rotated): quarter turns
+   * clockwise applied to the camera picture so it lines up with the expected face. Only set when
+   * that turn was the one way to explain the reading.
+   */
+  rotations?: Partial<Record<Face, 1 | 2 | 3>>;
+  /**
+   * `uncertain` because the shown face matches only when turned, and a turn of that layer would
+   * look the same: the student is asked to show it again held the asked way up.
+   */
+  rotationUnclear?: Face;
   /** One plain sentence for the student. */
   message: string;
 }
@@ -250,6 +261,11 @@ export interface Diagnosis {
   confident: boolean;
   /** When several different cubes fit equally, the face that would best tell them apart. */
   showNext?: Face;
+  /**
+   * Set when nothing fitted the faces as shown and exactly one way of turning their pictures
+   * (the student held a face rotated) made a mistake fit: the quarter turns clockwise used.
+   */
+  rotations?: Partial<Record<Face, 1 | 2 | 3>>;
 }
 
 /** A plan failed its replay check, or no plan exists for the state. Never shown as a step. */

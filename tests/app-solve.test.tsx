@@ -8,6 +8,7 @@ import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { planNextStep } from '@/tutor';
+import { showFaceInstruction } from '@/tutor/checkpoint';
 import { defaultStudentProfile } from '@/lib/studentProfile';
 import { scrambledState } from './helpers/scrambles';
 import { sampleProfile } from './helpers/studentProfile';
@@ -145,7 +146,11 @@ describe('Solve', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'I did it' }));
     const dialog = screen.getByRole('dialog', { name: 'Show me your cube' });
-    expect(within(dialog).getByRole('img', { name: /Show the/ })).toBeTruthy();
+    expect(within(dialog).getByRole('img', { name: /Show the .* at the top of the picture\./ })).toBeTruthy();
+    // The instruction says exactly how to hold the face, and which edge goes at the top.
+    const shownPlan = useTutorStore.getState().plan!;
+    expect(within(dialog).getByText(showFaceInstruction(shownPlan.gripAfter, shownPlan.checkpoint.facesToShow[0]))).toBeTruthy();
+    expect(dialog.querySelector('[data-picture-top]')).toBeTruthy();
     fireEvent.click(within(dialog).getByRole('button', { name: 'It matches' }));
     expect(screen.getByRole('dialog', { name: 'Step done' })).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Next step' }));

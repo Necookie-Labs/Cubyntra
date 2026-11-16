@@ -17,7 +17,7 @@ import { CubeState, Face } from '../src/cube/types';
 import { FACES } from '../src/cube/constants';
 import { invertMove } from '../src/cube/transforms';
 import { runGuidedSolve } from '../src/tutor';
-import { verifyCheckpoint } from '../src/tutor/checkpoint';
+import { turnPicture, verifyCheckpoint } from '../src/tutor/checkpoint';
 import { diagnoseMistake } from '../src/tutor/diagnose';
 import { decideRecovery } from '../src/tutor/recovery';
 import { MethodId, StepPlan } from '../src/tutor/types';
@@ -302,6 +302,43 @@ describe('checkpoint checks on synthetic photos', { timeout: 90_000 }, () => {
     }
     report.wrongFace = `${checked}/${checked} reported with the face to show`;
     expect(checked).toBe(stepCount);
+  });
+
+  it('matches or asks which way up when a correctly done face is held rotated, never a mismatch', () => {
+    const random = seededRandom(SEED + 7);
+    const counts = { match: 0, uncertain: 0, mismatch: 0, 'wrong-face': 0 };
+    let total = 0;
+    let rotationReported = 0;
+    for (const student of all) {
+      for (const plan of student.steps) {
+        const shown = photographCheckpoint(plan, plan.expectedState, student.palette, {
+          plastics: student.plastics,
+          lighting: checkpointLighting(random),
+        });
+        const which = Math.floor(random() * shown.length);
+        const turns = (1 + Math.floor(random() * 3)) as 1 | 2 | 3;
+        const face = shown[which].face;
+        const turned = shown.map((o, i) => (i === which ? { face: o.face, stickers: turnPicture(o.stickers, turns) } : o));
+        // A face that looks the same turned is no test of the turn.
+        if (turnPicture(plan.expectedState[face], turns).every((c, i) => c === plan.expectedState[face][i])) continue;
+        total++;
+        const result = verifyCheckpoint(plan, turned);
+        counts[result.status]++;
+        if (result.status === 'match' && result.rotations?.[face] === 4 - turns) rotationReported++;
+        if (result.status === 'uncertain') expect(result.message).toContain('at the top of the picture');
+      }
+    }
+    report.rotatedHold = {
+      ...counts,
+      total,
+      matchRate: percent(counts.match, total),
+      askedWhichWayUp: percent(counts.uncertain, total),
+      rotationReported: `${rotationReported}/${counts.match}`,
+    };
+    expect(total).toBeGreaterThan(200);
+    expect(counts.mismatch).toBe(0);
+    expect(counts['wrong-face']).toBe(0);
+    expect(rotationReported).toBe(counts.match);
   });
 
   it('still checks without a stored palette, using the static classifier', () => {
