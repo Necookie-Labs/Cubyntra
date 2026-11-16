@@ -18,6 +18,7 @@ This directory contains records of key architectural and engineering decisions m
 | [ADR-005](005-threejs-rendering.md) | Three.js Digital Twin with Drift-Free Orthonormal Snapping | Accepted | 2026-09 |
 | [ADR-006](006-ml-cube-detection-face-rejection.md) | Client-Side Machine Learning Cube Presence & Face Rejection Pipeline | Accepted | 2026-09 |
 | [ADR-007](007-empirical-dataset-gamut-gating.md) | Empirical Dataset Color Profiling & Strict Non-Cube Gamut Gating | Accepted | 2026-09 |
-| [ADR-008](008-speedcube-pbr-geometry-digital-twin.md) | High-Precision Speedcube Physical Geometry & PBR Digital Twin | Accepted | 2026-09 |
+| [ADR-008](008-speedcube-pbr-geometry-digital-twin.md) | High-Precision Speedcube Physical Geometry & PBR Digital Twin | Visual direction superseded by ADR-011 | 2026-09 |
 | [ADR-009](009-mobile-companion-qr-pairing.md) | Mobile Companion Scanner with Ephemeral QR Pairing & Center-Sticker Calibration | Amended by ADR-010 | 2026-09 |
 | [ADR-010](010-desktop-side-analysis-and-global-color-resolution.md) | Desktop-Side Photo Analysis & Global 54-Sticker Color Resolution | Accepted | 2026-09 |
+| [ADR-011](011-voxel-design-system.md) | Voxel Design System: Flat Tokens, Blocks and Enforced Style Rules | Accepted | 2026-11 |

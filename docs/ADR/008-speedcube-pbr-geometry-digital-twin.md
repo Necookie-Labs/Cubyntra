@@ -1,7 +1,7 @@
 # ADR-008: High-Precision Speedcube Physical Geometry & PBR Digital Twin
 
 **Date**: 2026-09  
-**Status**: Accepted  
+**Status**: Accepted; visual direction superseded by [ADR-011](011-voxel-design-system.md) (flat voxel style, no PBR gloss). The geometry and snapping remain in use until the Phase 4 voxel twin.  
 **Deciders**: Necookie Labs Core Engineering Team
 
 ---
