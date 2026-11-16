@@ -39,7 +39,7 @@ Checklist for `docs/tutor/GOAL.md`. Tick an item only when it is done and tested
 - [x] CFOP 2-look OLL and PLL
 - [x] 10,000-scramble tests for both methods
 - [x] ADR-012
-- [ ] Phase gate passed and pushed
+- [x] Phase gate passed and pushed
 
 ## Phase 4: Teaching twin
 - [ ] Grip-framed camera and animated regrips
