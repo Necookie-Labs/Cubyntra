@@ -9,6 +9,7 @@ import React, { useEffect, useRef, useState, useImperativeHandle, forwardRef } f
 import { CubeMove, CubeState } from '@/cube/types';
 import { CubeEngine } from '@/three/engine';
 import { RotateCcw, Maximize2, Minimize2, Eye } from 'lucide-react';
+import { IconButton } from '@/components/ui';
 
 export interface CubeVisualizerProps {
   state: CubeState;
@@ -98,38 +99,34 @@ export const CubeVisualizer = forwardRef<CubeVisualizerRef, CubeVisualizerProps>
     return (
       <div
         ref={panelRef}
-        className={`relative w-full h-full min-h-[320px] rounded-xl overflow-hidden bg-[radial-gradient(ellipse_80%_70%_at_50%_40%,var(--stage-from)_0%,var(--stage-to)_100%)] border border-neutral-800/80 shadow-2xl flex items-center justify-center select-none ${className}`}
+        className={`vx-panel relative w-full h-full min-h-[320px] overflow-hidden flex items-center justify-center select-none ${className}`}
       >
+        {/* Flat floor: a sunken well across the lower third, so the cube sits on a block. */}
+        <div aria-hidden className="absolute inset-x-0 bottom-1 h-1/3 bg-well border-t-2 border-line-soft" />
+
         {/* Three.js canvas container */}
         <div ref={containerRef} className="w-full h-full absolute inset-0 cursor-grab active:cursor-grabbing" />
 
         {/* Ambient overlay hint */}
-        <div className="absolute top-3 left-4 pointer-events-none flex items-center gap-2 text-xs font-mono text-neutral-400">
-          <Eye className="w-3.5 h-3.5 text-neutral-500" />
-          <span>DRAG TO ORBIT • SCROLL TO ZOOM</span>
+        <div className="absolute top-3 left-3 pointer-events-none flex items-center gap-2 bg-panel border-2 border-line-soft px-2 h-6 text-xs font-bold text-muted">
+          <Eye className="w-3.5 h-3.5" aria-hidden />
+          <span>Drag to orbit · Scroll to zoom</span>
         </div>
 
         {/* Floating Action Controls */}
         {showControls && (
-          <div className="absolute bottom-3 right-3 flex items-center gap-1.5 bg-neutral-900/80 backdrop-blur-md p-1.5 rounded-lg border border-neutral-800/80 shadow-lg">
-            <button
-              type="button"
-              onClick={() => engineRef.current?.resetCamera()}
-              className="p-1.5 rounded text-neutral-400 hover:text-neutral-100 hover:bg-neutral-800 transition-colors"
-              title="Reset View Orientation"
-              aria-label="Reset View Orientation"
-            >
+          <div className="absolute bottom-4 right-3 flex items-center gap-2">
+            <IconButton size="sm" onClick={() => engineRef.current?.resetCamera()} label="Reset View Orientation">
               <RotateCcw className="w-4 h-4" />
-            </button>
-            <button
-              type="button"
+            </IconButton>
+            <IconButton
+              size="sm"
               onClick={toggleFullscreen}
-              className="p-1.5 rounded text-neutral-400 hover:text-neutral-100 hover:bg-neutral-800 transition-colors"
+              label="Toggle Fullscreen"
               title={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
-              aria-label="Toggle Fullscreen"
             >
               {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
-            </button>
+            </IconButton>
           </div>
         )}
       </div>
