@@ -301,7 +301,8 @@ navigation over the viewfinder.
   Escape as Skip.
 - **Announcements.** Polite live regions carry the coach's replies and its "thinking" state,
   checkpoint instructions and results, the trainer's mismatch and session count, move names in
-  words, the timer's inspection count and toasts. Error toasts and load failures use `alert`.
+  words, the timer's inspection count and toasts. Error toasts and load failures use `alert`;
+  notices that are not errors (an expired pairing, the https:// hint on Pair) use `status`.
   Results are announced without the action buttons that follow them.
 - **Color is never the only signal.** States also have a word, an icon or a shape: chips carry
   text, review validity an icon block, progress blocks an outline and an announced count, trainer

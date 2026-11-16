@@ -132,7 +132,8 @@ export function PairView() {
           )}
 
           {(error || sessionEnded) && (
-            <div role="alert" className="flex flex-col items-center gap-3 text-center">
+            // A real error interrupts; an expired pairing is only a notice.
+            <div role={error ? 'alert' : 'status'} className="flex flex-col items-center gap-3 text-center">
               <p className="max-w-sm text-sm text-ink">
                 {error ?? 'This pairing ended or expired. Make a new code to pair again.'}
               </p>
@@ -143,7 +144,7 @@ export function PairView() {
           )}
 
           {insecure && (
-            <p role="alert" className="w-full border-2 border-warn-edge bg-warn-soft p-3 text-sm text-ink">
+            <p role="status" className="w-full border-2 border-warn-edge bg-warn-soft p-3 text-sm text-ink">
               The phone camera only opens on an https:// address. Start the server with npm run dev (HTTPS).
             </p>
           )}

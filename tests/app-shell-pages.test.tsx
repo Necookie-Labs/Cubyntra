@@ -247,6 +247,18 @@ describe('more screens', () => {
     expect(companion.value.initSession).not.toHaveBeenCalled();
   });
 
+  it('Pair tells of an ended pairing politely and of a real error as an alert', () => {
+    Object.assign(companion.value, { sessionId: null, qrDataUrl: null, code: null, sessionEnded: true, error: null });
+    const { unmount } = render(<PairView />);
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.getByText(/This pairing ended or expired/).closest('[role="status"]')).toBeTruthy();
+    unmount();
+    Object.assign(companion.value, { error: 'The server could not be reached.' });
+    render(<PairView />);
+    expect(screen.getByRole('alert').textContent).toContain('could not be reached');
+    Object.assign(companion.value, { sessionEnded: false, error: null });
+  });
+
   it('Pair makes a code on arrival when none exists', () => {
     Object.assign(companion.value, { sessionId: null, qrDataUrl: null, code: null });
     render(<PairView />);
