@@ -129,6 +129,10 @@ export const useCubyntraStore = create<CubyntraStore>((set, get) => ({
       solution: null,
       currentMoveIndex: -1,
       isPlaying: false,
+      // A new scan starts from a blank cube: no state or verdict from the previous one.
+      validationResult: null,
+      cubeState: createSolvedCubeState(),
+      originalScrambleState: createSolvedCubeState(),
     });
   },
 
