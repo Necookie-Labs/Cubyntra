@@ -16,7 +16,15 @@ import { normalizeOrientation, translateMoveThroughRotation } from '../cube/orie
 import { applyMoves, formatMove, invertAlgorithm, moveFromReference, moveReferenceFace } from '../cube/transforms';
 import { planNextStep, progress } from './api';
 import { countTurns } from './helpers';
-import { CheckpointSpec, Diagnosis, LikelyMistake, MethodId, StepPlan, TutorPlanError } from './types';
+import {
+  CheckpointSpec,
+  Diagnosis,
+  LikelyMistake,
+  MethodId,
+  MethodOptions,
+  StepPlan,
+  TutorPlanError,
+} from './types';
 
 /** A corrective step with more layer turns than this is replaced by a fresh plan. */
 export const MAX_CORRECTIVE_TURNS = 12;
@@ -150,11 +158,11 @@ export function resumeFrom(
         lookFor: plan.facts.lookFor,
         why: 'These moves take back what went wrong and then finish the step.',
       },
-      progressBefore: progress(from, plan.method).value,
+      progressBefore: progress(from, plan.method, plan.options).value,
     };
     return { kind: 'corrective', plan: corrective, undoMoves, redoMoves };
   }
-  return { kind: 'replan', plan: planNextStep(from, plan.method, plan.gripAfter, plan.stepIndex) };
+  return { kind: 'replan', plan: planNextStep(from, plan.method, plan.gripAfter, plan.stepIndex, plan.options) };
 }
 
 /**
@@ -189,13 +197,15 @@ export type ScanReplan =
  * Plans again from a fresh full scan. The scan may store the cube in any orientation; it is
  * turned to `preferredGrip` (normally the grip the student was last told to hold) when given,
  * and otherwise kept as scanned. The caller validates the scan (colors, parity) first; this
- * only checks that the centers form a real cube.
+ * only checks that the centers form a real cube. `options` are the learner settings of the
+ * solve that was interrupted (a plan carries them as `plan.options`).
  */
 export function replanFromScan(
   scanned: CubeState,
   method: MethodId,
   preferredGrip?: Grip,
-  stepIndex = 0
+  stepIndex = 0,
+  options: MethodOptions = {}
 ): ScanReplan {
   if (!normalizeOrientation(scanned)) {
     return { ok: false, reason: 'The scanned centers do not form a cube. Scan all six faces again.' };
@@ -203,7 +213,7 @@ export function replanFromScan(
   const grip = preferredGrip && isValidGrip(preferredGrip) ? preferredGrip : gripOf(scanned);
   try {
     const state = viewInGrip(scanned, grip).state;
-    return { ok: true, state, grip, plan: planNextStep(state, method, grip, stepIndex) };
+    return { ok: true, state, grip, plan: planNextStep(state, method, grip, stepIndex, options) };
   } catch (error) {
     if (error instanceof TutorPlanError) return { ok: false, reason: error.message };
     throw error;

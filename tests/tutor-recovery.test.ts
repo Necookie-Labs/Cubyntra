@@ -6,7 +6,7 @@ import { gripOf, viewInGrip } from '../src/cube/grip';
 import { normalizeOrientation } from '../src/cube/orientation';
 import { applyMoves, formatAlgorithm, invertMove, isCubeSolved, parseAlgorithm } from '../src/cube/transforms';
 import { validateCubeState } from '../src/cube/validator';
-import { progress, runGuidedSolve } from '../src/tutor';
+import { getMethod, progress, runGuidedSolve } from '../src/tutor';
 import { observationOf, verifyCheckpoint } from '../src/tutor/checkpoint';
 import { diagnoseMistake } from '../src/tutor/diagnose';
 import { MAX_CORRECTIVE_TURNS, decideRecovery, replanFromScan, resumeFrom } from '../src/tutor/recovery';
@@ -209,5 +209,46 @@ describe('replanFromScan', () => {
     const result = replanFromScan(twoWhite, 'cfop');
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.reason).toMatch(/Scan all six faces again/);
+  });
+});
+
+describe('recovery with the full last layer', () => {
+  const FULL = { lastLayer: 'full' } as const;
+  const lastLayerStep = () => {
+    const solve = runGuidedSolve(scrambledState(113, 1), 'cfop', undefined, FULL);
+    const step = solve.steps.find((s) => s.stage === 'oll' || s.stage === 'pll');
+    if (!step) throw new Error('This scramble skips the whole last layer');
+    return step;
+  };
+
+  it('stays on the full last layer when it plans afresh after a slip', () => {
+    const plan = lastLayerStep();
+    const list = moves(plan);
+    const performedMoves = list.slice(0, -1); // stopped one move early
+    const state = stateAfter(plan, performedMoves);
+
+    const corrective = resumeFrom(plan, { performedMoves, resultingState: state });
+    expect(corrective.kind).toBe('corrective');
+    expect(corrective.plan!.options).toEqual(FULL);
+    expect(corrective.plan!.progressBefore).toBe(progress(state, 'cfop', FULL).value);
+    expect(applyMoves(state, moves(corrective.plan!))).toEqual(plan.expectedState);
+
+    const fresh = resumeFrom(plan, { performedMoves, resultingState: state }, { maxCorrectiveTurns: 0 });
+    expect(fresh.kind).toBe('replan');
+    expect(fresh.plan!.options).toEqual(FULL);
+    expect(fresh.plan!.startState).toEqual(state);
+    expect(getMethod('cfop', FULL).stages.map((s) => s.id)).toContain(fresh.plan!.stage);
+    expect(fresh.plan!.stageIndex).toBe(progress(state, 'cfop', FULL).stageIndex);
+  });
+
+  it('plans from a rescan with the settings it is given', () => {
+    const plan = lastLayerStep();
+    const result = replanFromScan(plan.startState, 'cfop', plan.grip, plan.stepIndex, plan.options);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.plan).toEqual(plan);
+    // Without the settings, the same cube gets a 2-look step.
+    const twoLook = replanFromScan(plan.startState, 'cfop', plan.grip, plan.stepIndex);
+    expect(twoLook.ok && twoLook.plan && 'options' in twoLook.plan).toBe(false);
   });
 });
