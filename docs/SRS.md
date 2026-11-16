@@ -3,152 +3,216 @@
 **Product**: Cubyntra  
 **Organization**: Necookie Labs  
 **Standard**: Inspired by IEEE Std 830 / ISO/IEC/IEEE 29148  
-**Document Version**: 1.0  
-**Status**: V1 Release  
-**Last Updated**: 2026-09-26  
+**Document Version**: 2.0  
+**Status**: Tutor rebuild (2.0.0)  
+**Last Updated**: 2026-11-17  
 
 ---
 
 ## 1. Introduction
 
 ### 1.1 Purpose
-This Software Requirements Specification (SRS) establishes the complete functional, algorithmic, architectural, and quality requirements for **Cubyntra V1**, an autonomous, client-side Computer Vision Rubik's Cube scanner, state validator, solver, and interactive 3D digital twin developed by **Necookie Labs**.
+This SRS states the functional and quality requirements of **Cubyntra 2.0**, a local,
+single-student Rubik's Cube tutor, and traces each to the module and tests that implement it.
+The product decisions are fixed in `docs/tutor/GOAL.md`.
 
 ### 1.2 Scope
-Cubyntra provides client-side video capture, 3×3 adaptive grid sampling, lighting-tolerant color classification, temporal stability buffering, strict physical cube validation (parity, flips, twists), deterministic two-phase solving (Herbert Kociemba algorithm), and high-fidelity 3D layer visualization with zero floating-point drift.
+Scanning a physical cube (webcam or paired phone), a deterministic tutor engine for the
+beginner's method and CFOP, a teaching 3D twin, checkpoint scans with mistake diagnosis, a
+Claude coach with guardrails and a spend cap, learning features (trainer, timer, progress), a
+local student profile and a state-only phone ↔ laptop sync. Hosting, accounts, multiple users,
+native apps, smart cubes and robotics are out of scope.
 
-*Hardware robotics (ESP32 controllers, stepper motors, servos, and physical grippers) are explicitly marked as FUTURE / OUT OF SCOPE FOR V1.*
-
-### 1.3 Definitions, Acronyms, and Abbreviations
-- **HTM**: Half Turn Metric. Standard notation where any turn of any face by 90° or 180° counts as one move ($R, R', R2 = 1\text{ move}$).
-- **QTM**: Quarter Turn Metric. Metric where a 180° turn counts as two 90° moves.
-- **ROI**: Region of Interest. The bounding box within the video frame where sampling takes place.
-- **CIELAB**: $L^*a^*b^*$ color space defined by the International Commission on Illumination, approximating human perceptual color difference ($\Delta E$).
-- **HSV**: Hue, Saturation, Value cylindrical-coordinate color representation.
-- **Two-Phase Algorithm**: Herbert Kociemba's algorithm that transitions an arbitrary cube state into subgroup $H = \langle U, D, L2, R2, F2, B2 \rangle$ (Phase 1) and then solves it within $H$ (Phase 2).
-- **Cubie**: An individual physical block of a Rubik's Cube (8 corners, 12 edges, 6 centers, 1 core).
+### 1.3 Definitions
+- **Step plan**: the engine's output for one step: method, stage, case, grip, setup moves,
+  algorithm, pieces to highlight, expected state and checkpoint spec (`src/tutor/types.ts`).
+- **Grip**: which color is on top and which faces the student; every instruction is relative to it.
+- **Checkpoint spec**: the faces to show and the stickers compared after a step.
+- **Palette**: the student's own sticker colors (mean and spread in CIELAB) from the full scan.
+- **Coach facts**: the JSON about a step that is the only thing sent to Claude.
+- **App token**: the per-install secret in `data/app-secret` required by the coach, profile and
+  session-creation routes.
+- **HTM**: half-turn metric; the engine reports layer turns (regrips not counted).
 
 ---
 
 ## 2. Overall Description
 
 ### 2.1 Product Perspective
-Cubyntra is a standalone client-side Progressive Web Application (PWA). It does not require any cloud processing, external APIs, authentication gateways, or remote storage.
+A Next.js 16 app (React 19, Three.js, Zustand) served from the student's laptop. Browser code
+does all vision, planning (in a Web Worker) and rendering; the laptop's server process holds the
+profile file, the coach's API key and the in-memory sync relay.
 
 ```mermaid
 graph TD
-    User([User])
-    subgraph Browser Sandbox [Client Browser Sandbox]
-        Camera[Camera Feed / MediaDevices] --> Canvas[2D Canvas & Sampling]
-        Canvas --> CV[Color Classifier & Stability]
-        CV --> Recon[State Reconstruction]
-        Recon --> Validator[Parity & Invariant Validator]
-        Validator --> Solver[Kociemba Two-Phase Engine]
-        Solver --> Moves[CubeMove[] Sequence]
-        Moves --> Engine[Three.js Digital Twin]
-        Engine --> Visual[60 FPS WebGL Canvas]
-        Visual --> User
+    subgraph Laptop browser
+        Scan[Scan: webcam, review] --> Tutor[Tutor engine in a Worker]
+        Tutor --> Twin[Teaching twin]
+        Twin --> Check[Checkpoint: palette, diagnose, recover]
+        Check --> Tutor
     end
+    subgraph Phone browser
+        PScan[Companion: reads faces itself] --> Msg[State messages]
+    end
+    subgraph Laptop server
+        Relay[Sync relay, memory only]
+        Student[/api/student -> data/student.json/]
+        Coach[/api/coach -> Anthropic/]
+    end
+    Msg --> Relay --> Scan
+    Twin -->|facts JSON| Coach
+    Tutor -->|profile ops| Student
 ```
 
 ### 2.2 Operating Environment
-- Modern desktop and mobile web browsers supporting:
-  - ECMAScript 2022+ / WebAssembly
-  - WebRTC (`navigator.mediaDevices.getUserMedia`)
-  - HTML5 Canvas 2D (`CanvasRenderingContext2D`)
-  - WebGL 2.0 / Three.js
-- Supported Platforms:
-  - Google Chrome (macOS, Windows, Linux, Android)
-  - Apple Safari (iOS 16+, iPadOS, macOS)
-  - Mozilla Firefox (Desktop)
-  - Microsoft Edge (Windows, macOS)
+- Laptop: Node.js 20.9+ running `npm run dev` (HTTPS, self-signed) or `npm run build && npm start`.
+- Browsers with `getUserMedia`, Canvas 2D, WebGL and Web Workers (current Chrome, Edge, Safari,
+  Firefox). The phone camera needs an `https://` page.
+- Optional: an Anthropic API key in `.env.local`.
 
-### 2.3 Design & Implementation Constraints
-- **Strict Client-Side Privacy**: Raw frames and pixel data must never be transmitted across network sockets.
-- **Single-Threaded Safety**: Heavy computations must be bounded to prevent UI thread freezing.
-- **Zero Floating-Point Accumulation Drift**: Layer rotation matrices must snap cubie quaternions back to orthogonal integer coordinates after every move.
+### 2.3 Constraints
+- No image or pixel data may leave the device that captured it.
+- `src/cube`, `src/tutor` and `src/learn` import no DOM, React or Three.js.
+- Claude never chooses moves. No real API calls in the build or tests.
+- Flat voxel design only: no gradients, blur, glass, glow or text shadows (ADR-011).
 
 ---
 
 ## 3. Specific Requirements
 
-### 3.1 Camera Interface Requirements
-- **FR-CAM-001**: The system shall request user permission to access camera video streams before initializing scanning.
-- **FR-CAM-002**: The system shall request `facingMode: { ideal: 'environment' }` on mobile devices to favor rear cameras.
-- **FR-CAM-003**: The system shall release all hardware camera tracks immediately when scanning concludes or the component unmounts.
-- **FR-CAM-004**: In the event of camera permission denial or missing hardware, the system shall display an informative fallback with simulated scramble demonstration mode.
+### 3.1 Scanning
+- **FR-SCAN-001**: The system shall guide the student through six faces with a reticle and live
+  quality checks (framing, right face, light, glare, steady).
+- **FR-SCAN-002**: The system shall resolve all 54 tiles together (center calibration,
+  nine-per-color assignment, orientation repair) and show a review net with doubtful tiles marked.
+- **FR-SCAN-003**: The student shall be able to correct any non-center tile, and planning shall
+  start only from a state that passes `validateCubeState`.
+- **FR-SCAN-004**: On confirm, the system shall build the student palette from the raw samples
+  and save it to the profile.
+- **FR-SCAN-005**: Camera tracks shall be stopped when the scanner or checkpoint sheet closes; a
+  camera that gives no stream in 30 s or no frame in 10 s shall show the failed state.
 
-### 3.2 Computer Vision Requirements
-- **FR-CV-001**: The system shall calculate a centered square Region of Interest (ROI) occupying 65% of the minimum video dimension.
-- **FR-CV-002**: The system shall partition the ROI into a $3 \times 3$ grid of 9 sampling cells.
-- **FR-CV-003**: The system shall extract pixels from an inner central sub-region (40% area) of each cell to exclude black plastic borders and specular corner reflections.
-- **FR-CV-004**: The system shall compute a trimmed mean of sampled pixels, discarding the upper and lower 15% outliers in R, G, and B channels.
-- **FR-CV-005**: The system shall convert aggregated RGB to HSV and CIELAB color spaces.
-- **FR-CV-006**: The system shall classify each cell into one of the 6 canonical colors: `white`, `yellow`, `green`, `blue`, `red`, `orange`.
-- **FR-CV-007**: The system shall compute confidence metrics based on candidate score margins.
-- **FR-CV-008**: The system shall maintain a rolling temporal stability buffer requiring 8 consecutive frames of identical classification before signaling a stable lock.
+### 3.2 Tutor Engine
+- **FR-TUTOR-001**: The system shall support the beginner's method (daisy, white cross, white
+  corners, flip, middle edges, yellow cross, yellow edges, position and orient yellow corners) and
+  CFOP (cross ≤ 8 turns, 41-case F2L, 2-look OLL/PLL or full 57 OLL / 21 PLL, AUF).
+- **FR-TUTOR-002**: Every plan shall be replayed on the logical cube before it is returned; a plan
+  that does not advance the stage shall throw.
+- **FR-TUTOR-003**: Plans shall be made in a Web Worker, with a main-thread fallback.
+- **FR-TUTOR-004**: A mid-solve rescan shall re-plan from the observed cube with the same method
+  and grip.
 
-### 3.3 Guided Scanning Requirements
-- **FR-SCAN-001**: The system shall guide the user through capturing 6 unique faces in canonical order: Up (White), Front (Green), Right (Red), Back (Blue), Left (Orange), Down (Yellow).
-- **FR-SCAN-002**: The system shall display physical cube rotation hints between capture steps.
-- **FR-SCAN-003**: The system shall display mini 3x3 thumbnails of all captured faces and permit one-click rescan of any individual face.
+### 3.3 Teaching Twin
+- **FR-TWIN-001**: The twin shall show the logical state; after each step plays its colors shall
+  equal the plan's `expectedState`.
+- **FR-TWIN-002**: The camera shall frame the plan's grip and animate regrips.
+- **FR-TWIN-003**: The step's pieces shall be at full color and the rest faded; the target slot
+  outlined; a faded "after" preview available.
+- **FR-TWIN-004**: Controls: play / pause, step back / forward, half speed and loop; move chips
+  highlight the current move in sync.
+- **FR-TWIN-005**: Every layer turn shall snap cubies to integer positions and right-angle
+  orientations; a lost WebGL context shall be rebuilt.
 
-### 3.4 Cube Domain & Validation Requirements
-- **FR-CUBE-001**: The system shall validate that exactly 54 stickers are present with exactly 9 stickers per canonical color.
-- **FR-CUBE-002**: The system shall validate that 6 unique center stickers exist in canonical Western orientation ($U=\text{white}, R=\text{red}, F=\text{green}, D=\text{yellow}, L=\text{orange}, B=\text{blue}$).
-- **FR-CUBE-003**: The system shall reject states with physically impossible corner pieces (e.g. opposing colors such as White-Yellow on the same corner).
-- **FR-CUBE-004**: The system shall reject states with corner twist parity violations: $\sum_{i=1}^8 \text{twist}_i \not\equiv 0 \pmod 3$.
-- **FR-CUBE-005**: The system shall reject states with edge flip parity violations: $\sum_{i=1}^{12} \text{flip}_i \not\equiv 0 \pmod 2$.
-- **FR-CUBE-006**: The system shall reject states with permutation parity mismatches between corners and edges.
+### 3.4 Checkpoints
+- **FR-CHECK-001**: After "I did it" the system shall read the checkpoint faces with the
+  student's palette and compare only the check-spec stickers, each with a confidence.
+- **FR-CHECK-002**: Low confidence shall ask to show the face again; another face shall be
+  named as the wrong face.
+- **FR-CHECK-003**: On a mismatch the system shall rank the consistent mistakes (wrong direction,
+  skipped, doubled, wrong face, wrong grip, stopped early, extra repeat).
+- **FR-CHECK-004**: A confident diagnosis shall offer a corrective step; otherwise one more face
+  or a full rescan and a fresh plan.
+- **FR-CHECK-005**: Tile editing and a manual "it matches" shall always be available.
 
-### 3.5 Solver Engine Requirements
-- **FR-SOLVER-001**: The system shall reject invalid cube states before initiating two-phase search.
-- **FR-SOLVER-002**: The system shall return a sequence of structured `CubeMove` objects adhering to Half Turn Metric (HTM).
-- **FR-SOLVER-003**: The system shall simulate the generated move sequence on an internal logical model and verify that the resulting state is 100% solved before exposing the solution to the user.
+### 3.5 Coach
+- **FR-COACH-001**: `POST /api/coach` shall stream an explanation from `claude-haiku-5-5`
+  (effort low, at most 400 tokens) for hint levels 1–3, with a fixed cached system prompt and
+  the facts JSON.
+- **FR-COACH-002**: A reply naming any move outside the step, a refusal or an error shall be
+  replaced by the built-in template.
+- **FR-COACH-003**: Without a key the coach shall run in mock mode (templates only).
+- **FR-COACH-004**: Spend shall be recorded in `data/coach-usage.json`; at the monthly cap
+  (default $10) the coach shall switch to templates and say so.
+- **FR-COACH-005**: Only requests with the app token shall be served, at most 30 per minute.
 
-### 3.6 3D Digital Twin Requirements
-- **FR-3D-001**: The system shall construct 27 individual cubies positioned at integer coordinates $x, y, z \in \{-1, 0, 1\}$.
-- **FR-3D-002**: The system shall map physical scanned facelet colors to exterior cubie sticker meshes.
-- **FR-3D-003**: The system shall smoothly animate layer rotations using cubic easing.
-- **FR-3D-004**: Upon animation completion, the system shall snap cubie positions to integer coordinates and quaternions to orthogonal angles, maintaining 0.000% accumulation drift.
-- **FR-3D-005**: The system shall render 3D curved directional arrows pointing in the direction of the turn.
-- **FR-3D-006**: The system shall support orbit rotation, pinch/wheel zoom, and view reset.
+### 3.6 Learning
+- **FR-LEARN-001**: Trainer: five sets, drills planned as tutor steps, Got it / Missed it or a
+  camera check, Leitner boxes so missed cases return sooner.
+- **FR-LEARN-002**: Timer: 20-move scramble, 15 s inspection with +2 from 15 s and DNF from 17 s,
+  best single, best and current ao5, current ao12 with WCA trimming, history of 100.
+- **FR-LEARN-003**: Progress: a block per mastered stage (3 of the newest 5 completions without a
+  level-3 hint), streaks, the algorithm collection, graduation suggestions.
 
-### 3.7 Playback & User Interface Requirements
-- **FR-UI-001**: The system shall provide Step Next, Step Previous, Play/Pause, Reset to Scramble, and Speed controls (0.5x, 1x, 2x, 4x).
-- **FR-UI-002**: The system shall display an interactive move ticker highlighting the current active move.
-- **FR-UI-003**: The system shall provide keyboard navigation shortcuts (Space for play/pause, Left/Right arrows for step, R for reset).
-- **FR-UI-004**: The system shall display an optional developer CV Debugger telemetry panel inspecting real-time RGB/HSV and stability counters.
+### 3.7 Profile
+- **FR-PROF-001**: The profile shall live in `data/student.json` (version 2, ≤ 128 KB, atomic
+  writes; version 1 migrated; a damaged file moved aside).
+- **FR-PROF-002**: Changes shall be sent as operations (`PATCH /api/student`) and merged on the
+  server so concurrent devices do not overwrite each other.
+- **FR-PROF-003**: An interrupted solve shall resume from the saved cube and step.
+
+### 3.8 Sync
+- **FR-SYNC-001**: Pairing shall use a QR code carrying a session id, a 128-bit secret and the app
+  token in the URL fragment, or a six-character single-use code valid 10 minutes.
+- **FR-SYNC-002**: Messages shall carry states only (`cube-state`, `face-scanned`, `step`,
+  `playback`, `grip`, `checkpoint-result`, `presence`, `scan-control`); no route shall accept or
+  return image data.
+- **FR-SYNC-003**: Either device shall be able to control playback; grip and verdicts apply only
+  to the step they belong to.
+- **FR-SYNC-004**: Sessions shall expire (30 min idle, 12 h) and be capped at 8.
+
+### 3.9 Shell
+- **FR-UI-001**: Routes `/`, `/scan`, `/solve`, `/trainer`, `/timer`, `/progress`, `/pair`,
+  `/settings` and `/companion`; phone tab bar and desktop side nav.
+- **FR-UI-002**: Manifest and icons for installation; Screen Wake Lock during a solve.
+- **FR-UI-003**: Error states for a denied camera, an offline or capped coach, an unreadable cube
+  and a failed plan.
 
 ---
 
 ## 4. Non-Functional Requirements
 
-### 4.1 Performance Requirements
-- **NFR-PERF-001**: Interactive Three.js rendering shall maintain 60 FPS on modern hardware.
-- **NFR-PERF-002**: Solver calculation time shall complete in under 100ms for standard random scrambles.
-- **NFR-PERF-003**: Video sampling loop shall not trigger excessive React re-renders.
+### 4.1 Performance
+- **NFR-PERF-001**: Planning and solving shall not block the main thread (Web Worker).
+- **NFR-PERF-002**: One WebGL context per solve; resources disposed on unmount.
 
-### 4.2 Security & Privacy Requirements
-- **NFR-PRIV-001**: No webcam video frames or image data shall leave the browser sandbox.
-- **NFR-SEC-001**: Application shall not require API keys or credentials on the client.
+### 4.2 Security & Privacy
+- **NFR-PRIV-001**: No image data leaves the capturing device (`tests/sync-privacy.test.ts`).
+- **NFR-PRIV-002**: The coach receives only the validated facts JSON; no cube state, name or
+  images.
+- **NFR-SEC-001**: The API key is read only on the server; request bodies are size-capped while
+  streaming; sync routes require the session secret.
 
-### 4.3 Accessibility Requirements
-- **NFR-A11Y-001**: All controls shall include ARIA labels and visible focus rings.
-- **NFR-A11Y-002**: Procedural background animations shall disable motion when `prefers-reduced-motion: reduce` is active.
+### 4.3 Accessibility
+- **NFR-A11Y-001**: WCAG 2.2 AA contrast for text and 3:1 for outlines; labels on every control;
+  dialogs trap focus and close on Escape; one `h1` and one `main` per screen.
+- **NFR-A11Y-002**: Optional color-blind letters on stickers; 44px tap targets on phones;
+  `prefers-reduced-motion` and the student's reduce-motion setting stop animation.
+
+### 4.4 Quality
+- **NFR-QA-001**: `npm run lint` with 0 errors and 0 warnings, `typecheck`, `test` and `build`
+  pass on every phase gate.
 
 ---
 
 ## 5. Requirements Traceability Matrix
 
-| Requirement ID | Description | Source Module | Test Suite |
-| :--- | :--- | :--- | :--- |
-| **FR-CAM-001..004** | Camera Lifecycle & Fallbacks | `src/vision/camera.ts` | Manual / Browser |
-| **FR-CV-001..004** | ROI & Trimmed Aggregation | `src/vision/sampling.ts` | `tests/vision.test.ts` |
-| **FR-CV-005..007** | HSV/CIELAB Classification | `src/vision/color.ts` | `tests/vision.test.ts` |
-| **FR-CV-008** | Temporal Stability Buffer | `src/vision/stability.ts` | `tests/vision.test.ts` |
-| **FR-SCAN-001..003** | 6-Face Sequence & Rescan | `src/components/camera/CameraScanner.tsx` | `tests/integration.test.ts` |
-| **FR-CUBE-001..006** | Mathematical Validation & Parities | `src/cube/validator.ts` | `tests/cube.test.ts` |
-| **FR-SOLVER-001..003** | Kociemba Two-Phase Solver | `src/solver/solver.ts` | `tests/solver.test.ts` |
-| **FR-3D-001..006** | 3D Twin & Zero-Drift Rotation | `src/three/engine.ts` | `tests/integration.test.ts` |
-| **FR-UI-001..004** | Playback Controls & CV Debugger | `src/components/solver/SolveControls.tsx` | `tests/integration.test.ts` |
+| Requirement | Source | Tests |
+| :--- | :--- | :--- |
+| FR-SCAN-001..002 | `src/vision/captureQuality.ts`, `faceImageAnalyzer.ts`, `resolveCubeColors.ts`, `src/components/camera/`, `src/components/review/` | `capture-quality`, `face-analyzer`, `resolve-colors`, `review-store`, `app-scan` |
+| FR-SCAN-003..004 | `src/cube/validator.ts`, `src/vision/palette.ts`, `src/stores/useCubyntraStore.ts` | `cube`, `vision-palette`, `review-store` |
+| FR-SCAN-005 | `src/vision/camera.ts`, `src/components/solve/useCheckpointCamera.ts` | `vision-camera-start` |
+| FR-TUTOR-001..002 | `src/tutor/methods/`, `src/tutor/cases/`, `src/tutor/engine.ts` | `tutor-*` (incl. `tutor-scrambles`, `tutor-engine`) |
+| FR-TUTOR-003 | `src/solver/solver.worker.ts`, `client.ts`, `handlers.ts` | `tutor-worker`, `solver-worker` |
+| FR-TUTOR-004 | `src/tutor/recovery.ts`, `src/app-shell/checkpointAdapter.ts` | `tutor-recovery`, `checkpoint-adapter` |
+| FR-TWIN-001..005 | `src/three/`, `src/twin/`, `src/components/twin/` | `three-*`, `twin-*`, `arrows`, `app-solve-twin` |
+| FR-CHECK-001..005 | `src/tutor/checkpoint.ts`, `diagnose.ts`, `recovery.ts`, `src/vision/checkpointCapture.ts` | `tutor-checkpoint*`, `tutor-diagnose`, `checkpoint-synthetic`, `app-solve` |
+| FR-COACH-001..005 | `src/coach/`, `src/app/api/coach/` | `coach-*` |
+| FR-LEARN-001..003 | `src/learn/`, `src/components/trainer/`, `timer/`, `progress/` | `learn-*`, `app-trainer`, `app-timer`, `app-progress` |
+| FR-PROF-001..003 | `src/lib/studentProfile.ts`, `studentFile.ts`, `profileOps.ts`, `src/app/api/student/`, `src/stores/useTutorStore.ts` | `student-*`, `tutor-store*` |
+| FR-SYNC-001..004 | `src/sync/`, `src/app/api/session/` | `sync-*`, `session-routes`, `paired-phone-routes` |
+| FR-UI-001..003 | `src/app/`, `src/components/shell/`, `src/app-shell/` | `app-shell-pages`, `pwa-*`, `wake-lock`, `store-errors` |
+| NFR-PRIV-001 | all routes | `sync-privacy` |
+| NFR-SEC-001 | `src/lib/readBodyCapped.ts`, `localAuth.ts` | `read-body-capped`, `route-body-cap`, `local-auth` |
+| NFR-A11Y-001..002 | `src/app/globals.css`, `src/components/ui/` | `a11y-*`, `design-rules`, `tokens`, `ui-*` |
+
+Test names are files in `tests/` without the `.test.ts(x)` suffix; see [TESTING.md](TESTING.md).
