@@ -57,6 +57,8 @@ export const TeachingTwin: React.FC<TeachingTwinProps> = ({
   useEffect(() => {
     onEngineChangeRef.current?.(engine);
   }, [engine]);
+  // The engine is disposed with the twin: the parent must not keep using it.
+  useEffect(() => () => onEngineChangeRef.current?.(null), []);
   // The twin is painted by playback from here on; the visualizer only needs a first state.
   const [initialState] = useState(() => plan?.startState ?? createSolvedCubeState());
   const { snapshot, ghost, setGhost } = useTeachingTwin(engine, plan, {

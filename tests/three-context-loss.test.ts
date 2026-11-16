@@ -21,6 +21,10 @@ vi.mock('three', async (importOriginal) => {
     render() {
       this.renders++;
     }
+    contextLost = false;
+    forceContextLoss() {
+      this.contextLost = true;
+    }
     dispose() {}
   }
   return { ...actual, WebGLRenderer: FakeRenderer };
@@ -100,6 +104,12 @@ describe('CubeEngine context loss', () => {
     const renderer = engine.renderer as unknown as { renders: number };
     return { engine, canvas, renderer };
   }
+
+  it('gives the WebGL context back when disposed', () => {
+    const { engine } = makeEngine();
+    engine.dispose();
+    expect((engine.renderer as unknown as { contextLost: boolean }).contextLost).toBe(true);
+  });
 
   it('pauses rendering while lost and resumes on restore', () => {
     const { engine, canvas, renderer } = makeEngine();

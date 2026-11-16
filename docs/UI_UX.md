@@ -178,7 +178,8 @@ lighting and glare tips with Scan again and Use a demo cube.
     waits forever: no stream within 30 s (time to answer the permission prompt) or no first
     frame within 10 s is the failed state with Try again (`initializeCameraStream`, also used by
     the scan and phone cameras). Closing the sheet stops the tracks, even mid-start.
-- **Other states:** loading ("Planning the next step"), no solve in progress (Scan / Demo cube),
+- **Other states:** loading ("Planning the next step", an overlay on the twin, which stays mounted
+  from step to step so a solve uses one WebGL context), no solve in progress (Scan / Demo cube),
   planning failed (Try again / Scan again), solved (Solve another / Home).
 - The screen stays awake while a solve is open (Screen Wake Lock, re-taken when the page is
   visible again).

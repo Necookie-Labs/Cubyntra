@@ -185,5 +185,6 @@ When navigating away from the visualizer or unmounting:
 - `cancelAnimationFrame` terminates all render loops.
 - `mesh.geometry.dispose()` frees buffer geometries.
 - `material.dispose()` frees shader programs and textures.
-- `renderer.dispose()` releases the WebGL 2.0 rendering context.
+- `renderer.forceContextLoss()` then `renderer.dispose()` give the WebGL 2.0 context back at once
+  (browsers cap live contexts and otherwise reclaim a dropped one only on garbage collection).
 - `track.stop()` releases hardware camera lenses.

@@ -7,7 +7,9 @@
  * Phone (portrait), top to bottom: stage header, teaching twin with its move chips and
  * playback, the coach, then "I did it". Desktop: the twin large on the left, everything else
  * in a column on the right. The screen stays awake while a solve is open, and an interrupted
- * solve resumes from the student's profile.
+ * solve resumes from the student's profile. The twin stays mounted from step to step (one
+ * WebGL context per solve): while the next step is planned it keeps the last cube under a
+ * "Planning the next step" overlay.
  */
 
 import React, { useEffect, useRef, useState } from 'react';
@@ -149,39 +151,53 @@ export function SolveView() {
   }
   if (phase === 'error') return <PlanError />;
   if (phase === 'solved') return <Solved />;
-  if (phase === 'loading' || !plan) return <SolveBusy label="Planning the next step" />;
 
-  const stepKey = `${plan.method}-${plan.stepIndex}-${plan.caseId}`;
+  // Planning the next step: the twin stays mounted (with the last cube) under an overlay.
+  const loading = phase === 'loading' || !plan;
+  const stepKey = plan ? `${plan.method}-${plan.stepIndex}-${plan.caseId}` : null;
   const mismatch = phase === 'mismatch';
 
   return (
     <PageContainer width="xl" className="gap-4 lg:grid lg:grid-cols-[minmax(0,1fr)_400px] lg:items-start lg:gap-8">
       <div className="lg:col-start-2 lg:row-start-1">
-        <StageHeader plan={plan} />
+        {plan && !loading ? <StageHeader plan={plan} /> : <h1 className="sr-only">Solve</h1>}
       </div>
 
-      <TeachingTwin
-        plan={plan}
-        plainLanguage={settings.plainLanguage}
-        stickerLetters={settings.stickerLetters}
-        onStepPlayed={() => setWatched(stepKey)}
-        onEngineChange={setEngine}
-        className="lg:sticky lg:top-8 lg:col-start-1 lg:row-span-3 lg:row-start-1 lg:min-h-[560px]"
-      />
-
-      <div className="flex flex-col gap-4 lg:col-start-2 lg:row-start-2">
-        {mismatch && <MismatchPanel />}
-        <CoachPanel
-          plan={plan}
-          token={token}
-          attempts={attempts}
-          diagnosis={mismatch ? toCoachDiagnosis(checkpoint?.diagnosis ?? null) : undefined}
-          explainDiagnosis={mismatch}
-          onHint={noteHint}
+      <div
+        aria-busy={loading}
+        className="relative flex flex-col lg:sticky lg:top-8 lg:col-start-1 lg:row-span-3 lg:row-start-1 lg:min-h-[560px]"
+      >
+        <TeachingTwin
+          plan={loading ? null : plan}
+          plainLanguage={settings.plainLanguage}
+          stickerLetters={settings.stickerLetters}
+          onStepPlayed={() => setWatched(stepKey)}
+          onEngineChange={setEngine}
+          movesHidden={loading}
+          className="flex-1"
         />
+        {loading && (
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-ground">
+            <Busy label="Planning the next step" />
+          </div>
+        )}
       </div>
 
-      {!mismatch && (
+      {plan && !loading && (
+        <div className="flex flex-col gap-4 lg:col-start-2 lg:row-start-2">
+          {mismatch && <MismatchPanel />}
+          <CoachPanel
+            plan={plan}
+            token={token}
+            attempts={attempts}
+            diagnosis={mismatch ? toCoachDiagnosis(checkpoint?.diagnosis ?? null) : undefined}
+            explainDiagnosis={mismatch}
+            onHint={noteHint}
+          />
+        </div>
+      )}
+
+      {plan && !loading && !mismatch && (
         <div className="sticky bottom-20 z-20 -mx-4 border-t-2 border-line-soft bg-ground px-4 py-3 lg:static lg:col-start-2 lg:row-start-3 lg:mx-0 lg:border-0 lg:p-0">
           <BlockButton
             variant="primary"
@@ -198,7 +214,7 @@ export function SolveView() {
         </div>
       )}
 
-      <CheckpointSheet plan={plan} />
+      {plan && !loading && <CheckpointSheet plan={plan} />}
     </PageContainer>
   );
 }

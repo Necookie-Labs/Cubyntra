@@ -700,6 +700,9 @@ export class CubeEngine {
     this.cubies = [];
     this.kit.dispose();
 
+    // Give the WebGL context back now: browsers cap live contexts (about 16) and only reclaim a
+    // dropped one when it is garbage collected.
+    this.renderer.forceContextLoss?.();
     this.renderer.dispose();
     if (this.renderer.domElement && this.renderer.domElement.parentNode) {
       this.renderer.domElement.parentNode.removeChild(this.renderer.domElement);
