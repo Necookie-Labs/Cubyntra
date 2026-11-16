@@ -12,9 +12,10 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useCubyntraStore } from '@/stores/useCubyntraStore';
 import { CubeColor, CubeState, Face, ValidationIssue } from '@/cube/types';
-import { COLORS, COLOR_HEX, FACES } from '@/cube/constants';
+import { COLORS, FACES } from '@/cube/constants';
 import { StickerFlag } from '@/vision/resolveCubeColors';
 import { AlertTriangle, CheckCircle2, Info, RotateCcw, ScanLine, Sparkles } from 'lucide-react';
+import { BlockButton, Chip, stickerColor } from '@/components/ui';
 
 const FACE_LABEL: Record<Face, string> = {
   U: 'Top',
@@ -156,19 +157,18 @@ export const ScanReview: React.FC<ScanReviewProps> = ({ onRescanFace, onConfirme
   return (
     <section
       aria-labelledby="review-title"
-      className="flex flex-col gap-5 w-full max-w-lg mx-auto lg:mx-0 bg-raised/95 backdrop-blur-md border border-neutral-800 p-5 rounded-2xl shadow-2xl"
+      className="vx-panel vx-place flex flex-col gap-4 w-full max-w-lg mx-auto lg:mx-0 p-6 pb-7"
     >
-      <header className="flex flex-col gap-1.5">
-        <span className="inline-flex w-fit items-center gap-1.5 px-2.5 py-1 rounded-full bg-sky-950/60 border border-sky-800/50 text-[11px] font-mono text-sky-400">
-          <ScanLine className="w-3.5 h-3.5" />
+      <header className="flex flex-col gap-2">
+        <Chip tone="leaf" icon={<ScanLine className="w-4 h-4" />} className="w-fit">
           Step 2 of 2 · Check the scan
-        </span>
-        <h2 id="review-title" className="text-xl font-bold tracking-tight text-white">
+        </Chip>
+        <h2 id="review-title" className="text-2xl leading-tight text-ink">
           Does this match your cube?
         </h2>
-        <p className="text-sm text-neutral-400 leading-relaxed">
+        <p className="text-sm text-muted leading-relaxed">
           {flaggedCount > 0
-            ? 'Tiles with an amber ring were hard to read. Tap one to compare it with your photo.'
+            ? 'Tiles with a yellow marker were hard to read. Tap one to compare it with your photo.'
             : 'Every tile read cleanly. Give it a glance, then solve.'}
         </p>
       </header>
@@ -176,16 +176,11 @@ export const ScanReview: React.FC<ScanReviewProps> = ({ onRescanFace, onConfirme
       {duplicate && (
         <Notice tone="error" icon={<AlertTriangle className="w-4 h-4" />}>
           The {FACE_LABEL[duplicate[0]]} and {FACE_LABEL[duplicate[1]]} photos show the same face.
-          <span className="flex gap-2 mt-2">
+          <span className="flex flex-wrap gap-2 mt-2">
             {duplicate.map((f) => (
-              <button
-                key={f}
-                type="button"
-                onClick={() => onRescanFace(f)}
-                className="px-2.5 py-1 rounded-md bg-rose-500/15 border border-rose-500/40 text-rose-200 text-xs font-semibold hover:bg-rose-500/25 transition-colors"
-              >
+              <BlockButton key={f} variant="danger" size="sm" onClick={() => onRescanFace(f)}>
                 Rescan {FACE_LABEL[f]}
-              </button>
+              </BlockButton>
             ))}
           </span>
         </Notice>
@@ -200,7 +195,7 @@ export const ScanReview: React.FC<ScanReviewProps> = ({ onRescanFace, onConfirme
 
       {/* Unfolded cube */}
       <div
-        className="grid gap-1.5 sm:gap-2 self-center"
+        className="grid gap-1 sm:gap-2 self-center"
         style={{ gridTemplateColumns: 'repeat(4, auto)', gridTemplateRows: 'repeat(3, auto)' }}
       >
         {FACES.map((face) => (
@@ -208,7 +203,7 @@ export const ScanReview: React.FC<ScanReviewProps> = ({ onRescanFace, onConfirme
             key={face}
             role="group"
             aria-label={`${FACE_LABEL[face]} face`}
-            className="grid grid-cols-3 gap-[3px] p-[3px] rounded-lg bg-neutral-950 ring-1 ring-neutral-800"
+            className="grid grid-cols-3 gap-0.5 p-0.5 bg-sticker-core border-2 border-line shadow-block-sm"
             style={{ gridColumn: NET_POSITION[face].col, gridRow: NET_POSITION[face].row }}
           >
             {cubeState[face].map((color, index) => {
@@ -226,13 +221,15 @@ export const ScanReview: React.FC<ScanReviewProps> = ({ onRescanFace, onConfirme
                   aria-label={`${FACE_LABEL[face]}, row ${Math.floor(index / 3) + 1} column ${(index % 3) + 1}: ${color}${
                     isCenter ? ', center, fixed' : ''
                   }${flagged ? ', needs a look' : ''}`}
-                  className={`w-6 h-6 sm:w-7 sm:h-7 rounded-[5px] transition-transform duration-150 motion-reduce:transition-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-400 ${
-                    isCenter ? 'cursor-default' : 'hover:scale-110 cursor-pointer'
-                  } ${isSelected ? 'ring-2 ring-offset-2 ring-offset-neutral-950 ring-sky-400 scale-110' : ''} ${
-                    flagged && !isSelected ? 'ring-2 ring-offset-1 ring-offset-neutral-950 ring-amber-400' : ''
-                  }`}
-                  style={{ backgroundColor: COLOR_HEX[color] }}
-                />
+                  className={`relative w-6 h-6 sm:w-8 sm:h-8 transition-transform duration-75 ${
+                    isCenter ? 'cursor-default' : 'cursor-pointer hover:-translate-y-px'
+                  } ${isSelected ? 'z-10 scale-110 outline-2 outline-offset-2 outline-focus' : ''}`}
+                  style={{ backgroundColor: stickerColor(color) }}
+                >
+                  {flagged && !isSelected && (
+                    <span aria-hidden className="absolute -top-1 -right-1 h-3 w-3 border-2 border-line bg-warn" />
+                  )}
+                </button>
               );
             })}
           </div>
@@ -241,10 +238,10 @@ export const ScanReview: React.FC<ScanReviewProps> = ({ onRescanFace, onConfirme
 
       {/* Editor for the selected tile */}
       {selected ? (
-        <div className="flex items-center gap-4 p-3 rounded-xl bg-neutral-900/70 border border-neutral-800">
+        <div className="vx-well vx-place flex items-center gap-4 p-3">
           {selectedPhoto && (
             <div
-              className="w-16 h-16 shrink-0 rounded-lg border border-neutral-700 bg-no-repeat"
+              className="w-16 h-16 shrink-0 border-2 border-line bg-no-repeat"
               role="img"
               aria-label="This tile in your photo"
               style={{
@@ -255,11 +252,12 @@ export const ScanReview: React.FC<ScanReviewProps> = ({ onRescanFace, onConfirme
             />
           )}
           <div className="flex flex-col gap-2 min-w-0">
-            <div className="text-xs text-neutral-400">
-              {FACE_LABEL[selected.face]} · row {Math.floor(selected.index / 3) + 1}, column {(selected.index % 3) + 1}
-              {selectedPhoto && <span className="text-neutral-500"> · your photo</span>}
+            <div className="text-xs text-muted">
+              <span className="font-bold text-ink">{FACE_LABEL[selected.face]}</span> · row{' '}
+              {Math.floor(selected.index / 3) + 1}, column {(selected.index % 3) + 1}
+              {selectedPhoto && <span> · your photo</span>}
             </div>
-            <div className="flex items-center gap-1.5" role="radiogroup" aria-label="Tile color">
+            <div className="flex flex-wrap items-center gap-2" role="radiogroup" aria-label="Tile color">
               {COLORS.map((color, i) => {
                 const active = cubeState[selected.face][selected.index] === color;
                 return (
@@ -271,66 +269,73 @@ export const ScanReview: React.FC<ScanReviewProps> = ({ onRescanFace, onConfirme
                     aria-label={`${color} (key ${i + 1})`}
                     title={`${color} · ${i + 1}`}
                     onClick={() => applyColor(color)}
-                    className={`w-8 h-8 rounded-md border transition-transform duration-150 motion-reduce:transition-none hover:scale-105 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-400 ${
-                      active ? 'border-white ring-2 ring-white/60' : 'border-black/40'
+                    className={`w-8 h-8 border-2 border-line transition-transform duration-75 ${
+                      active
+                        ? 'translate-y-0.5 outline-2 outline-offset-2 outline-ink'
+                        : 'shadow-block-sm hover:-translate-y-px'
                     }`}
-                    style={{ backgroundColor: COLOR_HEX[color] }}
+                    style={{ backgroundColor: stickerColor(color) }}
                   />
                 );
               })}
             </div>
-            <button
-              type="button"
+            <BlockButton
+              variant="ghost"
+              size="sm"
               onClick={() => onRescanFace(selected.face)}
-              className="w-fit inline-flex items-center gap-1.5 text-xs text-neutral-400 hover:text-white transition-colors"
+              icon={<RotateCcw className="w-4 h-4" />}
+              className="w-fit -ml-3"
             >
-              <RotateCcw className="w-3.5 h-3.5" />
               Rescan the {FACE_LABEL[selected.face].toLowerCase()} face
-            </button>
+            </BlockButton>
           </div>
         </div>
       ) : (
         flaggedCount > 0 && (
-          <button
-            type="button"
+          <BlockButton
+            size="sm"
             onClick={selectNextFlagged}
-            className="self-center inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/40 text-amber-300 text-xs font-semibold hover:bg-amber-500/20 transition-colors"
+            icon={<span aria-hidden className="h-3 w-3 border-2 border-line bg-warn" />}
+            className="self-center"
           >
-            <span className="w-2 h-2 rounded-full ring-2 ring-amber-400" />
             {flaggedCount} {flaggedCount === 1 ? 'tile needs' : 'tiles need'} a look
-          </button>
+          </BlockButton>
         )
       )}
 
       {/* Validity */}
-      <div className="flex flex-col gap-2 pt-4 border-t border-neutral-800/80">
-        <div className="flex flex-wrap items-center gap-1.5" aria-label="Tiles per color">
+      <div className="flex flex-col gap-3 pt-4 border-t-2 border-line-soft">
+        <div className="flex flex-wrap items-center gap-2" aria-label="Tiles per color">
           {COLORS.map((color) => (
-            <span
+            <Chip
               key={color}
-              className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-mono tabular-nums border ${
-                counts[color] === 9
-                  ? 'border-neutral-800 text-neutral-400'
-                  : 'border-rose-500/50 text-rose-300 bg-rose-500/10'
-              }`}
+              tone={counts[color] === 9 ? 'neutral' : 'danger'}
+              className="font-mono tabular-nums"
+              icon={
+                <span
+                  aria-hidden
+                  className="h-3 w-3 border-2 border-line"
+                  style={{ backgroundColor: stickerColor(color) }}
+                />
+              }
             >
-              <span className="w-2.5 h-2.5 rounded-sm border border-black/40" style={{ backgroundColor: COLOR_HEX[color] }} />
               {counts[color]}
-            </span>
+            </Chip>
           ))}
         </div>
-        <p
-          role="status"
-          className={`flex items-start gap-2 text-sm ${isValid ? 'text-emerald-400' : 'text-rose-300'}`}
-        >
+        <p role="status" className="flex items-start gap-2 text-sm font-bold text-ink">
           {isValid ? (
             <>
-              <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0" />
+              <StatusIcon tone="ok">
+                <CheckCircle2 className="w-4 h-4" />
+              </StatusIcon>
               This is a real, solvable cube.
             </>
           ) : (
             <>
-              <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+              <StatusIcon tone="bad">
+                <AlertTriangle className="w-4 h-4" />
+              </StatusIcon>
               {firstIssue ? describeIssue(firstIssue, counts) : 'This cube cannot exist yet.'}
             </>
           )}
@@ -338,26 +343,36 @@ export const ScanReview: React.FC<ScanReviewProps> = ({ onRescanFace, onConfirme
       </div>
 
       <div className="flex items-center justify-between gap-3">
-        <button
-          type="button"
-          onClick={onStartOver}
-          className="text-xs text-neutral-400 hover:text-white transition-colors underline-offset-4 hover:underline"
-        >
+        <BlockButton variant="ghost" size="sm" onClick={onStartOver} className="-ml-3">
           Start over
-        </button>
-        <button
-          type="button"
+        </BlockButton>
+        <BlockButton
+          variant="primary"
+          size="lg"
           onClick={handleConfirm}
           disabled={!isValid}
-          className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-emerald-500 text-on-accent font-bold text-sm shadow-lg transition-[background-color,transform] duration-150 hover:brightness-110 hover:-translate-y-0.5 motion-reduce:hover:translate-y-0 disabled:bg-neutral-800 disabled:text-neutral-500 disabled:shadow-none disabled:translate-y-0 disabled:cursor-not-allowed focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-300"
+          icon={<Sparkles className="w-4 h-4" />}
         >
-          <Sparkles className="w-4 h-4" />
           Confirm &amp; solve
-        </button>
+        </BlockButton>
       </div>
     </section>
   );
 };
+
+/** Icon in a small solid block, so the status never relies on text color alone. */
+function StatusIcon({ tone, children }: { tone: 'ok' | 'bad'; children: React.ReactNode }) {
+  return (
+    <span
+      aria-hidden
+      className={`flex h-6 w-6 shrink-0 items-center justify-center border-2 border-line ${
+        tone === 'ok' ? 'bg-leaf text-on-leaf' : 'bg-danger text-on-danger'
+      }`}
+    >
+      {children}
+    </span>
+  );
+}
 
 function Notice({
   tone,
@@ -371,14 +386,19 @@ function Notice({
   return (
     <div
       role={tone === 'error' ? 'alert' : 'note'}
-      className={`flex items-start gap-2.5 p-3 rounded-xl text-sm border ${
-        tone === 'error'
-          ? 'bg-rose-500/10 border-rose-500/40 text-rose-200'
-          : 'bg-sky-500/10 border-sky-500/30 text-sky-200'
+      className={`flex items-start gap-3 p-3 text-sm text-ink border-2 ${
+        tone === 'error' ? 'bg-danger-soft border-danger' : 'bg-well border-line-soft'
       }`}
     >
-      <span className="mt-0.5 shrink-0">{icon}</span>
-      <div className="flex flex-col">{children}</div>
+      <span
+        aria-hidden
+        className={`flex h-6 w-6 shrink-0 items-center justify-center border-2 border-line ${
+          tone === 'error' ? 'bg-danger text-on-danger' : 'bg-panel text-ink'
+        }`}
+      >
+        {icon}
+      </span>
+      <div className="flex flex-col pt-0.5">{children}</div>
     </div>
   );
 }
