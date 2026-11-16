@@ -5,8 +5,8 @@
  * Necookie Labs (c) 2026
  *
  * The last step before solving. Shows all 54 tiles as an unfolded cube, marks the ones
- * the reader was unsure about, and lets the user compare any tile against their own
- * photo and correct it. Solving is only offered once the cube is physically valid.
+ * the reader was unsure about, and lets the user check any tile against the real cube in
+ * their hand and correct it. Solving is only offered once the cube is physically valid.
  */
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
@@ -35,16 +35,6 @@ const NET_POSITION: Record<Face, { col: number; row: number }> = {
   B: { col: 4, row: 2 },
   D: { col: 2, row: 3 },
 };
-
-/** Tile i after one clockwise turn came from tile CW_SOURCE[i] (mirrors rotateFaceClockwise). */
-const CW_SOURCE = [6, 3, 0, 7, 4, 1, 8, 5, 2];
-
-/** Which cell of the original photo a tile came from, undoing any automatic face rotation. */
-function photoCell(index: number, quarterTurnsCW: number): number {
-  let cell = index;
-  for (let t = 0; t < quarterTurnsCW; t++) cell = CW_SOURCE[cell];
-  return cell;
-}
 
 function isFlagged(flag?: StickerFlag): boolean {
   return Boolean(flag && (flag.lowMargin || flag.overridden));
@@ -88,7 +78,6 @@ export const ScanReview: React.FC<ScanReviewProps> = ({ onRescanFace, onConfirme
   const cubeState = useCubyntraStore((s) => s.cubeState);
   const resolution = useCubyntraStore((s) => s.resolution);
   const validation = useCubyntraStore((s) => s.validationResult);
-  const faceImages = useCubyntraStore((s) => s.faceImages);
   const setReviewSticker = useCubyntraStore((s) => s.setReviewSticker);
   const confirmReview = useCubyntraStore((s) => s.confirmReview);
 
@@ -150,9 +139,6 @@ export const ScanReview: React.FC<ScanReviewProps> = ({ onRescanFace, onConfirme
   const duplicate = resolution?.duplicateCenters ?? null;
   const firstIssue = validation && !validation.valid ? validation.issues[0] : null;
 
-  const selectedPhoto = selected ? faceImages[selected.face] : undefined;
-  const selectedTurns = selected ? resolution?.rotatedFaces[selected.face] ?? 0 : 0;
-  const cell = selected ? photoCell(selected.index, selectedTurns) : 0;
 
   return (
     <section
@@ -168,7 +154,7 @@ export const ScanReview: React.FC<ScanReviewProps> = ({ onRescanFace, onConfirme
         </h2>
         <p className="text-sm text-muted leading-relaxed">
           {flaggedCount > 0
-            ? 'Tiles with a yellow marker were hard to read. Tap one to compare it with your photo.'
+            ? 'Tiles with a yellow marker were hard to read. Tap one and check it against your cube.'
             : 'Every tile read cleanly. Give it a glance, then solve.'}
         </p>
       </header>
@@ -239,23 +225,10 @@ export const ScanReview: React.FC<ScanReviewProps> = ({ onRescanFace, onConfirme
       {/* Editor for the selected tile */}
       {selected ? (
         <div className="vx-well vx-place flex items-center gap-4 p-3">
-          {selectedPhoto && (
-            <div
-              className="w-16 h-16 shrink-0 border-2 border-line bg-no-repeat"
-              role="img"
-              aria-label="This tile in your photo"
-              style={{
-                backgroundImage: `url(${selectedPhoto})`,
-                backgroundSize: '300% 300%',
-                backgroundPosition: `${(cell % 3) * 50}% ${Math.floor(cell / 3) * 50}%`,
-              }}
-            />
-          )}
           <div className="flex flex-col gap-2 min-w-0">
             <div className="text-xs text-muted">
               <span className="font-bold text-ink">{FACE_LABEL[selected.face]}</span> · row{' '}
               {Math.floor(selected.index / 3) + 1}, column {(selected.index % 3) + 1}
-              {selectedPhoto && <span> · your photo</span>}
             </div>
             <div className="flex flex-wrap items-center gap-2" role="radiogroup" aria-label="Tile color">
               {COLORS.map((color, i) => {

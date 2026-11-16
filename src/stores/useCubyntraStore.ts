@@ -45,8 +45,6 @@ export interface CubyntraStore {
   // Photo pipeline: raw tile measurements per face, resolved together once all six are in
   scanSource: ScanSource | null;
   faceSamples: Partial<Record<Face, StickerSample[]>>;
-  /** Desktop-local copies of the face photos, shown on the review screen. Never uploaded. */
-  faceImages: Partial<Record<Face, string>>;
   resolution: ResolvedCube | null;
 
   // Cube & Solver State
@@ -73,7 +71,7 @@ export interface CubyntraStore {
 
   // Photo pipeline & review
   startCompanionScan: () => void;
-  ingestFaceSamples: (face: Face, samples: StickerSample[], imageDataUrl?: string) => void;
+  ingestFaceSamples: (face: Face, samples: StickerSample[]) => void;
   setReviewSticker: (face: Face, index: number, color: CubeColor) => void;
   confirmReview: () => Promise<void>;
 
@@ -103,7 +101,6 @@ export const useCubyntraStore = create<CubyntraStore>((set, get) => ({
 
   scanSource: null,
   faceSamples: {},
-  faceImages: {},
   resolution: null,
 
   cubeState: createSolvedCubeState(),
@@ -122,7 +119,6 @@ export const useCubyntraStore = create<CubyntraStore>((set, get) => ({
       scanSource: 'webcam',
       errorMessage: null,
       faceSamples: {},
-      faceImages: {},
       resolution: null,
       currentStepIndex: 0,
       scannedFaces: {},
@@ -189,14 +185,11 @@ export const useCubyntraStore = create<CubyntraStore>((set, get) => ({
         delete nextFaces[face];
         const nextSamples = { ...s.faceSamples };
         delete nextSamples[face];
-        const nextImages = { ...s.faceImages };
-        delete nextImages[face];
         return {
           appState: 'scanning',
           currentStepIndex: targetIndex,
           scannedFaces: nextFaces,
           faceSamples: nextSamples,
-          faceImages: nextImages,
           resolution: null,
           scanSource: s.scanSource ?? 'webcam',
         };
@@ -210,7 +203,6 @@ export const useCubyntraStore = create<CubyntraStore>((set, get) => ({
       scanSource: 'companion',
       errorMessage: null,
       faceSamples: {},
-      faceImages: {},
       resolution: null,
       currentStepIndex: 0,
       scannedFaces: {},
@@ -224,8 +216,8 @@ export const useCubyntraStore = create<CubyntraStore>((set, get) => ({
     });
   },
 
-  ingestFaceSamples: (face, samples, imageDataUrl) => {
-    const { faceSamples, faceImages, scannedFaces, cubeState } = get();
+  ingestFaceSamples: (face, samples) => {
+    const { faceSamples, scannedFaces, cubeState } = get();
     const nextSamples = { ...faceSamples, [face]: samples };
 
     // Provisional colors for immediate feedback, calibrated on the centers seen so far.
@@ -244,7 +236,6 @@ export const useCubyntraStore = create<CubyntraStore>((set, get) => ({
       capturedAt: Date.now(),
     };
     const nextScanned = { ...scannedFaces, [face]: scanned };
-    const nextImages = imageDataUrl ? { ...faceImages, [face]: imageDataUrl } : faceImages;
 
     // Faces may arrive in any order (the phone lets users jump between steps), so progress
     // is keyed by face rather than counted.
@@ -258,7 +249,6 @@ export const useCubyntraStore = create<CubyntraStore>((set, get) => ({
         console.error('[Cubyntra] Color resolution failed:', err);
         set({
           faceSamples: nextSamples,
-          faceImages: nextImages,
           scannedFaces: nextScanned,
           appState: 'error',
           validationResult: null,
@@ -268,7 +258,6 @@ export const useCubyntraStore = create<CubyntraStore>((set, get) => ({
       }
       set({
         faceSamples: nextSamples,
-        faceImages: nextImages,
         scannedFaces: nextScanned,
         currentStepIndex: SCAN_SEQUENCE.length,
         resolution,
@@ -281,7 +270,6 @@ export const useCubyntraStore = create<CubyntraStore>((set, get) => ({
 
     set({
       faceSamples: nextSamples,
-      faceImages: nextImages,
       scannedFaces: nextScanned,
       currentStepIndex: nextStep,
       cubeState: { ...cubeState, [face]: preview },
@@ -320,7 +308,7 @@ export const useCubyntraStore = create<CubyntraStore>((set, get) => ({
   confirmReview: async () => {
     const { cubeState } = get();
     if (!validateCubeState(cubeState).valid) return;
-    set({ originalScrambleState: cubeState, faceImages: {} });
+    set({ originalScrambleState: cubeState });
     await get().validateAndSolve();
   },
 
@@ -456,7 +444,6 @@ export const useCubyntraStore = create<CubyntraStore>((set, get) => ({
       scanSource: null,
       errorMessage: null,
       faceSamples: {},
-      faceImages: {},
       resolution: null,
       currentStepIndex: 0,
       scannedFaces: {},

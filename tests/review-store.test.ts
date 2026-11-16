@@ -69,15 +69,13 @@ describe('photo ingest and review', () => {
     expect(store().cubeState.F[4]).toBe('green');
   });
 
-  it('solves the confirmed cube and drops the local photo copies', async () => {
-    FACES.forEach((face) => store().ingestFaceSamples(face, samplesFor(face), 'data:image/jpeg;base64,AA'));
-    expect(Object.keys(store().faceImages)).toHaveLength(6);
+  it('solves the confirmed cube', async () => {
+    FACES.forEach((face) => store().ingestFaceSamples(face, samplesFor(face)));
 
     await store().confirmReview();
 
     expect(store().appState).toBe('solution_ready');
     expect(store().originalScrambleState).toEqual(truth);
-    expect(store().faceImages).toEqual({});
     expect(applyMoves(truth, store().solution!.moves)).toEqual(createSolvedCubeState());
   }, 20_000);
 
