@@ -3,7 +3,7 @@
 /*
  * Cubyntra voxel design system (ADR-011).
  *
- * Flat colors only: no gradients, blur, glow, glass or text-shadow. Depth comes from
+ * Flat colors only: no gradients, blur, glow, glass or text shadows. Depth comes from
  * two-tone block faces (a light top lip, a darker bottom edge) and hard offset shadows with
  * zero blur. Every color in the app is one of the tokens below; tests/design-rules.test.ts
  * fails on a hex color anywhere outside this block.
@@ -274,6 +274,28 @@ h3 {
   from { opacity: 0.85; }
   to { opacity: 0; }
 }
+
+/* Busy indicator: three blocks light up in turn. */
+@keyframes vx-step {
+  0%, 100% { background-color: var(--vx-well); }
+  33% { background-color: var(--vx-leaf); }
+}
+
+.vx-loader {
+  display: inline-flex;
+  gap: 8px;
+}
+
+.vx-loader > span {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--vx-line);
+  background-color: var(--vx-well);
+  animation: vx-step 900ms steps(1, end) infinite;
+}
+
+.vx-loader > span:nth-child(2) { animation-delay: 300ms; }
+.vx-loader > span:nth-child(3) { animation-delay: 600ms; }
 
 .vx-place, .cb-rise { animation: vx-place 200ms steps(3, end) both; }
 .vx-pop, .cb-turn-in { animation: vx-pop 240ms var(--ease-place) both; }

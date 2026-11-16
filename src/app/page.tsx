@@ -18,7 +18,30 @@ import { MobilePairingModal } from '@/components/sync/MobilePairingModal';
 import { CompanionScanPanel } from '@/components/sync/CompanionScanPanel';
 import { ScanReview } from '@/components/review/ScanReview';
 import { CompanionSyncProvider, useCompanion } from '@/sync/CompanionSyncProvider';
+import { BlockButton, Chip, Panel, stickerColor } from '@/components/ui';
+import { CubeColor } from '@/cube/types';
 import { Camera, Sparkles, Shield, Cpu, Layers, Smartphone } from 'lucide-react';
+
+const PILLARS: Array<{ Icon: typeof Shield; sticker: CubeColor; title: string; body: string }> = [
+  {
+    Icon: Shield,
+    sticker: 'yellow',
+    title: 'Private by design',
+    body: 'Webcam frames never leave your browser. Phone photos are held in memory only until you confirm.',
+  },
+  {
+    Icon: Cpu,
+    sticker: 'white',
+    title: 'Kociemba two-phase',
+    body: 'Checks the cube can really exist, then finds a short solution.',
+  },
+  {
+    Icon: Layers,
+    sticker: 'orange',
+    title: 'Zero-drift 3D twin',
+    body: 'A 27-block cube that snaps to exact positions after every turn.',
+  },
+];
 
 /**
  * 'auto': opened by "Scan with Phone"; steps aside once the phone connects.
@@ -113,7 +136,7 @@ function Workspace() {
   );
 
   return (
-    <div className="relative min-h-screen flex flex-col bg-page text-neutral-100 overflow-x-hidden">
+    <div className="relative min-h-screen flex flex-col bg-ground text-ink overflow-x-hidden">
       {/* Mobile Pairing QR Modal */}
       <MobilePairingModal
         isOpen={isPairingOpen}
@@ -128,79 +151,65 @@ function Workspace() {
       <CVDebugger />
 
       {/* Main Responsive Workspace */}
-      <main className="relative z-10 flex-1 flex flex-col lg:flex-row p-4 sm:p-6 lg:p-8 gap-6 max-w-7xl mx-auto w-full">
+      <main className="relative flex-1 flex flex-col lg:flex-row p-4 sm:p-6 lg:p-8 gap-6 lg:gap-8 max-w-7xl mx-auto w-full">
         {/* Left Interactive Panel */}
         <section className="flex-1 flex flex-col justify-center min-w-0">
           {/* 1. Ready / Hero State */}
           {appState === 'ready' && (
-            <div className="flex flex-col gap-6 max-w-lg mx-auto lg:mx-0 py-6">
-              <div>
-                <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-sky-950/60 border border-sky-800/50 text-[11px] font-mono text-sky-400 mb-3">
-                  <span className="w-1.5 h-1.5 rounded-full bg-sky-400 animate-pulse" />
-                  <span>V1 CLIENT-SIDE COMPUTER VISION</span>
-                </div>
-                <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-white leading-tight">
-                  See it. <span className="text-neutral-400 font-light">Solve it.</span>
-                </h2>
-                <p className="mt-3 text-sm sm:text-base text-neutral-400 leading-relaxed">
-                  Real-time browser-based computer vision scanning and deterministic Kociemba two-phase solving.
-                  Colors are read in your browser, nothing is stored, and the 3D twin never drifts.
+            <div className="vx-place flex flex-col gap-6 max-w-lg mx-auto lg:mx-0 py-6">
+              <div className="flex flex-col items-start gap-4">
+                <Chip tone="leaf" icon={<Shield className="w-3.5 h-3.5" aria-hidden />}>
+                  Runs in your browser
+                </Chip>
+                <h1 className="text-5xl sm:text-6xl leading-none text-ink">
+                  See it.
+                  <span className="block text-leaf-edge">Solve it.</span>
+                </h1>
+                <p className="text-base text-muted leading-relaxed max-w-md">
+                  Show your cube to the camera, check the colors, then follow the 3D twin one turn at a time.
+                  Colors are read on your device and nothing is stored.
                 </p>
               </div>
 
               {/* CTAs */}
               <div className="flex flex-wrap items-center gap-3">
-                <button
-                  type="button"
+                <BlockButton
+                  variant="primary"
+                  size="lg"
                   onClick={scanWithPhone}
-                  className="flex items-center gap-2 px-5 py-3 rounded-xl bg-emerald-500 hover:brightness-110 text-on-accent font-bold text-sm transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5"
+                  icon={<Smartphone className="w-5 h-5" aria-hidden />}
                 >
-                  <Smartphone className="w-4 h-4" />
-                  <span>Scan with Phone</span>
-                  <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-on-accent/15 text-on-accent font-mono uppercase tracking-wider">
-                    HD
-                  </span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={scanWithWebcam}
-                  className="flex items-center gap-2 px-4 py-3 rounded-xl bg-white/10 hover:bg-white/15 text-white font-semibold text-sm border border-white/15 transition-all"
-                >
-                  <Camera className="w-4 h-4 text-sky-400" />
-                  <span>Webcam Scan</span>
-                </button>
-
-                <button
-                  type="button"
+                  Scan with Phone
+                </BlockButton>
+                <BlockButton size="lg" onClick={scanWithWebcam} icon={<Camera className="w-5 h-5" aria-hidden />}>
+                  Webcam Scan
+                </BlockButton>
+                <BlockButton
+                  variant="ghost"
+                  size="lg"
                   onClick={loadDemo}
-                  className="flex items-center gap-2 px-4 py-3 rounded-xl bg-neutral-900/90 text-neutral-200 font-semibold text-sm hover:bg-neutral-800 border border-neutral-800 hover:border-neutral-700 transition-all"
+                  icon={<Sparkles className="w-5 h-5" aria-hidden />}
                 >
-                  <Sparkles className="w-4 h-4 text-amber-400" />
-                  <span>Load Demo</span>
-                </button>
+                  Load Demo
+                </BlockButton>
               </div>
 
-              {/* Architecture Feature Pillars */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-4 border-t border-neutral-800/80">
-                <div className="p-3 rounded-xl bg-neutral-900/40 border border-neutral-800/60 flex flex-col gap-1.5">
-                  <Shield className="w-4 h-4 text-emerald-400" />
-                  <div className="text-xs font-bold text-white">Private by Design</div>
-                  <div className="text-[11px] text-neutral-400">Webcam frames never leave your browser. Phone photos are held in memory only until you confirm.</div>
-                </div>
-
-                <div className="p-3 rounded-xl bg-neutral-900/40 border border-neutral-800/60 flex flex-col gap-1.5">
-                  <Cpu className="w-4 h-4 text-sky-400" />
-                  <div className="text-xs font-bold text-white">Kociemba Two-Phase</div>
-                  <div className="text-[11px] text-neutral-400">Mathematical parity verification and efficient HTM solutions.</div>
-                </div>
-
-                <div className="p-3 rounded-xl bg-neutral-900/40 border border-neutral-800/60 flex flex-col gap-1.5">
-                  <Layers className="w-4 h-4 text-amber-400" />
-                  <div className="text-xs font-bold text-white">Zero Drift 3D Twin</div>
-                  <div className="text-[11px] text-neutral-400">Interactive 27-cubie mesh with orthogonal matrix snapping.</div>
-                </div>
-              </div>
+              {/* Feature pillars */}
+              <ul className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-6 border-t-2 border-line-soft">
+                {PILLARS.map(({ Icon, sticker, title, body }) => (
+                  <li key={title} className="vx-panel p-4 pb-5 flex flex-col gap-2">
+                    <span
+                      aria-hidden
+                      className="flex h-8 w-8 items-center justify-center border-2 border-line text-sticker-core"
+                      style={{ backgroundColor: stickerColor(sticker) }}
+                    >
+                      <Icon className="w-4 h-4" />
+                    </span>
+                    <span className="text-sm font-bold text-ink">{title}</span>
+                    <span className="text-xs text-muted leading-relaxed">{body}</span>
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
 
@@ -224,15 +233,15 @@ function Workspace() {
 
           {/* 3. Processing State */}
           {appState === 'processing' && (
-            <div className="flex flex-col items-center justify-center p-8 text-center gap-3">
-              <div className="w-10 h-10 border-2 border-sky-400 border-t-transparent rounded-full animate-spin" />
-              <div className="text-sm font-bold text-white font-mono">
-                COMPUTING OPTIMAL TWO-PHASE SOLUTION...
-              </div>
-              <div className="text-xs text-neutral-400">
-                Verifying permutation parity and solving scramble sequence
-              </div>
-            </div>
+            <Panel className="vx-place flex flex-col items-center justify-center p-8 text-center gap-4" role="status">
+              <span aria-hidden className="vx-loader">
+                <span />
+                <span />
+                <span />
+              </span>
+              <h2 className="text-xl text-ink">Finding the solution</h2>
+              <p className="text-sm text-muted">Checking that the cube is solvable, then working out the turns.</p>
+            </Panel>
           )}
 
           {/* 4. Solution & Solve Controls */}
@@ -247,7 +256,7 @@ function Workspace() {
         </section>
 
         {/* Right 3D Digital Twin Panel */}
-        <section className="flex-1 flex flex-col items-center justify-center min-h-[380px] lg:min-h-[560px]">
+        <section className="flex-1 flex flex-col items-center justify-center min-h-[384px] lg:min-h-[560px]">
           <CubeVisualizer
             ref={visualizerRef}
             state={cubeState}
@@ -258,20 +267,20 @@ function Workspace() {
       </main>
 
       {/* Footer */}
-      <footer className="relative z-10 w-full border-t border-neutral-800/80 bg-raised/80 px-4 sm:px-8 py-3 flex flex-wrap items-center justify-between text-xs text-neutral-400 font-mono gap-2">
+      <footer className="w-full border-t-2 border-line bg-panel px-4 sm:px-8 py-3 flex flex-wrap items-center justify-between text-xs text-muted gap-2">
         <div>
-          <span>Cubyntra</span> • <span>Necookie Labs © 2026</span>
+          <span className="font-bold text-ink">Cubyntra</span> · <span>Necookie Labs © 2026</span>
         </div>
         <div className="flex items-center gap-4">
           <a
             href="https://github.com/Necookie-Labs/Cubyntra"
             target="_blank"
             rel="noopener noreferrer"
-            className="hover:text-white transition-colors"
+            className="underline underline-offset-4 decoration-2 hover:text-ink"
           >
             GitHub Repository
           </a>
-          <span>•</span>
+          <span aria-hidden>·</span>
           <span>MIT License</span>
         </div>
       </footer>
