@@ -250,6 +250,44 @@ function planF2L(view: CubeState): StepDraft {
 }
 
 // ---------------------------------------------------------------------------------------------
+// Last layer: try every table algorithm after every top turn, keep the first that reaches the goal
+// ---------------------------------------------------------------------------------------------
+
+function planLastLayer(
+  view: CubeState,
+  cases: readonly LastLayerCase[],
+  reachesGoal: (after: CubeState) => boolean,
+  draft: (found: LastLayerCase) => Pick<StepDraft, 'highlightPieces' | 'facts'>
+): StepDraft {
+  for (const c of cases) {
+    for (let auf = 0; auf < 4; auf++) {
+      const setupMoves = faceTurns('U', auf);
+      if (!reachesGoal(applyMoves(view, [...setupMoves, ...alg(c.algorithm)]))) continue;
+      return { caseId: c.id, caseName: c.name, setupMoves, algorithm: [...alg(c.algorithm)], ...draft(c) };
+    }
+  }
+  throw new TutorPlanError(`No last-layer case in [${cases.map((c) => c.id).join(', ')}] fits this cube`);
+}
+
+function planAuf(view: CubeState): StepDraft {
+  const turns = lastLayerTurnsUntil(view, isCubeSolved);
+  if (turns <= 0) throw new TutorPlanError('Top layer cannot be turned into place');
+  const algorithm = faceTurns('U', turns);
+  return {
+    caseId: `auf-${algorithm[0].notation.toLowerCase()}`,
+    caseName: 'Line up the top',
+    setupMoves: [],
+    algorithm,
+    highlightPieces: [...lastLayerCornerRefs(), ...lastLayerEdgeRefs()],
+    facts: {
+      goal: 'Turn the top layer until every side is one color.',
+      lookFor: 'The top layer is finished but sits a turn away from the sides below it.',
+      why: 'The last algorithm put every top piece in the right order; one turn of the top lines them up with the centers.',
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------------------------
 // Stages
 // ---------------------------------------------------------------------------------------------
 
@@ -273,6 +311,88 @@ const STAGES: StageDefinition[] = [
     progress: f2lProgress,
     plan: planF2L,
     check: { prefer: ['F', 'R', 'U'] },
+  },
+  {
+    id: 'oll-edges',
+    name: 'Yellow cross',
+    top: LAST,
+    isComplete: ollEdgesDone,
+    progress: noProgress,
+    plan: (view) =>
+      planLastLayer(view, OLL_EDGE_CASES, (after) => orientedLastEdges(after) === 4, (c) => ({
+        highlightPieces: lastLayerEdgeRefs(),
+        facts: {
+          goal: 'Make a yellow cross on top.',
+          lookFor: c.recognition,
+          why: 'The algorithm flips top edges over without breaking the two layers below.',
+        },
+      })),
+    check: { prefer: ['U', 'F'] },
+  },
+  {
+    id: 'oll-corners',
+    name: 'Yellow top',
+    top: LAST,
+    isComplete: ollCornersDone,
+    progress: noProgress,
+    plan: (view) =>
+      planLastLayer(view, OLL_CORNER_CASES, (after) => orientedLastCorners(after) === 4, (c) => ({
+        highlightPieces: lastLayerCornerRefs(),
+        facts: {
+          goal: 'Turn every top corner so the whole top is yellow.',
+          lookFor: c.recognition,
+          why: 'The algorithm twists the top corners in place while the yellow cross stays put.',
+        },
+      })),
+    check: { prefer: ['U', 'F'] },
+  },
+  {
+    id: 'pll-corners',
+    name: 'Top corners',
+    top: LAST,
+    isComplete: pllCornersDone,
+    progress: noProgress,
+    plan: (view) =>
+      planLastLayer(
+        view,
+        PLL_CORNER_CASES,
+        (after) => lastLayerTurnsUntil(after, (t) => solvedLastCorners(t) === 4) >= 0,
+        (c) => ({
+          highlightPieces: lastLayerCornerRefs(),
+          facts: {
+            goal: 'Put the four top corners in the right order.',
+            lookFor: c.recognition,
+            why: 'The algorithm swaps two corners; afterwards every side has matching corner colors.',
+          },
+        })
+      ),
+    check: { prefer: ['F', 'R'] },
+  },
+  {
+    id: 'pll-edges',
+    name: 'Top edges',
+    top: LAST,
+    isComplete: pllEdgesDone,
+    progress: noProgress,
+    plan: (view) =>
+      planLastLayer(view, PLL_EDGE_CASES, (after) => lastLayerTurnsUntil(after, isCubeSolved) >= 0, (c) => ({
+        highlightPieces: lastLayerEdgeRefs(),
+        facts: {
+          goal: 'Put the four top edges in the right order.',
+          lookFor: c.recognition,
+          why: 'The algorithm moves only top edges around, leaving the corners where they are.',
+        },
+      })),
+    check: { prefer: ['F', 'R'] },
+  },
+  {
+    id: 'auf',
+    name: 'Final turn',
+    top: LAST,
+    isComplete: isCubeSolved,
+    progress: noProgress,
+    plan: planAuf,
+    check: { prefer: ['F', 'R'] },
   },
 ];
 
