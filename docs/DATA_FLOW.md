@@ -131,3 +131,41 @@ sequenceDiagram
 - Photos live only in server memory, in a map separate from `SessionState`, from upload until confirm, reset, delete or expiry.
 - Faces may arrive in any order; progress is keyed by face. A newer photo of a face supersedes an older one still being read.
 - The review screen can send `RESCAN_REQUEST` to return the phone to a specific face.
+
+---
+
+## 6. Guided Solve and Profile Flow (Phase 7)
+
+```mermaid
+flowchart TD
+    SCAN[/scan: 6 faces + review/] -->|confirm| PAL[buildStudentPalette from raw samples]
+    PAL -->|savePalette| PROF[(data/student.json via PUT /api/student)]
+    SCAN -->|originalScrambleState + method| START[useTutorStore.startSolve]
+    START --> PLAN[tutor.plan in the worker]
+    PLAN -->|StepPlan| SOLVE[/solve: twin + coach + I did it/]
+    SOLVE -->|facts JSON only| COACH[POST /api/coach]
+    SOLVE -->|I did it| SHEET[Checkpoint sheet: camera reads one face]
+    SHEET -->|classify with palette, in the tab| OBS[FaceObservation]
+    OBS --> ADAPT[checkpointAdapter: verify, diagnose, recover]
+    ADAPT -- match --> NEXT[advance: cube = expectedState, step + 1]
+    NEXT --> PROF
+    NEXT --> PLAN
+    ADAPT -- uncertain / wrong face --> SHEET
+    ADAPT -- mismatch --> MIS[Mismatch panel + coach with diagnosis]
+    MIS -->|replay| SOLVE
+    MIS -->|fix it from here| PLAN
+    MIS -->|rescan| SCAN
+    PROF -->|GET /api/student on load| RESUME[resumeSolve]
+    RESUME --> PLAN
+```
+
+- **What is stored.** `data/student.json` (version 1, at most 32 KB, written atomically): name,
+  settings, the palette (mean and spread per color, no images), the solve in progress (method,
+  cube state as held, grip, step index, attempts at the current step) and stats counters.
+- **What leaves the tab.** Checkpoint photos never leave the device that took them: frames are
+  drawn into a canvas, sampled to 9 RGB values and classified in the tab. Only the profile JSON
+  goes to `/api/student` and only the compact facts JSON (no images, no cube state) goes to
+  `/api/coach`, both with the `x-cubyntra-token` header.
+- **Resume.** On every step the solve's current cube and step index are saved. Opening `/solve`
+  later loads the profile and plans the next step from the saved cube.
+
