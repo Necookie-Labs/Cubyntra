@@ -2,8 +2,8 @@
 
 **Product**: Cubyntra  
 **Organization**: Necookie Labs  
-**Status**: Implemented  
-**Scope**: Public TypeScript Interfaces and Function Contracts
+**Status**: Implemented (2.0.0), checked against the exports on 2026-11-17  
+**Scope**: Public TypeScript Interfaces, Function Contracts and HTTP Routes
 
 ---
 
@@ -79,88 +79,93 @@ export interface CubeState { U: FaceStickers; R: FaceStickers; F: FaceStickers; 
 
 ## 2. Computer Vision API (`src/vision/`)
 
-### 2.1 Types & Interfaces (`src/vision/types.ts`)
+### 2.1 Types (`src/vision/types.ts`)
 
 ```typescript
-export interface RGBColor {
-  r: number; // [0, 255]
-  g: number; // [0, 255]
-  b: number; // [0, 255]
+interface RGBColor { r: number; g: number; b: number }   // 0-255
+interface HSVColor { h: number; s: number; v: number }   // h 0-360, s and v 0-100
+interface LABColor { l: number; a: number; b: number }   // l 0-100, a and b about -128..127
+
+interface StickerSample {
+  row: number; col: number; index: number;               // 0-2, 0-2, 0-8
+  rgb: RGBColor; hsv: HSVColor; lab: LABColor;
+  predictedColor: CubeColor;
+  confidence: number;                                    // 0-1
+  colorScores: Record<CubeColor, number>;
+  isCubeColor?: boolean; rejectionReason?: string;
 }
 
-export interface HSVColor {
-  h: number; // [0, 360]
-  s: number; // [0, 1]
-  v: number; // [0, 1]
+interface FrameClassificationResult {
+  stickers: StickerSample[];                             // exactly 9
+  averageConfidence: number; isStable: boolean; stabilityProgress: number;
+  stableFramesCount: number; expectedFace: Face; detection?: CubeDetectionResult;
 }
 
-export interface LABColor {
-  L: number; // [0, 100]
-  a: number; // [-128, 127]
-  b: number; // [-128, 127]
-}
-
-export interface ClassifiedSticker {
-  color: FaceletColor;
-  confidence: number; // [0, 1]
-  rgb: RGBColor;
-  lab: LABColor;
-}
-
-export interface TemporalTracker {
-  history: FaceletColor[][];
-  stableCount: number;
-  isLocked: boolean;
-}
+interface ROIBounds { x: number; y: number; size: number }
+interface CalibrationProfile { referenceCenters: Partial<Record<Face, RGBColor>>; ambientWhitePoint?: RGBColor; warmthFactor: number }
 ```
 
-### 2.2 Color & Sampling Functions (`src/vision/`)
+### 2.2 Color and Sampling
 
-- `rgbToHsv(rgb: RGBColor): HSVColor`  
-  Converts standard sRGB coordinates into cylindrical HSV coordinates.
-- `rgbToLab(rgb: RGBColor): LABColor`  
-  Converts sRGB to CIELAB under CIE Standard Illuminant D65.
-- `deltaE76(lab1: LABColor, lab2: LABColor): number`  
-  Calculates Euclidean perceptual distance in CIELAB color space.
-- `classifyColor(rgb: RGBColor): ClassifiedSticker`  
-  Classifies an arbitrary RGB pixel against calibrated cube reference swatches.
-- `sampleGridColors(ctx: CanvasRenderingContext2D, width: number, height: number): ClassifiedSticker[][]`  
-  Samples a $3 \times 3$ grid of circular kernels from the active video canvas.
-- `updateStabilityTracker(tracker: TemporalTracker, currentGrid: ClassifiedSticker[][]): TemporalTracker`  
-  Updates frame-by-frame stability buffer and determines locking threshold.
+| Function | Module | Purpose |
+|---|---|---|
+| `rgbToHsv(rgb): HSVColor`, `rgbToLab(rgb): LABColor` | `color.ts` | Color space conversions (CIELAB under D65). |
+| `colorDistanceDeltaE(lab1, lab2): number` | `color.ts` | CIE76 ΔE. |
+| `classifyColor(rgb, calibration?): ClassifiedColorResult` | `color.ts` | `{ color, confidence, scores, hsv, lab, isCubeColor, rejectionReason?, skinProbability? }`; CIELAB distance to `REFERENCE_LAB` (or calibrated centers), HSV rules, dataset gamut gating (`DATASET_REFERENCE_LAB`, `DATASET_MAX_DELTA_E`), `RED_ORANGE_HUE_SPLIT = 8`. |
+| `isAuthenticRubikColor(rgb, calibration?)` | `color.ts` | `classifyColor` reduced to `{ isCubeColor, color, confidence, reason? }`. |
+| `calculateROIBounds(w, h, fraction = 0.70): ROIBounds` | `sampling.ts` | Centered square (the webcam scanner passes 0.65). |
+| `mapElementRectToVideo(target, videoBox, videoW, videoH): ROIBounds` | `sampling.ts` | Maps the on-screen reticle into camera pixels under `object-fit: cover`. |
+| `aggregateTrimmedMean(pixels, trimRatio = 0.15): RGBColor` | `sampling.ts` | Per-channel trimmed mean. |
+| `sampleGridFromContext(ctx, roi, { sampleRatio = 0.40, outlierTrimRatio = 0.15, calibration? }): StickerSample[]` | `sampling.ts` | Nine classified tile samples. |
+| `updateCalibrationFromCenter(profile, face, centerRgb): CalibrationProfile` | `sampling.ts` | Records a face's center as its reference. |
+| `new TemporalStabilityBuffer({ requiredStableFrames = 8, minAverageConfidence = 0.70, maxHistoryLength = 15 })` | `stability.ts` | `processFrame(stickers, expectedFace, detection?): FrameClassificationResult`, `reset()`; a non-cube frame zeroes the count. |
+| `detectCubeInROI(...)`, `detectCubeInROISync(...)` | `cubeDetector.ts` | ML cube presence and face rejection (`src/vision/ml/`). |
+| `buildDynamicPalette(...)`, `classifyWithDynamicPalette(...)` | `dynamicCalibration.ts` | Palette from the six observed centers. |
+| `solveHungarian(cost)`, `resolve54StickerInvariant(...)` | `invariantSolver.ts` | Nine-per-color assignment. |
+| `initializeCameraStream(video, options?)`, `terminateCameraStream(stream)`, `toggleCameraTorch`, `lockWhiteBalance`, `formatCameraError` | `camera.ts` | Camera lifecycle; `STREAM_TIMEOUT_MS = 30_000`, `METADATA_TIMEOUT_MS = 10_000`. |
+| `createMockScannedFaces(state)`, `getSolvedMockScan()`, `getScrambledMockScan(scramble?)` | `mock.ts` | Synthetic scans for the demo and tests. |
+
+### 2.3 Student Palette and Checkpoint Faces (`palette.ts`, `checkpointCapture.ts`)
+
+| Function | Purpose |
+|---|---|
+| `buildStudentPalette(samplesByFace, { state, rotatedFaces? }): StudentPalette` | Mean and spread per color from the full scan (no images). `PALETTE_VERSION = 1`. |
+| `serializePalette(palette)`, `parsePalette(input): StudentPalette \| null` | Storage form in the profile. |
+| `paletteDistance(lab, entry)`, `classifyWithPalette(rgb, palette): PaletteReading` | One tile against the palette. |
+| `classifyFaceWithPalette(rgbs, palette, skip?)`, `classifyFace(rgbs, palette?, skip?)`: `PaletteReading[]` | A whole face with per-photo lighting correction; `classifyFace` falls back to the static classifier without a palette. |
+| `readFaceFromContext(ctx, width, height, palette?): FaceReading` | Reads a checkpoint face from a canvas; tiles with glare above `GLARE_REJECT_FRACTION = 0.2` count as not seen. |
 
 ---
 
 ## 3. Solver API (`src/solver/`)
 
-### 3.1 Types & Interfaces (`src/solver/types.ts`)
+### 3.1 Types (`src/solver/types.ts`)
 
 ```typescript
-export interface SolveResult {
+interface SolveResult {
   success: boolean;
-  moves: MoveNotation[];
+  moves: CubeMove[];
+  notation: string;        // formatAlgorithm(moves)
   moveCount: number;
-  solveTimeMs: number;
+  durationMs: number;
   error?: string;
 }
-
-export interface SolverConfig {
-  maxDepth?: number;
-  timeoutMs?: number;
-}
+interface SolverOptions { maxDepth?: number; timeoutMs?: number }   // declared; solveCube takes no options
 ```
 
-### 3.2 Solver Functions (`src/solver/solver.ts`)
+### 3.2 Functions
 
-- `solveCubeState(cubeStateOrString: CubeState | string, config?: SolverConfig): Promise<SolveResult>`  
-  Computes an optimal or near-optimal move sequence using the two-phase Kociemba engine.
-- `parseAlgorithm` / `parseMove`: see section 1.2. Solutions are face turns in the frame the cube is held in.
-- `invertMove(move: MoveNotation): MoveNotation`  
-  Returns the exact algebraic inverse of a face rotation.
-- `invertMoveSequence(moves: MoveNotation[]): MoveNotation[]`  
-  Inverts an entire sequence of moves in reverse execution order.
-- `verifySolution(initialState: CubeState, moves: MoveNotation[]): boolean`  
-  Simulates move sequence and verifies convergence to `SOLVED_CUBE_STATE`.
+- `solveCube(state: CubeState): Promise<SolveResult>` (`solver.ts`): validates, normalizes the
+  orientation, runs the two-phase search, translates the solution back into the held frame and
+  verifies it with `applyMoves` + `isCubeSolved` before returning success.
+- `ensureSolverInitialized(): void`: builds the Kociemba tables once.
+- `generateRandomScramble(): string`: a random scramble from `rubik-solver`.
+- Worker client (`client.ts`): `solveInWorker(state)`, `warmUpSolver()`, `planStepInWorker`,
+  `tutorProgressInWorker`, `guidedSolveInWorker` (§8), `getSolverClient()`, `class SolverClient`
+  (`request(type, payload)`, `usesWorker()`, `terminate()`). Protocol: `WorkerJobs` in
+  `protocol.ts`, handlers and `dispatch(request)` in `handlers.ts`.
+- Moves are parsed, inverted and applied with the cube API (§1.2): `parseAlgorithm`,
+  `invertAlgorithm`, `applyMoves`.
 
 ---
 
@@ -184,10 +189,14 @@ interface CubyntraStore {
   originalScrambleState: CubeState;
   validationResult: ValidationResult | null;
   errorMessage: string | null;                            // unexpected failure, shown on the error screen
-  solution: SolveResult | null;
+  solution: SolveResult | null;                           // Kociemba solution of the confirmed scan
   currentMoveIndex: number;                               // -1 = before the first move
   isPlaying: boolean;
   playbackSpeed: number;                                  // 0.5, 1, 2, 4
+  currentClassification: FrameClassificationResult | null; // the webcam scanner's latest frame
+  isCameraActive: boolean;
+  cameraError: string | null;
+  isDebugMode: boolean;                                   // toggled by toggleDebugMode; no UI reads it now
 
   startScanning(): void;                                  // webcam
   startCompanionScan(): void;                             // phone
@@ -206,6 +215,10 @@ interface CubyntraStore {
   resetToScramble(): void;
   seekToMove(index: number): void;                        // jump without animating; pauses
   resetAll(): void;
+  loadMockScramble(scramble?: string): Promise<void>;     // demo cube through the same validate + solve
+  loadMockSolved(): Promise<void>;
+  setAppState(state); setClassification(result); setCameraActive(active); setCameraError(error);
+  toggleDebugMode(); setPlaying(isPlaying);
 }
 ```
 
@@ -213,7 +226,7 @@ interface CubyntraStore {
 
 ---
 
-## 5. Photo Pipeline API (`src/vision/`)
+## 5. Phone Capture and Scan Resolution API (`src/vision/`, `src/sync/faceSamples.ts`)
 
 | Function | Module | Purpose |
 |---|---|---|
@@ -363,7 +376,7 @@ caseIdsByStage(method: MethodId, options?: MethodOptions): Record<string, readon
 caseIdsOf(method: MethodId, options?: MethodOptions): string[]
 allCaseIds(): string[]                                            // every id of every variant, each once
 
-// Full last-layer tables (src/tutor/cases/oll.ts, pll.ts)
+// Full last-layer tables (src/tutor/cases/oll.ts, pll.ts; LastLayerCase is declared in cases/oll2look.ts)
 interface LastLayerCase { id: string; name: string; recognition: string; algorithm: string }
 interface OllCase extends LastLayerCase { number: number; group: OllGroup; pattern: string }   // 'oll-01' .. 'oll-57'
 interface PllCase extends LastLayerCase { group: PllGroup; cycles: string }                    // 'pll-aa' .. 'pll-z'
@@ -483,9 +496,9 @@ methodOptionsFor(method, settings): MethodOptions | undefined  // { lastLayer: '
 //   passed to planStepInWorker and replanAfterRescan, so worker jobs carry it as `options`
 
 // src/app-shell/checkpointAdapter.ts (wires src/tutor/checkpoint, diagnose and recovery)
-checkCheckpoint(plan, observations): { result: CheckpointResult; diagnosis: Diagnosis | null; recovery: Recovery | null }
+checkCheckpoint(plan, observations, previous?): CheckpointOutcome   // { result, diagnosis, recovery }; previous = the last outcome (a trusted hold)
   // mismatch -> diagnoseMistake(plan, observations), decideRecovery(plan, diagnosis)
-confirmCheckpointByHand(plan); checkWithEdits(plan, observations, face, edits); toCoachDiagnosis(diagnosis)
+confirmCheckpointByHand(plan); checkWithEdits(plan, observations, face, edits, previous?); toCoachDiagnosis(diagnosis)
 replanAfterRescan(scanned, method, grip, stepIndex, options?): ScanReplan   // replanFromScan
 faceToShowNext(outcome): Face | null   // needsRescan with showNext
 // decideRecovery never throws TutorPlanError: a failed re-plan is { action: 'needsRescan', reason: 'no-plan' }.
