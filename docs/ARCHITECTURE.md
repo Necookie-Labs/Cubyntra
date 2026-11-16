@@ -83,6 +83,7 @@ src/
 - `src/cube/` has **zero external dependencies**. It contains pure TypeScript models, math invariants, face rotations, and parity checks.
 - `src/vision/` depends only on `src/cube/` for type definitions (`Face`, `CubeColor`, `ScannedFace`). It has **zero Three.js dependencies**.
 - `src/solver/` depends only on `src/cube/` to serialize `CubeState` and verify solutions.
+- `src/tutor/` depends only on `src/cube/`. It plans every step of a guided solve and never imports the DOM, Three.js, React, the solver or the network (ADR-012).
 - `src/three/` depends on `src/cube/` for `CubeState` and `CubeMove` contracts. It receives states and animates them.
 - `src/stores/` orchestrates `cube`, `vision`, `solver`, and `three`.
 - `src/components/` connects UI events to `src/stores/`.

@@ -85,7 +85,14 @@ npm run test:watch
 
 # Generate code coverage report
 npm run test:coverage
+
+# Tutor engine soak: 10,000 fixed-seed scrambles per method (about 40 s).
+# `npm run test` runs the same suite with 1,000 per method.
+npm run test:tutor-soak
 ```
+
+The tutor engine tests (`tests/tutor-*.test.ts`) and their measured move counts are described in
+`docs/tutor/METHODS.md`, section 8.
 
 ### Current Test Execution Results:
 ```

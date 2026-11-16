@@ -54,6 +54,7 @@ open https://localhost:3000
 - **`src/cube/`**: Pure logical domain models (faces, stickers, rotations, invariants, validation). No DOM or Three.js dependencies.
 - **`src/vision/`**: Camera capture, 3x3 sampling grid, HSV/CIELAB conversion, center calibration, temporal stability.
 - **`src/solver/`**: Herbert Kociemba two-phase solving algorithm and move sequence parsing.
+- **`src/tutor/`**: Deterministic tutor engine: beginner's method and CFOP as data, step plans replayed on the logical cube. No DOM, Three.js or React imports. See `docs/tutor/METHODS.md`.
 - **`src/three/`**: Three.js rendering, 27-cubie construction, layer rotation animations, directional arrows, camera controls.
 - **`src/stores/`**: Zustand store (`useCubyntraStore`) coordinating UI flow and scan/solve states.
 - **`src/components/`**: Modular React components (Scanner, Visualizer, Controls, Debugger, Background).
