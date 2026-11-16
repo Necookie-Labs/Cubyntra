@@ -78,8 +78,12 @@ Individual move inverses:
 ### 4.1 Module Structure
 ```
 src/solver/
-├── types.ts          # Move, MoveSequence, SolveResult, SolverConfig interfaces
-└── solver.ts         # solveCubeState(), parseMoveSequence(), invertMoveSequence(), verifySolution()
+├── types.ts          # SolveResult, SolverOptions
+├── solver.ts         # solveCube(), ensureSolverInitialized(), generateRandomScramble()
+├── protocol.ts       # WorkerJobs: the typed message protocol for the worker
+├── handlers.ts       # the work behind each message type; dispatch()
+├── solver.worker.ts  # Web Worker entry point
+└── client.ts         # SolverClient, solveInWorker(), warmUpSolver()
 ```
 
 ### 4.2 Facelet Mapping
@@ -105,6 +109,38 @@ Cubyntra implements a mathematical verification engine in `src/solver/solver.ts`
 1. `solveCubeState(faceletString)` executes the two-phase search.
 2. The resulting move sequence is applied to a simulated cube model starting from the scanned state via `applyMoveSequence()`.
 3. If the resulting state is not identical to `SOLVED_CUBE_STATE`, the solve is rejected as invalid before presenting to the user.
+
+### 4.4 Web Worker
+Building the Kociemba tables takes a few seconds and a search can take tens of milliseconds, so
+both run in a Web Worker and the 3D twin never stutters.
+
+- **Bundling**: `client.ts` creates the worker with
+  `new Worker(new URL('./solver.worker.ts', import.meta.url), { type: 'module' })`, the form
+  Turbopack and webpack both recognize and emit as a separate worker chunk.
+- **Protocol** (`protocol.ts`): every request is `{ id, type, ...payload }` and every reply
+  `{ id, type, ok: true, result }` or `{ id, type, ok: false, error }`. `WorkerJobs` maps each
+  `type` to its payload and result:
+
+  | `type` | payload | result |
+  |---|---|---|
+  | `init` | none | `{ ready: true }` (tables built) |
+  | `solve` | `{ state: CubeState }` | `SolveResult` |
+
+  New jobs (the tutor engine will be next) are an entry in `WorkerJobs` plus a handler in
+  `handlers.ts`; the client is typed from the same map
+  (`client.request(type, payload): Promise<result>`). Everything crossing the boundary is plain,
+  structured-cloneable data.
+- **Errors**: `dispatch()` never throws; a handler error becomes an `ok: false` reply and the
+  client rejects with that message.
+- **Fallback**: where `Worker` is undefined (tests, server rendering) or the worker fails to load
+  (`error` / `messageerror`), the client runs the same handlers on the main thread, re-running any
+  request that was waiting.
+- **Use**: the store solves with `solveInWorker(state)`; the home page calls `warmUpSolver()` on
+  mount so the tables are ready by the time a scan finishes.
+
+`tests/solver-worker.test.ts` covers the handlers, the worker entry point, the client with a fake
+worker (concurrent replies matched by id, errors, fallback after a crash) and the main-thread
+fallback; `tests/store-solver-client.test.ts` checks the store goes through the client.
 
 ---
 

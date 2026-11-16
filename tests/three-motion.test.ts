@@ -10,31 +10,25 @@ import * as THREE from 'three';
 import { CubeColor, CubeMove, CubeState, Face } from '../src/cube/types';
 import { CANONICAL_CENTER_COLORS, createSolvedCubeState } from '../src/cube/constants';
 import { applyMoves, invertAlgorithm, parseAlgorithm } from '../src/cube/transforms';
-import { SPEEDCUBE_COLORS, type CubieMesh } from '../src/three/cubie';
+import type { CubieMesh } from '../src/three/cubie';
+import { STICKER_HEX, TWIN_THEME_HEX } from '../src/lib/tokens';
 
 vi.mock('three', async (importOriginal) => {
   const actual = await importOriginal<typeof import('three')>();
   class FakeRenderer {
     domElement = { addEventListener() {}, removeEventListener() {}, parentNode: null };
-    shadowMap = { enabled: false, type: 0 };
     outputColorSpace = '';
     toneMapping = 0;
-    toneMappingExposure = 1;
     setSize() {}
     setPixelRatio() {}
     render() {}
     dispose() {}
   }
-  class FakePMREM {
-    fromScene() {
-      return { texture: new actual.Texture() };
-    }
-    dispose() {}
-  }
-  return { ...actual, WebGLRenderer: FakeRenderer, PMREMGenerator: FakePMREM };
+  return { ...actual, WebGLRenderer: FakeRenderer };
 });
 
 const { CubeEngine, snapQuaternionToCubeGroup } = await import('../src/three/engine');
+const ghostModule = await import('../src/three/ghost');
 
 type Engine = InstanceType<typeof CubeEngine>;
 
@@ -133,7 +127,7 @@ function readStateFromGeometry(engine: Engine): CubeState {
 }
 
 const COLOR_BY_HEX = Object.fromEntries(
-  (Object.entries(SPEEDCUBE_COLORS) as [CubeColor, string][]).map(([color, hex]) => [hex.slice(1).toLowerCase(), color])
+  (Object.entries(STICKER_HEX) as [CubeColor, string][]).map(([color, hex]) => [hex.slice(1).toLowerCase(), color])
 ) as Record<string, CubeColor>;
 
 /** Reads what the viewer actually sees: each tile's material color, placed by where it faces now. */
@@ -149,7 +143,7 @@ function readStateFromMaterials(engine: Engine): CubeState {
     for (const child of g.children) {
       if (child.position.lengthSq() < 1e-6) continue;
       const facing = FACE_BY_NORMAL[axisKey(child.position.clone().normalize().applyQuaternion(g.quaternion))];
-      const material = (child as THREE.Mesh).material as THREE.MeshPhysicalMaterial;
+      const material = (child as THREE.Mesh).material as THREE.MeshLambertMaterial;
       const color = COLOR_BY_HEX[material.color.getHexString()];
 
       let index = 0;
@@ -372,5 +366,201 @@ describe('CubeEngine layer turns', () => {
     pumpFrames(3);
     engine.dispose();
     await expect(Promise.all(done)).resolves.toBeDefined();
+  });
+});
+
+describe('CubeEngine playback', () => {
+  /** Pumps frames until the controller has finished every command. */
+  async function settle(engine: Engine): Promise<void> {
+    let idle = false;
+    void engine.playback.whenIdle().then(() => (idle = true));
+    for (let guard = 0; guard < 20_000 && !idle; guard++) {
+      pumpFrames(1);
+      await Promise.resolve();
+    }
+    expect(idle).toBe(true);
+  }
+
+  it('plays, steps back and seeks with the twin matching the logical state after every step', async () => {
+    const engine = makeEngine();
+    const start = applyMoves(createSolvedCubeState(), parseAlgorithm("F2 D' L"));
+    const alg = parseAlgorithm("R u M' x2 S U'");
+    engine.playback.load(start, alg);
+    await settle(engine);
+    expect(readStateFromMaterials(engine)).toEqual(start);
+
+    let state = start;
+    for (const move of alg) {
+      void engine.playback.stepForward();
+      await settle(engine);
+      state = applyMoves(state, [move]);
+      // The start state was painted, not turned in, so only the paint can be compared to it.
+      expect(readStateFromMaterials(engine), move.notation).toEqual(state);
+      expect(allTransformsExact(engine)).toBe(true);
+    }
+
+    for (let i = alg.length; i > 0; i--) {
+      void engine.playback.stepBack();
+      await settle(engine);
+      const expected = applyMoves(start, alg.slice(0, i - 1));
+      expect(readStateFromMaterials(engine)).toEqual(expected);
+      expect(allTransformsExact(engine)).toBe(true);
+    }
+
+    void engine.playback.seek(4);
+    await settle(engine);
+    expect(readStateFromMaterials(engine)).toEqual(applyMoves(start, alg.slice(0, 4)));
+    engine.dispose();
+  });
+});
+
+describe('CubeEngine spotlight', () => {
+  const cubiesOf = (engine: Engine) => (engine as unknown as { cubies: CubieMesh[] }).cubies;
+  const at = (c: CubieMesh) => [c.group.position.x, c.group.position.y, c.group.position.z].map(Math.round).join(',');
+
+  it('fades every cubie except the listed positions, and clears', () => {
+    const engine = makeEngine();
+    engine.setSpotlight([{ position: [1, 1, 1] }, { position: [1, 0, 1] }]);
+    const lit = cubiesOf(engine).filter((c) => !c.isFaded()).map(at);
+    expect(lit.sort()).toEqual(['1,0,1', '1,1,1']);
+    engine.setSpotlight(null);
+    expect(cubiesOf(engine).every((c) => !c.isFaded())).toBe(true);
+    engine.dispose();
+  });
+
+  it('re-applies to positions after a turn moves pieces', async () => {
+    const engine = makeEngine();
+    engine.setSpotlight([{ position: [1, 1, 1] }]);
+    const [move] = parseAlgorithm('R');
+    void engine.animateMove(move, applyMoves(createSolvedCubeState(), [move]));
+    await runUntilIdle(engine);
+    const lit = cubiesOf(engine).filter((c) => !c.isFaded());
+    expect(lit.map(at)).toEqual(['1,1,1']);
+    // A different physical cubie now sits at UFR: the one that was at DFR.
+    expect(lit[0].initialPos.toArray()).toEqual([1, -1, 1]);
+    engine.dispose();
+  });
+
+  it('outlines a slot in the theme focus color', () => {
+    const engine = makeEngine();
+    const outline = (engine as unknown as { slotOutline: { group: THREE.Group } }).slotOutline.group;
+    engine.setSlotOutline([1, -1, 1]);
+    expect(outline.visible).toBe(true);
+    expect(outline.position.toArray()).toEqual([1, -1, 1]);
+    engine.setTheme('dark');
+    const material = (outline.children[0] as THREE.Mesh).material as THREE.MeshBasicMaterial;
+    expect(`#${material.color.getHexString()}`).toBe(TWIN_THEME_HEX.dark.focus.toLowerCase());
+    engine.setSlotOutline(null);
+    expect(outline.visible).toBe(false);
+    engine.dispose();
+  });
+});
+
+describe('CubeEngine grip framing', () => {
+  const rootOf = (engine: Engine) => (engine as unknown as { rootCubeGroup: THREE.Group }).rootCubeGroup;
+  const gripOf = (engine: Engine) => (engine as unknown as { gripAnimator: { current: THREE.Quaternion } }).gripAnimator;
+  /** Where the cube group sends a direction of its own frame, with the orbit view removed. */
+  const gripView = (engine: Engine, v: THREE.Vector3) => {
+    const orbit = new THREE.Quaternion().setFromEuler((engine as unknown as { currentRotation: THREE.Euler }).currentRotation);
+    return v.clone().applyQuaternion(orbit.invert().multiply(rootOf(engine).quaternion));
+  };
+
+  it('animates a regrip so the grip top color ends up and its front color faces the viewer', () => {
+    const engine = makeEngine();
+    pumpFrames(1);
+    engine.setGrip({ top: 'yellow', front: 'red' });
+    pumpFrames(2);
+    const mid = gripView(engine, new THREE.Vector3(0, -1, 0));
+    expect(mid.distanceTo(new THREE.Vector3(0, 1, 0))).toBeGreaterThan(0.01); // still turning
+    pumpFrames(120);
+    // Yellow is the D center and red the R center of the solved twin.
+    expect(gripView(engine, new THREE.Vector3(0, -1, 0)).distanceTo(new THREE.Vector3(0, 1, 0))).toBeLessThan(1e-9);
+    expect(gripView(engine, new THREE.Vector3(1, 0, 0)).distanceTo(new THREE.Vector3(0, 0, 1))).toBeLessThan(1e-9);
+    expect(engine.getGrip()).toEqual({ top: 'yellow', front: 'red' });
+    engine.dispose();
+  });
+
+  it('resolves the grip against the state after queued turns', async () => {
+    const engine = makeEngine();
+    const [x] = parseAlgorithm('x');
+    const after = applyMoves(createSolvedCubeState(), [x]);
+    void engine.animateMove(x, after);
+    engine.setGrip({ top: 'white', front: 'green' });
+    await runUntilIdle(engine);
+    pumpFrames(120);
+    // After x, white sits on the B side of the twin's frame and green on U.
+    expect(gripView(engine, new THREE.Vector3(0, 0, -1)).distanceTo(new THREE.Vector3(0, 1, 0))).toBeLessThan(1e-9);
+    expect(gripView(engine, new THREE.Vector3(0, 1, 0)).distanceTo(new THREE.Vector3(0, 0, 1))).toBeLessThan(1e-9);
+    engine.dispose();
+  });
+
+  it('regrips instantly under reduced motion', () => {
+    vi.stubGlobal('window', {
+      devicePixelRatio: 1,
+      matchMedia: () => ({ matches: true }),
+      addEventListener() {},
+      removeEventListener() {},
+    });
+    const engine = makeEngine();
+    engine.setGrip({ top: 'yellow', front: 'green' });
+    expect(gripOf(engine).current.angleTo(new THREE.Quaternion())).toBeCloseTo(Math.PI, 9);
+    engine.setGrip(null);
+    expect(gripOf(engine).current.angleTo(new THREE.Quaternion())).toBeLessThan(1e-9);
+    engine.dispose();
+  });
+});
+
+describe('CubeEngine "after" preview', () => {
+  it('shows the expected state in the corner, inside the view, and makes room for it', () => {
+    const engine = makeEngine();
+    pumpFrames(60);
+    const before = (engine as unknown as { currentDistance: number }).currentDistance;
+    const ghost = (engine as unknown as { ghost: import('../src/three/ghost').GhostCube }).ghost;
+    const expected = applyMoves(createSolvedCubeState(), parseAlgorithm("R U R' U'"));
+    engine.setGhostState(expected);
+    pumpFrames(120);
+    expect(ghost.group.visible).toBe(true);
+    expect(ghost.getState()).toBe(expected);
+    expect((engine as unknown as { currentDistance: number }).currentDistance).toBeGreaterThan(before * 1.2);
+
+    // The preview's whole bounding sphere projects inside the frame.
+    const camera = engine.camera;
+    camera.updateMatrixWorld(true);
+    const { GHOST_RADIUS } = ghostModule;
+    const c = ghost.group.position;
+    for (const [dx, dy] of [[1, 0], [0, 1], [-1, 0], [0, -1]]) {
+      const ndc = new THREE.Vector3(c.x + dx * GHOST_RADIUS, c.y + dy * GHOST_RADIUS, 0).project(camera);
+      expect(Math.abs(ndc.x)).toBeLessThanOrEqual(1);
+      expect(Math.abs(ndc.y)).toBeLessThanOrEqual(1);
+    }
+    expect(ghost.group.quaternion.equals((engine as unknown as { rootCubeGroup: THREE.Group }).rootCubeGroup.quaternion)).toBe(true);
+
+    engine.setGhostState(null);
+    expect(ghost.group.visible).toBe(false);
+    engine.dispose();
+  });
+});
+
+describe('CubeEngine resources', () => {
+  it('disposes the shared voxel geometries and materials with the engine', () => {
+    const engine = makeEngine();
+    const kit = (engine as unknown as { kit: import('../src/three/cubie').VoxelKit }).kit;
+    const spies = [kit.bodyGeometry, kit.tileGeometry, ...kit.materials()].map((r) => vi.spyOn(r, 'dispose'));
+    engine.dispose();
+    for (const spy of spies) expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  it('colors the arrows with the theme ink', () => {
+    const engine = makeEngine();
+    engine.setTheme('dark');
+    const arrow = (engine as unknown as { moveArrow: { material: THREE.MeshBasicMaterial } }).moveArrow;
+    expect(`#${arrow.material.color.getHexString()}`).toBe(TWIN_THEME_HEX.dark.ink.toLowerCase());
+    engine.dispose();
+  });
+
+  it('renders without tone mapping, so token colors reach the screen unchanged', () => {
+    const engine = makeEngine();
+    expect(engine.renderer.toneMapping).toBe(THREE.NoToneMapping);
+    engine.dispose();
   });
 });

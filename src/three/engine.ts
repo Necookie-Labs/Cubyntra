@@ -3,10 +3,9 @@
  * Necookie Labs (c) 2026
  *
  * Implements:
- * - 27-cubie speedcube construction with PBR physical materials
- * - Studio environment reflection mapping via PMREMGenerator
- * - Soft contact radial shadow projection
- * - Subtle organic floating idle animation
+ * - 27 voxel cubies with flat Lambert colors from the design tokens (ADR-011)
+ * - A fixed light rig that gives each face direction its own flat tone
+ * - Subtle floating idle animation (off under reduced motion)
  * - Drift-free face, wide, slice and whole-cube turns with integer matrix snapping
  * - Dynamic 3D move arrows
  * - Camera controls & reset
@@ -15,10 +14,19 @@
 
 import * as THREE from 'three';
 import { CubeMove, CubeState } from '../cube/types';
+import { createSolvedCubeState } from '../cube/constants';
+import { centerColors } from '../cube/orientation';
+import type { Grip } from '../cube/grip';
 import { moveLayers } from '../cube/transforms';
 import type { Layer } from '../cube/geometry';
-import { CubieMesh } from './cubie';
+import { CubieMesh, paintCubies, VoxelKit } from './cubie';
 import { MoveArrow } from './arrows';
+import { PlaybackController } from './playback';
+import { GripAnimator, gripQuaternion } from './gripCamera';
+import { GhostCube } from './ghost';
+import { ContextLossGuard } from './contextLoss';
+import { isSpotlit, SlotOutline, spotlightKeys, type PiecePosition, type SpotlightPiece } from './spotlight';
+import { TWIN_THEME_HEX, type ThemeName } from '../lib/tokens';
 
 interface QueuedMove {
   move: CubeMove;
@@ -50,16 +58,11 @@ const ORBIT_DAMPING_PER_S = -60 * Math.log(1 - 0.12);
  */
 const CUBE_BOUNDING_RADIUS = 1.5 * Math.sqrt(3);
 
+/** Extra camera distance while the "after" preview is shown, leaving room in the corner. */
+const GHOST_ROOM = 1.3;
+
 const AXES = [new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, 1)];
 
-const FACE_DIRECTION = {
-  U: new THREE.Vector3(0, 1, 0),
-  D: new THREE.Vector3(0, -1, 0),
-  F: new THREE.Vector3(0, 0, 1),
-  B: new THREE.Vector3(0, 0, -1),
-  R: new THREE.Vector3(1, 0, 0),
-  L: new THREE.Vector3(-1, 0, 0),
-} as const;
 
 /** Rounds a direction to the nearest signed coordinate axis. */
 function nearestAxis(v: THREE.Vector3): THREE.Vector3 {
@@ -104,20 +107,31 @@ export class CubeEngine {
   private rootCubeGroup: THREE.Group;
   private pivotGroup: THREE.Group;
   private moveArrow: MoveArrow;
+  /** Plays an algorithm on this twin (see src/three/playback.ts). */
+  public readonly playback: PlaybackController;
 
-  // Studio environment and contact shadow
-  private pmremGenerator: THREE.PMREMGenerator | null = null;
-  private envTexture: THREE.Texture | null = null;
-  private shadowMesh: THREE.Mesh | null = null;
-  private shadowGeometry: THREE.PlaneGeometry | null = null;
-  private shadowMaterial: THREE.MeshBasicMaterial | null = null;
-  private shadowTexture: THREE.CanvasTexture | null = null;
+  // Geometries and materials shared by all 27 cubies (disposed with the engine).
+  private kit: VoxelKit;
+  private theme: ThemeName = 'light';
+  // Logical state the twin is showing (or will show once queued turns finish).
+  private shownState: CubeState = createSolvedCubeState();
+  // How the student holds the cube; the cube group is turned to match before the orbit view.
+  private grip: Grip | null = null;
+  private gripAnimator: GripAnimator;
+  private orbitQuaternion = new THREE.Quaternion();
+  // Teaching aids: lit positions (null = all lit) and the target-slot outline.
+  private spotlight: ReadonlySet<string> | null = null;
+  private slotOutline: SlotOutline;
+  // Small faded "after" preview in the corner of the view.
+  private ghost: GhostCube;
 
   private timer = new THREE.Timer();
   private elapsedS = 0;
   private prefersReducedMotion = false;
   private isDisposed = false;
   private animationFrameId: number | null = null;
+  // Pauses the loop while the WebGL context is gone and rebuilds when it returns.
+  private contextGuard: ContextLossGuard | null = null;
 
   // Layer turns are serialized through a queue and advanced by the single render loop.
   private moveQueue: QueuedMove[] = [];
@@ -144,6 +158,7 @@ export class CubeEngine {
     if (typeof window !== 'undefined' && window.matchMedia) {
       this.prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     }
+    this.gripAnimator = new GripAnimator(this.prefersReducedMotion);
 
     // 1. Scene & Root Groups
     this.scene = new THREE.Scene();
@@ -163,7 +178,7 @@ export class CubeEngine {
     this.camera.position.set(0, 0, this.currentDistance);
     this.camera.lookAt(0, 0, 0);
 
-    // 3. WebGL Renderer with High-End Color Science
+    // 3. Renderer: no shadows and no tone mapping, so token colors reach the screen unchanged.
     this.renderer = new THREE.WebGLRenderer({
       antialias: true,
       alpha: true,
@@ -171,34 +186,36 @@ export class CubeEngine {
     });
     this.renderer.setSize(width, height);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-    this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.05;
+    this.renderer.toneMapping = THREE.NoToneMapping;
     container.appendChild(this.renderer.domElement);
 
-    // 4. Studio Environment & Reflections
-    this.pmremGenerator = new THREE.PMREMGenerator(this.renderer);
-    this.setupEnvironment();
-
-    // 5. Lighting
+    // 4. Fixed light rig
     this.setupLighting();
 
-    // 6. Contact Shadow
-    this.setupShadowPlane();
-
-    // 7. Build 27 Speedcube Cubies
+    // 5. Build 27 voxel cubies
+    this.kit = new VoxelKit();
     this.buildCubies();
 
-    // 8. Directional Move Arrow
+    // 6. Directional Move Arrow and target-slot outline
     this.moveArrow = new MoveArrow();
     this.rootCubeGroup.add(this.moveArrow.group);
+    this.slotOutline = new SlotOutline(TWIN_THEME_HEX[this.theme].focus);
+    this.rootCubeGroup.add(this.slotOutline.group);
+    this.ghost = new GhostCube();
+    this.scene.add(this.ghost.group);
 
-    // 9. Event Listeners
+    // 7. Algorithm playback, driving this engine's turn queue
+    this.playback = new PlaybackController(this);
+
+    // 8. Event Listeners
     this.attachEventListeners();
+    this.contextGuard = new ContextLossGuard(this.renderer.domElement, {
+      onLost: () => this.handleContextLost(),
+      onRestored: () => this.handleContextRestored(),
+    });
 
-    // 10. Start Render Loop. The timer is deliberately not connected to the Page Visibility
+    // 9. Start Render Loop. The timer is deliberately not connected to the Page Visibility
     // API: it would report zero elapsed time whenever document.hidden is true, which freezes
     // queued turns in contexts that keep rendering while hidden. Clamping each frame's delta
     // (MAX_FRAME_DELTA_S) already stops a returning tab from fast-forwarding a turn.
@@ -206,116 +223,32 @@ export class CubeEngine {
     this.renderLoop();
   }
 
-  private setupEnvironment(): void {
-    if (!this.pmremGenerator) return;
-
-    try {
-      const envScene = new THREE.Scene();
-      const room = new THREE.Mesh(
-        new THREE.BoxGeometry(20, 20, 20),
-        new THREE.MeshBasicMaterial({ color: 0x3a3f4c, side: THREE.BackSide })
-      );
-      envScene.add(room);
-
-      const addPanel = (w: number, h: number, x: number, y: number, z: number, intensity: number) => {
-        const m = new THREE.Mesh(
-          new THREE.PlaneGeometry(w, h),
-          new THREE.MeshBasicMaterial({
-            color: new THREE.Color(intensity, intensity, intensity),
-            side: THREE.DoubleSide,
-          })
-        );
-        m.position.set(x, y, z);
-        m.lookAt(0, 0, 0);
-        envScene.add(m);
-      };
-
-      addPanel(8, 4, 0, 9, 2, 5.0); // Big overhead softbox
-      addPanel(3, 6, -9, 2, 4, 3.0); // Left strip
-      addPanel(3, 6, 9, 1, -3, 2.2); // Right strip
-      addPanel(6, 2, 0, -2, 9, 1.2); // Front fill
-
-      const renderTarget = this.pmremGenerator.fromScene(envScene, 0.04);
-      this.envTexture = renderTarget.texture;
-      this.scene.environment = this.envTexture;
-
-      envScene.traverse((obj) => {
-        if (obj instanceof THREE.Mesh) {
-          if (obj.geometry) obj.geometry.dispose();
-          if (obj.material) {
-            if (Array.isArray(obj.material)) obj.material.forEach((m) => m.dispose());
-            else obj.material.dispose();
-          }
-        }
-      });
-    } catch {
-      // Graceful fallback if WebGL environment generation fails
-    }
-  }
-
+  /**
+   * Flat-tone light rig. Lambert materials have no specular term, and a box face is planar, so
+   * a directional light gives every face one uniform tone set by the angle it makes with the
+   * light. The light rides on the camera (the camera never orbits; the cube group does), so
+   * tones stay put on screen: faces pointing up read lightest, faces toward the viewer a step
+   * darker, side faces darker again. Intensities are in units of pi because Lambert divides by
+   * pi: ambient + key on a face facing the light is about 1.0, the token color itself.
+   */
   private setupLighting(): void {
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.45);
-    this.scene.add(ambientLight);
-
-    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x445066, 0.4);
-    this.scene.add(hemiLight);
-
-    const mainKeyLight = new THREE.DirectionalLight(0xffffff, 1.2);
-    mainKeyLight.position.set(5, 8, 6);
-    mainKeyLight.castShadow = true;
-    mainKeyLight.shadow.mapSize.width = 1024;
-    mainKeyLight.shadow.mapSize.height = 1024;
-    this.scene.add(mainKeyLight);
-
-    const fillLight = new THREE.DirectionalLight(0x94a3b8, 0.5);
-    fillLight.position.set(-6, -3, -6);
-    this.scene.add(fillLight);
-  }
-
-  private setupShadowPlane(): void {
-    if (typeof document === 'undefined') return;
-
-    try {
-      const sc = document.createElement('canvas');
-      sc.width = 256;
-      sc.height = 256;
-      const sctx = sc.getContext('2d');
-      if (sctx) {
-        const grd = sctx.createRadialGradient(128, 128, 0, 128, 128, 128);
-        grd.addColorStop(0, 'rgba(0,0,0,0.60)');
-        grd.addColorStop(0.45, 'rgba(0,0,0,0.22)');
-        grd.addColorStop(1, 'rgba(0,0,0,0)');
-        sctx.fillStyle = grd;
-        sctx.fillRect(0, 0, 256, 256);
-      }
-      this.shadowTexture = new THREE.CanvasTexture(sc);
-      this.shadowGeometry = new THREE.PlaneGeometry(6.5, 6.5);
-      this.shadowMaterial = new THREE.MeshBasicMaterial({
-        map: this.shadowTexture,
-        transparent: true,
-        depthWrite: false,
-        opacity: 0.85,
-      });
-      this.shadowMesh = new THREE.Mesh(this.shadowGeometry, this.shadowMaterial);
-      this.shadowMesh.rotation.x = -Math.PI / 2;
-      this.shadowMesh.position.y = -2.35;
-      this.scene.add(this.shadowMesh);
-    } catch {
-      // Non-critical visual embellishment
-    }
+    this.scene.add(new THREE.AmbientLight(0xffffff, Math.PI * 0.62));
+    const key = new THREE.DirectionalLight(0xffffff, Math.PI * 0.45);
+    key.position.set(0.35, 1, 0.6);
+    key.target.position.set(0, 0, 0);
+    this.camera.add(key);
+    this.camera.add(key.target);
+    this.scene.add(this.camera);
   }
 
   private buildCubies(): void {
     for (let x = -1; x <= 1; x++) {
       for (let y = -1; y <= 1; y++) {
         for (let z = -1; z <= 1; z++) {
-          const cubie = new CubieMesh({
-            x: x as -1 | 0 | 1,
-            y: y as -1 | 0 | 1,
-            z: z as -1 | 0 | 1,
-            size: 0.985,
-            spacing: 1.0,
-          });
+          const cubie = new CubieMesh(
+            { x: x as -1 | 0 | 1, y: y as -1 | 0 | 1, z: z as -1 | 0 | 1 },
+            this.kit
+          );
           this.cubies.push(cubie);
           this.rootCubeGroup.add(cubie.group);
         }
@@ -327,50 +260,8 @@ export class CubeEngine {
    * Synchronizes visual sticker colors with a logical CubeState.
    */
   public syncWithCubeState(state: CubeState): void {
-    for (const cubie of this.cubies) {
-      const pos = cubie.group.position;
-      const x = Math.round(pos.x);
-      const y = Math.round(pos.y);
-      const z = Math.round(pos.z);
-
-      // Tiles are painted by the direction they face now, since turns rotate cubies.
-      // U Face (+Y, y = 1)
-      if (y === 1) {
-        const col = x + 1;
-        const row = z + 1;
-        cubie.setColorFacing(FACE_DIRECTION.U, state.U[row * 3 + col]);
-      }
-      // D Face (-Y, y = -1)
-      if (y === -1) {
-        const col = x + 1;
-        const row = 1 - z;
-        cubie.setColorFacing(FACE_DIRECTION.D, state.D[row * 3 + col]);
-      }
-      // F Face (+Z, z = 1)
-      if (z === 1) {
-        const col = x + 1;
-        const row = 1 - y;
-        cubie.setColorFacing(FACE_DIRECTION.F, state.F[row * 3 + col]);
-      }
-      // B Face (-Z, z = -1)
-      if (z === -1) {
-        const col = 1 - x;
-        const row = 1 - y;
-        cubie.setColorFacing(FACE_DIRECTION.B, state.B[row * 3 + col]);
-      }
-      // R Face (+X, x = 1)
-      if (x === 1) {
-        const col = 1 - z;
-        const row = 1 - y;
-        cubie.setColorFacing(FACE_DIRECTION.R, state.R[row * 3 + col]);
-      }
-      // L Face (-X, x = -1)
-      if (x === -1) {
-        const col = z + 1;
-        const row = 1 - y;
-        cubie.setColorFacing(FACE_DIRECTION.L, state.L[row * 3 + col]);
-      }
-    }
+    this.shownState = state;
+    paintCubies(this.cubies, state);
   }
 
   /**
@@ -382,6 +273,72 @@ export class CubeEngine {
     } else {
       this.pendingSync = null;
       this.syncWithCubeState(state);
+    }
+  }
+
+  /**
+   * Matches the twin's guidance colors to the page theme. Sticker colors are the same in both
+   * themes; the arrows use the theme's ink so they contrast with the page behind them.
+   */
+  public setTheme(theme: ThemeName): void {
+    this.theme = theme;
+    this.moveArrow.setColor(TWIN_THEME_HEX[theme].ink);
+    this.slotOutline.setColor(TWIN_THEME_HEX[theme].focus);
+  }
+
+  /**
+   * Turns the twin so it is seen the way the student holds the cube: `grip.top` color up,
+   * `grip.front` color toward the viewer, then the usual three-quarter view so U, F and R are
+   * visible. Changing the grip animates the regrip (instant under reduced motion). The grip is
+   * resolved against the state the twin is showing, or will show once queued turns finish.
+   * Null returns to the plain view.
+   */
+  public setGrip(grip: Grip | null): void {
+    this.grip = grip;
+    this.gripAnimator.setTarget(grip ? gripQuaternion(centerColors(this.latestState()), grip) : new THREE.Quaternion());
+  }
+
+  public getGrip(): Grip | null {
+    return this.grip;
+  }
+
+  /** The state after every queued turn and pending repaint. */
+  private latestState(): CubeState {
+    if (this.moveQueue.length > 0) return this.moveQueue[this.moveQueue.length - 1].targetState;
+    if (this.pendingSync) return this.pendingSync;
+    if (this.activeTween) return this.activeTween.targetState;
+    return this.shownState;
+  }
+
+  /**
+   * Shows a small faded preview of `state` (what the twin should look like after the current
+   * step) in the top-right corner, or hides it for null. While it is shown the twin's fitted
+   * distance grows a little so the two do not overlap.
+   */
+  public setGhostState(state: CubeState | null): void {
+    this.ghost.setState(state);
+    if (!this.userZoomed) this.targetDistance = this.fitDistance();
+  }
+
+  /**
+   * Keeps the cubies at `pieces` at full color and fades every other cubie to 35% opacity (flat,
+   * no glow). Positions are in the twin's logical frame (x: L -1 .. R 1, y: D -1 .. U 1,
+   * z: B -1 .. F 1) and are re-applied after every turn. Null turns the spotlight off.
+   */
+  public setSpotlight(pieces: readonly SpotlightPiece[] | null): void {
+    this.spotlight = spotlightKeys(pieces);
+    this.applySpotlight();
+  }
+
+  /** Draws a flat outline box around one cubie position (e.g. the target F2L slot), or hides it. */
+  public setSlotOutline(position: PiecePosition | null): void {
+    this.slotOutline.setPosition(position);
+  }
+
+  private applySpotlight(): void {
+    for (const cubie of this.cubies) {
+      const p = cubie.group.position;
+      cubie.setFaded(!isSpotlit([Math.round(p.x), Math.round(p.y), Math.round(p.z)], this.spotlight));
     }
   }
 
@@ -473,6 +430,8 @@ export class CubeEngine {
 
     this.pivotGroup.quaternion.identity();
     this.activeTween = null;
+    // Cubies changed position: the spotlight marks positions, so re-evaluate it.
+    if (this.spotlight) this.applySpotlight();
 
     // Resynchronize exact sticker colors with the logical state (zero drift).
     this.syncWithCubeState(tween.targetState);
@@ -508,7 +467,9 @@ export class CubeEngine {
   private fitDistance(): number {
     const halfV = THREE.MathUtils.degToRad(this.camera.fov / 2);
     const halfH = Math.atan(Math.tan(halfV) * this.camera.aspect);
-    return CUBE_BOUNDING_RADIUS / Math.sin(Math.min(halfV, halfH));
+    const fit = CUBE_BOUNDING_RADIUS / Math.sin(Math.min(halfV, halfH));
+    // Step back a little while the "after" preview shares the view.
+    return this.ghost?.group.visible ? fit * GHOST_ROOM : fit;
   }
 
   private onMouseDown = (e: MouseEvent): void => {
@@ -584,8 +545,44 @@ export class CubeEngine {
     window.addEventListener('resize', this.onWindowResize);
   }
 
-  private renderLoop(timestamp?: number): void {
+  /**
+   * The GPU context is gone: stop rendering, and finish every queued turn at once (snapped,
+   * with its logical target state) so nobody awaiting a turn waits for a context that may never
+   * return.
+   */
+  private handleContextLost(): void {
+    if (this.animationFrameId !== null) cancelAnimationFrame(this.animationFrameId);
+    this.animationFrameId = null;
+    if (this.activeTween) this.finishTween(this.activeTween);
+    while (this.moveQueue.length > 0) {
+      this.beginNextMove();
+      if (this.activeTween) this.finishTween(this.activeTween);
+    }
+  }
+
+  /**
+   * The context is back. WebGLRenderer re-creates its own GL state; every material is marked for
+   * recompilation so geometry and programs are uploaded again, then the twin is repainted from
+   * the logical state and the loop restarts.
+   */
+  private handleContextRestored(): void {
     if (this.isDisposed) return;
+    this.scene.traverse((obj) => {
+      if (obj instanceof THREE.Mesh) {
+        for (const m of Array.isArray(obj.material) ? obj.material : [obj.material]) m.needsUpdate = true;
+      }
+    });
+    this.kit.invalidate();
+    this.ghost.invalidate();
+    this.syncWithCubeState(this.pendingSync ?? this.shownState);
+    this.pendingSync = null;
+    this.applySpotlight();
+    this.resize();
+    if (this.animationFrameId === null) this.renderLoop();
+  }
+
+  private renderLoop(timestamp?: number): void {
+    if (this.isDisposed || this.contextGuard?.isLost()) return;
 
     this.timer.update(timestamp);
     const dt = Math.min(this.timer.getDelta(), MAX_FRAME_DELTA_S);
@@ -599,21 +596,25 @@ export class CubeEngine {
     this.currentRotation.y += (this.targetRotation.y - this.currentRotation.y) * k;
     this.currentDistance += (this.targetDistance - this.currentDistance) * k;
 
-    this.rootCubeGroup.rotation.copy(this.currentRotation);
+    // Grip first (top color up, front color forward), then the orbit / three-quarter view.
+    this.gripAnimator.update(dt);
+    this.orbitQuaternion.setFromEuler(this.currentRotation);
+    this.rootCubeGroup.quaternion.multiplyQuaternions(this.orbitQuaternion, this.gripAnimator.current);
 
-    // Subtle physical floating bob and breathing shadow
+    // Subtle floating bob
     if (!this.prefersReducedMotion) {
-      const t = this.elapsedS;
-      const bob = Math.sin(t * 1.2) * 0.06;
-      this.rootCubeGroup.position.y = bob;
-      if (this.shadowMaterial && this.shadowMesh) {
-        this.shadowMaterial.opacity = 0.85 - bob * 1.8;
-        this.shadowMesh.scale.setScalar(1 - bob * 0.5);
-      }
+      this.rootCubeGroup.position.y = Math.sin(this.elapsedS * 1.2) * 0.06;
     }
 
     this.camera.position.set(0, 0, this.currentDistance);
     this.camera.lookAt(0, 0, 0);
+
+    if (this.ghost.group.visible) {
+      // Same orientation as the twin, parked in the corner of the visible area at its depth.
+      this.ghost.group.quaternion.copy(this.rootCubeGroup.quaternion);
+      const halfHeight = this.currentDistance * Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2));
+      this.ghost.placeInCorner(halfHeight * this.camera.aspect, halfHeight);
+    }
 
     this.renderer.render(this.scene, this.camera);
     this.animationFrameId = requestAnimationFrame(this.renderLoop);
@@ -635,9 +636,11 @@ export class CubeEngine {
 
   public dispose(): void {
     this.isDisposed = true;
-    if (this.animationFrameId) {
+    this.playback.dispose();
+    if (this.animationFrameId !== null) {
       cancelAnimationFrame(this.animationFrameId);
     }
+    this.contextGuard?.dispose();
 
     // Never leave a caller awaiting a turn that will not render.
     this.activeTween?.resolve();
@@ -658,17 +661,12 @@ export class CubeEngine {
     window.removeEventListener('mouseup', this.onMouseUp);
     window.removeEventListener('resize', this.onWindowResize);
 
-    // Clean up shadow resources
-    if (this.shadowTexture) this.shadowTexture.dispose();
-    if (this.shadowGeometry) this.shadowGeometry.dispose();
-    if (this.shadowMaterial) this.shadowMaterial.dispose();
-
-    // Clean up environment resources
-    if (this.envTexture) this.envTexture.dispose();
-    if (this.pmremGenerator) this.pmremGenerator.dispose();
-
     this.moveArrow.dispose();
+    this.slotOutline.dispose();
+    this.ghost.dispose();
     this.cubies.forEach((c) => c.dispose());
+    this.cubies = [];
+    this.kit.dispose();
 
     this.renderer.dispose();
     if (this.renderer.domElement && this.renderer.domElement.parentNode) {

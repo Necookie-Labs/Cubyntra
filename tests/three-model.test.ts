@@ -1,82 +1,85 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import * as THREE from 'three';
-import {
-  createRoundedBoxGeometry,
-  createRoundedTileGeometry,
-  getSharedBodyGeometry,
-  getSharedTileGeometry,
-  SPEEDCUBE_COLORS,
-  CubieMesh,
-} from '../src/three/cubie';
+import { CubieMesh, VoxelKit, CUBIE_SIZE, FADED_OPACITY } from '../src/three/cubie';
+import { STICKER_CORE_HEX, STICKER_HEX } from '../src/lib/tokens';
+import type { CubeColor } from '../src/cube/types';
 
-describe('Three.js Speedcube 3D Model & Geometry Specification', () => {
-  it('generates valid chamfered rounded box geometry with normals and bounding box', () => {
-    const geo = createRoundedBoxGeometry(0.985, 0.11, 4);
-    expect(geo).toBeInstanceOf(THREE.BufferGeometry);
-    geo.computeBoundingBox();
-    expect(geo.boundingBox).toBeDefined();
-    if (geo.boundingBox) {
-      expect(geo.boundingBox.max.x).toBeCloseTo(0.985 / 2, 1);
-      expect(geo.boundingBox.max.y).toBeCloseTo(0.985 / 2, 1);
-      expect(geo.boundingBox.max.z).toBeCloseTo(0.985 / 2, 1);
+type Coord = -1 | 0 | 1;
+const hex = (m: THREE.Material | THREE.Material[]) => `#${(m as THREE.MeshLambertMaterial).color.getHexString()}`;
+
+describe('voxel cubies (ADR-011)', () => {
+  it('builds plain boxes with chunky tiles from two shared geometries', () => {
+    const kit = new VoxelKit();
+    const a = new CubieMesh({ x: 1, y: 1, z: 1 }, kit);
+    const b = new CubieMesh({ x: -1, y: 0, z: 0 }, kit);
+    const meshes = [...a.group.children, ...b.group.children] as THREE.Mesh[];
+    expect(new Set(meshes.map((m) => m.geometry))).toEqual(new Set([kit.bodyGeometry, kit.tileGeometry]));
+    expect(kit.bodyGeometry).toBeInstanceOf(THREE.BoxGeometry);
+    expect(kit.bodyGeometry.parameters.width).toBeCloseTo(CUBIE_SIZE);
+  });
+
+  it('uses flat Lambert materials in the token colors: no gloss, no environment map', () => {
+    const kit = new VoxelKit();
+    for (const m of kit.materials()) {
+      expect(m).toBeInstanceOf(THREE.MeshLambertMaterial);
+      expect((m as THREE.MeshLambertMaterial).envMap).toBeNull();
+    }
+    expect(hex(kit.bodyMaterial())).toBe(STICKER_CORE_HEX.toLowerCase());
+    for (const [color, value] of Object.entries(STICKER_HEX)) {
+      expect(hex(kit.sticker(color as CubeColor))).toBe(value.toLowerCase());
     }
   });
 
-  it('generates valid 3D rounded beveled tile geometry', () => {
-    const tile = createRoundedTileGeometry(0.84, 0.13, 0.018);
-    expect(tile).toBeInstanceOf(THREE.BufferGeometry);
-    tile.computeBoundingBox();
-    expect(tile.boundingBox).toBeDefined();
-    if (tile.boundingBox) {
-      expect(tile.boundingBox.max.x - tile.boundingBox.min.x).toBeGreaterThan(0.8);
-      expect(tile.boundingBox.max.y - tile.boundingBox.min.y).toBeGreaterThan(0.8);
-      expect(tile.boundingBox.max.z).toBeGreaterThan(0.01);
-    }
+  it('shares 14 materials across all 27 cubies', () => {
+    const kit = new VoxelKit();
+    const used = new Set<THREE.Material>();
+    for (let x = -1; x <= 1; x++)
+      for (let y = -1; y <= 1; y++)
+        for (let z = -1; z <= 1; z++) {
+          const c = new CubieMesh({ x: x as Coord, y: y as Coord, z: z as Coord }, kit);
+          c.group.traverse((o) => {
+            if (o instanceof THREE.Mesh) used.add(o.material as THREE.Material);
+          });
+        }
+    expect(used.size).toBe(7); // one body + six sticker colors on a solved cube
+    expect(kit.materials()).toHaveLength(14);
   });
 
-  it('reuses shared geometries across multiple calls to conserve WebGL memory', () => {
-    const body1 = getSharedBodyGeometry();
-    const body2 = getSharedBodyGeometry();
-    expect(body1).toBe(body2);
-
-    const tile1 = getSharedTileGeometry();
-    const tile2 = getSharedTileGeometry();
-    expect(tile1).toBe(tile2);
+  it.each([
+    ['corner', { x: 1, y: 1, z: 1 }, 3],
+    ['edge', { x: 0, y: 1, z: 1 }, 2],
+    ['center', { x: 0, y: 1, z: 0 }, 1],
+  ] as const)('gives a %s cubie %i tiles plus its body', (_n, pos, tiles) => {
+    const cubie = new CubieMesh(pos, new VoxelKit());
+    expect(cubie.group.children).toHaveLength(tiles + 1);
+    expect(cubie.initialPos.toArray()).toEqual([pos.x, pos.y, pos.z]);
   });
 
-  it('defines authentic speedcube physical hex color palette for all faces', () => {
-    expect(SPEEDCUBE_COLORS.white).toBe('#f4f5f0');
-    expect(SPEEDCUBE_COLORS.yellow).toBe('#ffd500');
-    expect(SPEEDCUBE_COLORS.green).toBe('#00b35c');
-    expect(SPEEDCUBE_COLORS.blue).toBe('#0a5cff');
-    expect(SPEEDCUBE_COLORS.red).toBe('#e8132e');
-    expect(SPEEDCUBE_COLORS.orange).toBe('#ff7a00');
+  it('recolors a tile by swapping to the shared material of that color', () => {
+    const kit = new VoxelKit();
+    const cubie = new CubieMesh({ x: 1, y: 0, z: 0 }, kit);
+    cubie.setStickerColor('R', 'blue');
+    expect((cubie.group.children[1] as THREE.Mesh).material).toBe(kit.sticker('blue'));
   });
 
-  it('constructs corner cubie with 3 exposed stickers and 1 plastic body', () => {
-    const corner = new CubieMesh({ x: 1, y: 1, z: 1 });
-    // Root group contains 1 body mesh + 3 sticker tiles (R, U, F) = 4 children
-    expect(corner.group.children.length).toBe(4);
-    expect(corner.initialPos.x).toBeCloseTo(1.0);
-    expect(corner.initialPos.y).toBeCloseTo(1.0);
-    expect(corner.initialPos.z).toBeCloseTo(1.0);
+  it('fades body and tiles to 35% and back, keeping tile colors', () => {
+    const kit = new VoxelKit();
+    const cubie = new CubieMesh({ x: 1, y: 1, z: 0 }, kit);
+    cubie.setStickerColor('U', 'red');
+    cubie.setFaded(true);
+    const faded = cubie.group.children.map((c) => (c as THREE.Mesh).material as THREE.Material);
+    expect(faded.every((m) => m.transparent && m.opacity === FADED_OPACITY)).toBe(true);
+    expect(faded).toContain(kit.sticker('red', true));
+    cubie.setFaded(false);
+    expect(cubie.group.children.map((c) => (c as THREE.Mesh).material)).toContain(kit.sticker('red'));
+    expect(cubie.isFaded()).toBe(false);
   });
 
-  it('constructs edge cubie with 2 exposed stickers', () => {
-    const edge = new CubieMesh({ x: 0, y: 1, z: 1 });
-    // Root group contains 1 body mesh + 2 sticker tiles (U, F) = 3 children
-    expect(edge.group.children.length).toBe(3);
-  });
-
-  it('constructs center cubie with 1 exposed sticker', () => {
-    const center = new CubieMesh({ x: 0, y: 1, z: 0 });
-    // Root group contains 1 body mesh + 1 sticker tile (U) = 2 children
-    expect(center.group.children.length).toBe(2);
-  });
-
-  it('updates sticker colors dynamically and disposes safely', () => {
-    const cubie = new CubieMesh({ x: 1, y: 0, z: 0 });
-    expect(() => cubie.setStickerColor('R', 'blue')).not.toThrow();
-    expect(() => cubie.dispose()).not.toThrow();
+  it('disposes every shared geometry and material exactly once', () => {
+    const kit = new VoxelKit();
+    const spies = [kit.bodyGeometry, kit.tileGeometry, ...kit.materials()].map((r) => vi.spyOn(r, 'dispose'));
+    kit.dispose();
+    kit.dispose();
+    for (const spy of spies) expect(spy).toHaveBeenCalledTimes(1);
   });
 });

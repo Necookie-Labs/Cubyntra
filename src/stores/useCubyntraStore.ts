@@ -10,7 +10,7 @@ import { CubeColor, CubeMove, CubeState, Face, FaceStickers, ScannedFace, Valida
 import { CANONICAL_CENTER_COLORS, FACES, createSolvedCubeState, SCAN_SEQUENCE } from '../cube/constants';
 import { applyMoves } from '../cube/transforms';
 import { validateCubeState } from '../cube/validator';
-import { solveCube } from '../solver/solver';
+import { solveInWorker } from '../solver/client';
 import { SolveResult } from '../solver/types';
 import { FrameClassificationResult, RGBColor, StickerSample } from '../vision/types';
 import { buildDynamicPalette, classifyWithDynamicPalette } from '../vision/dynamicCalibration';
@@ -483,7 +483,8 @@ async function solveInto(cubeState: CubeState): Promise<void> {
     return;
   }
 
-  const solutionResult = await solveCube(cubeState);
+  // Off the main thread: the worker builds the tables and searches (see src/solver/client.ts).
+  const solutionResult = await solveInWorker(cubeState);
   if (!solutionResult.success) {
     set({
       validationResult: {

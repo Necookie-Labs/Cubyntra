@@ -131,3 +131,24 @@ describe('MoveArrow direction', () => {
     arrow.dispose();
   });
 });
+
+describe('voxel arrow style', () => {
+  it('draws square, chunky bars in one flat opaque color', () => {
+    const arrow = new MoveArrow();
+    arrow.updateMove(parseMove('R'));
+    const meshes: THREE.Mesh[] = [];
+    arrow.group.traverse((o) => {
+      if (o instanceof THREE.Mesh) meshes.push(o);
+    });
+    const tube = meshes.find((m) => m.geometry instanceof THREE.TubeGeometry)!.geometry as THREE.TubeGeometry;
+    const cone = meshes.find((m) => m.geometry instanceof THREE.ConeGeometry)!.geometry as THREE.ConeGeometry;
+    expect(tube.parameters.radialSegments).toBe(4);
+    expect(cone.parameters.radialSegments).toBe(4);
+    const material = meshes[0].material as THREE.MeshBasicMaterial;
+    expect(material.transparent).toBe(false);
+    arrow.setColor('#E4EFD8');
+    expect(material.color.getHexString()).toBe('e4efd8');
+    arrow.dispose();
+  });
+});
+

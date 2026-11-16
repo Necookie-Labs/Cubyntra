@@ -22,6 +22,16 @@ export interface CubeVisualizerRef {
   animateMove: (move: CubeMove, targetState: CubeState, durationMs?: number) => Promise<void>;
   resetCamera: () => void;
   syncState: (state: CubeState) => void;
+  /**
+   * The live engine, for teaching features (engine.playback, setSpotlight, setSlotOutline,
+   * setGhostState, setGrip). Null before mount and after unmount.
+   */
+  getEngine: () => CubeEngine | null;
+}
+
+/** The theme the page is showing, from <html data-theme> (see src/lib/theme.ts). */
+function pageTheme(): 'light' | 'dark' {
+  return document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light';
 }
 
 export const CubeVisualizer = forwardRef<CubeVisualizerRef, CubeVisualizerProps>(
@@ -39,12 +49,18 @@ export const CubeVisualizer = forwardRef<CubeVisualizerRef, CubeVisualizerProps>
       engineRef.current = engine;
       engine.syncWithCubeState(initialStateRef.current);
 
+      // Arrows and outlines follow the page theme; it can change while the twin is on screen.
+      engine.setTheme(pageTheme());
+      const themeObserver = new MutationObserver(() => engine.setTheme(pageTheme()));
+      themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
       const resizeObserver = new ResizeObserver(() => {
         engine.resize();
       });
       resizeObserver.observe(containerRef.current);
 
       return () => {
+        themeObserver.disconnect();
         resizeObserver.disconnect();
         engine.dispose();
         engineRef.current = null;
@@ -76,6 +92,7 @@ export const CubeVisualizer = forwardRef<CubeVisualizerRef, CubeVisualizerProps>
       syncState: (nextState: CubeState) => {
         engineRef.current?.requestSync(nextState);
       },
+      getEngine: () => engineRef.current,
     }));
 
     // Follow the browser's fullscreen state, so leaving with Esc also updates the icon.

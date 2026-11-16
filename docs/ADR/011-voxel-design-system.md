@@ -3,7 +3,7 @@
 **Status**: Accepted
 **Date**: 2026-11-17
 **Deciders**: Necookie Labs Core Engineering Team
-**Supersedes**: the visual direction of [ADR-008](008-speedcube-pbr-geometry-digital-twin.md) (glossy PBR look). ADR-008's geometry and drift-free snapping still stand until the Phase 4 voxel twin replaces them.
+**Supersedes**: the visual direction of [ADR-008](008-speedcube-pbr-geometry-digital-twin.md) (glossy PBR look). ADR-008's drift-free snapping still stands; its geometry was replaced by the Phase 4 voxel twin.
 
 ---
 
@@ -114,7 +114,9 @@ the 2px ink outline (8.75:1).
   change, not a hunt through components.
 - The look cannot quietly drift back to gradients or glass: the design-rules test fails first.
 - The phone companion stays dark (it sits on live video) and now uses the same tokens.
-- The Three.js twin is still the PBR speedcube from ADR-008 inside a flat stage; its voxel restyle
-  (flat per-face tones, chunky arrows) is Phase 4.
+- The Three.js twin follows the same rules (Phase 4): plain voxel cubies, flat Lambert colors from
+  the sticker tokens (mirrored for WebGL in `src/lib/tokens.ts`, checked against this file by
+  `tests/tokens.test.ts`), one flat tone per face direction, chunky square arrows in the theme's
+  ink. See `docs/THREE_D_ENGINE.md`.
 - `next/font` downloads the three fonts during `next build`, so the first build needs network
   access (see `docs/DEVELOPMENT.md`).

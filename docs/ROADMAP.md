@@ -34,7 +34,7 @@
 ---
 
 ### 2.2 Version 2.0 — Computer Vision & Worker Optimization
-- [ ] **Web Workers Solver**: Offload Kociemba IDA* search to dedicated background workers, guaranteeing 0ms main thread blocking during complex scrambles.
+- [x] **Web Workers Solver**: Kociemba table building and search run in a dedicated Web Worker (`src/solver/solver.worker.ts`), with a main-thread fallback.
 - [ ] **Automatic Perspective Homography**: Automatic four-corner contour detection and perspective rectification, removing the need for a rigid reticle overlay.
 - [ ] **Voice-Guided Step Directions**: Text-to-speech engine speaking aloud moves (e.g. "Turn the Right face clockwise 90 degrees") for hands-free solving.
 - [ ] **Ambient Light Auto-Calibration**: Dynamic histogram equalization to handle extreme low-light or yellow tungsten environments.

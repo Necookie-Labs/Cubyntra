@@ -6,6 +6,7 @@
 import * as THREE from 'three';
 import { CubeMove, Face, MoveKind } from '../cube/types';
 import { moveReferenceFace } from '../cube/transforms';
+import { TWIN_THEME_HEX } from '../lib/tokens';
 
 /**
  * Arc radius, distance of the arc's plane from the cube center along the reference face's
@@ -13,11 +14,14 @@ import { moveReferenceFace } from '../cube/transforms';
  * clears the cube's edges once its radius exceeds 1.5·√2 ≈ 2.12.
  */
 const ARROW_LAYOUT: Record<MoveKind, { radius: number; offset: number; tube: number }> = {
-  face: { radius: 1.15, offset: 1.75, tube: 0.05 },
-  wide: { radius: 1.15, offset: 1.75, tube: 0.05 },
-  slice: { radius: 2.3, offset: 0, tube: 0.05 },
-  rotation: { radius: 2.6, offset: 0, tube: 0.08 },
+  face: { radius: 1.15, offset: 1.75, tube: 0.08 },
+  wide: { radius: 1.15, offset: 1.75, tube: 0.08 },
+  slice: { radius: 2.3, offset: 0, tube: 0.08 },
+  rotation: { radius: 2.6, offset: 0, tube: 0.12 },
 };
+
+/** Four sides per tube and cone: a square, chunky voxel bar rather than a smooth pipe. */
+const ARROW_SIDES = 4;
 
 export class MoveArrow {
   public group: THREE.Group;
@@ -27,12 +31,16 @@ export class MoveArrow {
 
   constructor() {
     this.group = new THREE.Group();
+    // Flat and unlit: one solid token color, no transparency or glow.
     this.material = new THREE.MeshBasicMaterial({
-      color: 0x38bdf8, // Vibrant sky blue accent
+      color: new THREE.Color(TWIN_THEME_HEX.light.ink),
       side: THREE.DoubleSide,
-      transparent: true,
-      opacity: 0.9,
     });
+  }
+
+  /** Recolors the arrow, e.g. to the current theme's ink. */
+  public setColor(hex: string): void {
+    this.material.color.set(hex);
   }
 
   /**
@@ -75,7 +83,7 @@ export class MoveArrow {
     const curve3D = new THREE.CatmullRomCurve3(
       points.map((p) => new THREE.Vector3(p.x, p.y, 0))
     );
-    const tubeGeometry = new THREE.TubeGeometry(curve3D, 24, tube, 8, false);
+    const tubeGeometry = new THREE.TubeGeometry(curve3D, 24, tube, ARROW_SIDES, false);
     this.arrowMesh = new THREE.Mesh(tubeGeometry, this.material);
 
     // Arrowhead cone at the end
@@ -83,7 +91,7 @@ export class MoveArrow {
     const prevPoint = points[points.length - 2];
     const dir = new THREE.Vector2().subVectors(lastPoint, prevPoint).normalize();
 
-    const headGeom = new THREE.ConeGeometry(tube * 2.8, tube * 7, 12);
+    const headGeom = new THREE.ConeGeometry(tube * 2.6, tube * 6, ARROW_SIDES);
     this.headMesh = new THREE.Mesh(headGeom, this.material);
     this.headMesh.position.set(lastPoint.x, lastPoint.y, 0);
 
