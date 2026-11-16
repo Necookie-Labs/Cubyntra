@@ -2,8 +2,8 @@
 
 **Product**: Cubyntra  
 **Organization**: Necookie Labs  
-**Status**: Implemented  
-**Scope**: Client-Side Data Privacy, Camera Permissions, and Web Security
+**Status**: Implemented (2.0.0)  
+**Scope**: Camera privacy, local data, the coach, phone pairing and web security
 
 ---
 
@@ -16,37 +16,36 @@ to trust that their video feed, environment and likeness never leave the device 
 ### Core Privacy Commitments:
 1. **Zero image uploads**: camera pixels never leave the device that captured them ([ADR-001](ADR/001-client-side-processing.md), restored by [ADR-015](ADR/015-state-only-sync.md)). Webcam frames stay in the laptop's browser. The phone reads each face itself and sends only nine colors, nine confidences and nine tile mean colors (integers) per face. No route accepts, stores or returns image data, and a test enforces it (`tests/sync-privacy.test.ts`).
 2. **Zero Server-Side Vision Processing**: Computer vision, sticker extraction, and color classification run in the browser of the device with the camera. The server relays small state messages between the phone and the laptop and never sees a pixel.
-3. **Hardware Stream Teardown**: Camera tracks are explicitly terminated (`track.stop()`) immediately upon unmounting or when the user navigates away, guaranteeing the webcam hardware indicator turns off.
-4. **No Third-Party Analytics Trackers**: No third-party tracking scripts, cookies, or telemetry libraries are bundled.
+3. **Hardware Stream Teardown**: Camera tracks are stopped (`terminateCameraStream`, `track.stop()`) when the scanner or checkpoint sheet closes or the page unmounts, so the camera light goes off. A stream that arrives after its timeout is stopped at once.
+4. **No Third-Party Analytics Trackers**: No third-party tracking scripts, cookies, or telemetry libraries are bundled. The UI fonts are downloaded at build time by `next/font` and served from the laptop, so the browser never contacts Google.
 5. **The AI coach sends words, never pictures**: when an Anthropic API key is configured, the only thing sent to Anthropic is a small facts JSON about the current step (section 5). No images, video, cube state, names or device details are ever sent. Without a key nothing is sent at all.
+6. **Local data only**: the student profile, the coach usage file and the app secret live in `data/` on the laptop (git-ignored); there are no accounts and no cloud storage.
 
 ---
 
 ## 2. Browser Camera Permissions & Hardware Lifecycle
 
-### 2.1 WebRTC Secure Context Requirements
-Browsers enforce that `navigator.mediaDevices.getUserMedia` is only accessible within a **Secure Context** (`https://` or `http://localhost`). 
-- Cubyntra enforces HTTPS in production environments.
-- In insecure environments (`http://` on LAN/WAN), camera activation is gracefully disabled with user guidance to enable HTTPS or use manual scramble mode.
+### 2.1 Secure Context Requirements
+Browsers expose `navigator.mediaDevices.getUserMedia` only in a **secure context** (`https://`,
+or `http://localhost` on the same device).
+- `npm run dev` serves HTTPS with a self-signed certificate for `localhost` and the laptop's
+  network addresses (`scripts/dev-cert.mjs`, `.certs/`, git-ignored), so the phone camera works
+  after a one-time certificate warning. `npm run dev:http` and `npm start` serve plain HTTP: the
+  laptop's own camera works on `localhost`, a phone's does not.
+- On an insecure page `initializeCameraStream` refuses with "The camera only works on a secure
+  page…"; the scanner explains how to fix it, and **Try a demo cube** works without a camera.
 
-### 2.2 Stream Acquisition and Teardown
+### 2.2 Stream Acquisition and Teardown (`src/vision/camera.ts`)
 ```typescript
-// Safe acquisition with ideal mobile resolution
-const stream = await navigator.mediaDevices.getUserMedia({
-  video: {
-    facingMode: 'environment', // Rear camera preferred on mobile
-    width: { ideal: 1280 },
-    height: { ideal: 720 },
-  },
-  audio: false, // Audio is NEVER requested
-});
+// initializeCameraStream(video, options): rear camera preferred, audio never requested
+await navigator.mediaDevices.getUserMedia({
+  video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
+  audio: false,
+}); // falls back to { video: true, audio: false } if the constraints fail
+// No stream within 30 s (STREAM_TIMEOUT_MS) or no frame within 10 s (METADATA_TIMEOUT_MS): fail.
 
-// Explicit cleanup hook
-export function stopCameraStream(stream: MediaStream | null) {
-  if (!stream) return;
-  stream.getTracks().forEach((track) => {
-    track.stop(); // Terminates sensor hardware immediately
-  });
+export function terminateCameraStream(stream: MediaStream | null): void {
+  stream?.getTracks().forEach((track) => track.stop()); // camera light off
 }
 ```
 
@@ -63,10 +62,10 @@ export function stopCameraStream(stream: MediaStream | null) {
 | **Memory or connection exhaustion through the relay** | Medium | Bodies are read with a streaming 16 KB cap (1 KB for the code route) and refused as soon as they pass it; at most 8 sessions, idle expiry after 30 minutes, hard expiry after 12 hours; 600 messages per minute per session; stream cleanup on cancel or request abort. Rate-limiter keys with no hit inside the window are swept away, and a deleted session's key is dropped at once, so the limiter maps stay small. A client drops and reopens a stream silent for 30 s (twice the ping interval). |
 | **A second device or tab overwriting the saved profile** | Medium | `PATCH /api/student` takes small operations, not whole profiles; the server merges them one request at a time (timer solves by id, trainer answers replayed, counts added, the saved solve only moves forward) and validates the result before the atomic write. There is no whole-profile PUT. |
 | **Oversized bodies on the coach and profile routes** | Low | `/api/coach` (8 KB) and `/api/student` (128 KB) read bodies with the same streaming cap, so a chunked body with no Content-Length gets a 413 without being buffered. |
-| **Denial of Service via Solver ReDoS / Hang** | Medium | Solver engine implements a strict 5,000ms execution timeout cap. If search exceeds threshold, it cleanly aborts. |
-| **Arbitrary Code Injection via Scramble String** | High | Input strings are strictly validated against `^[UDFBLR]{54}$` character whitelists before parsing. No `eval()` or dynamic code evaluation exists. |
+| **A slow or failing solve or plan freezes the page** | Low | Kociemba search and tutor planning run in a Web Worker (no time limit); errors become an error state with Try again, never an endless spinner. |
+| **Code injection through cube or move input** | High | No `eval()` or dynamic code evaluation. Cube states from the network are parsed field by field into the fixed `CubeState` shape (six faces of nine known color names); `parseMove` throws on any token outside the notation. Facelet strings are produced internally, never taken from user input. |
 | **Memory Exhaustion (Three.js WebGL Leaks)** | Medium | Comprehensive `dispose()` hooks for all geometries, materials, and textures attached to component unmount lifecycle. |
-| **XSS via UI Inputs** | High | React 19 automatic JSX string escaping; strict TypeScript types; no `dangerouslySetInnerHTML` usage. |
+| **XSS via UI Inputs** | High | React 19 JSX escaping; strict TypeScript types. The only `dangerouslySetInnerHTML` is the constant theme boot script in `layout.tsx` / `global-error.tsx` (no user data). Coach replies are rendered as text. |
 | **Coach spend abuse from the network** | Medium | `/api/coach` requires the per-install app token (`x-cubyntra-token`), allows 30 requests per minute per token and 8 KB bodies, and stops at the monthly cap (section 5). |
 | **Coach inventing moves** | Medium | The engine picks every move; a guardrail rejects any reply naming a move outside the step and serves the built-in template (ADR-014). |
 | **API key exposure** | High | `ANTHROPIC_API_KEY` lives in `.env.local` (git-ignored), is read only by server code and is never sent to the browser or logged. |
@@ -75,7 +74,7 @@ export function stopCameraStream(stream: MediaStream | null) {
 
 ## 4. Content Security Policy (CSP) Guidelines
 
-For production deployments, the following HTTP response headers are recommended:
+The app sets no security headers itself (`next.config.ts` only configures `allowedDevOrigins`), and hosting is out of scope ([DEPLOYMENT.md](DEPLOYMENT.md)). If Cubyntra were ever served beyond the laptop, these headers would be the starting point:
 
 ```http
 Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; media-src 'self' blob:; object-src 'none'; frame-ancestors 'none';
