@@ -1,59 +1,63 @@
-# Cubyntra Product Roadmap (V1 to V4)
+# Cubyntra Product Roadmap
 
 **Product**: Cubyntra  
 **Organization**: Necookie Labs  
-**Current Milestone**: V1 (Shipped)
+**Current Release**: 2.0.0, the local cube tutor (2026-11-17)
 
 ---
 
-## 1. Version Overview Matrix
+## 1. Version Overview
 
-| Release | Focus Area | Status | Target Delivery |
-|:---|:---|:---:|:---:|
-| **V1.0** | Core Client-Side Vision, Validation, Kociemba Solver, 3D Twin | **Completed** | Q3 2026 |
-| **V2.0** | Web Worker Multithreading, Automatic Homography Warping, Voice Cues | Planned | Q1 2027 |
-| **V3.0** | Bluetooth Smart Cube Support, CFOP Training Suite, Reconstructions | Planned | Q3 2027 |
-| **V4.0** | Physical Robotics Rig, ESP32 Kinematics, Web Serial Controller | Future / Scope Out | 2028 |
-
----
-
-## 2. Milestone Details
-
-### 2.1 Version 1.0 (Current Release) — The Solid Foundation
-- [x] Client-side Computer Vision using WebRTC camera stream.
-- [x] Circular kernel color sampling with RGB $\to$ HSV and CIELAB transforms.
-- [x] $\Delta E$ color classification with real-time temporal stability filtering.
-- [x] Mathematical invariant validator (cardinality, physical piece integrity, parity).
-- [x] Interactive error recovery modal for optical misclassifications.
-- [x] Deterministic Herbert Kociemba two-phase solver (< 50ms execution).
-- [x] Three.js 3D digital twin with drift-free integer snapping and 3D directional turn arrows.
-- [x] Full playback controls (play/pause, step forward/backward, speed multiplier).
-- [x] Comprehensive automated test coverage (35/35 passing).
-- [x] Complete technical documentation suite and PDF specifications.
+| Release | Focus | Status |
+|:---|:---|:---:|
+| **1.0** | Webcam scanner, validation, Kociemba solver, 3D twin | Shipped 2026-09 |
+| **2.0** | Local single-student tutor: beginner's and CFOP, teaching twin, checkpoints, Claude coach, trainer, timer, progress, state-only phone sync | **Current** |
+| **Next** | Real-world hardening of 2.0 (see §3) | Not started |
+| **Future** | Robotics rig (concept only) | Out of scope |
 
 ---
 
-### 2.2 Version 2.0 — Computer Vision & Worker Optimization
-- [x] **Web Workers Solver**: Kociemba table building and search run in a dedicated Web Worker (`src/solver/solver.worker.ts`), with a main-thread fallback.
-- [ ] **Automatic Perspective Homography**: Automatic four-corner contour detection and perspective rectification, removing the need for a rigid reticle overlay.
-- [ ] **Voice-Guided Step Directions**: Text-to-speech engine speaking aloud moves (e.g. "Turn the Right face clockwise 90 degrees") for hands-free solving.
-- [ ] **Ambient Light Auto-Calibration**: Dynamic histogram equalization to handle extreme low-light or yellow tungsten environments.
+## 2. Milestones
+
+### 2.1 Version 1.0: Scanner and Solver
+- [x] Webcam scanning with reticle sampling, CIELAB / HSV classification and temporal stability.
+- [x] Validation of counts, centers, pieces and parity.
+- [x] Kociemba two-phase solver, verified by simulation.
+- [x] Three.js twin with drift-free integer snapping and move arrows.
+
+### 2.2 Version 2.0: The Tutor (Phases 0–10 of `docs/tutor/GOAL.md`)
+- [x] Stabilize: arrow direction, ML feature parity, red/orange boundary, strict `parseMove`.
+- [x] Voxel design system with enforced style rules (ADR-011).
+- [x] Cube engine: rotations, wide moves, slices, grip model, piece queries, move names.
+- [x] Deterministic tutor engine: beginner's method and CFOP with 41-case F2L and 2-look last
+      layer (ADR-012); full 57 OLL / 21 PLL as a setting.
+- [x] Teaching twin: grip camera, spotlight, slot outline, move chips, playback, "after" preview,
+      Web Worker, context-loss recovery.
+- [x] Checkpoint checks with the student's palette, mistake diagnosis and recovery (ADR-013).
+- [x] Claude Haiku 5.5 coach with guardrail, templates, mock mode and $10/month cap (ADR-014).
+- [x] App shell and PWA manifest, wake lock, resume from `data/student.json`.
+- [x] State-only phone ↔ laptop sync; photo relay removed (ADR-015).
+- [x] Trainer, timer, progress world, graduation.
+- [x] Accessibility pass, docs, README, CHANGELOG, PDFs.
 
 ---
 
-### 2.3 Version 3.0 — Smart Cubes & Advanced Speedcubing
-- [ ] **Bluetooth Smart Cube Integration**: Web Bluetooth API connection to GAN, GoCube, and Moyu smart cubes for real-time hardware telemetry.
-- [ ] **CFOP & Roux Method Training**: Breakdown of solutions into Cross, F2L, OLL, and PLL stages with algorithmic alternatives.
-- [ ] **URL State Serialization**: Encode scramble positions and custom solution paths into compact URL hash fragments for zero-backend sharing.
-- [ ] **Inspection Timer & Metrics**: WCA-compliant 15-second inspection countdown and turns-per-second (TPS) analytics.
+## 3. Next: Known Gaps of 2.0
+Taken from the known limits in [`docs/tutor/CHECKPOINTS.md`](tutor/CHECKPOINTS.md) §8,
+[`docs/tutor/METHODS.md`](tutor/METHODS.md) §9 and [UI_UX.md](UI_UX.md) §5.4. None is
+scheduled.
+- [ ] Measure checkpoint reading and diagnosis with real cameras, real glare and worn stickers
+      (all current numbers are from synthetic photos).
+- [ ] Service-worker offline caching (needs a certificate the phone trusts; see
+      [DEVELOPMENT.md](DEVELOPMENT.md) §6.6).
+- [ ] A live-key run of `npm run coach:eval` reviewed by hand.
+- [ ] Alternative algorithms and left-handed mirrors for the last-layer cases; F2L slots other
+      than front-right.
 
 ---
 
-### 2.4 Version 4.0 — Physical Robotics Rig (FUTURE / OUT OF SCOPE FOR V1)
-> [!NOTE]
-> Physical robotics and microcontroller hardware are strictly categorized as **FUTURE / OUT OF SCOPE FOR V1**.
-
-- [ ] **ESP32 Firmware**: Dedicated micro-ROS or lightweight serial firmware for 6-axis NEMA-17 stepper motor coordination.
-- [ ] **Web Serial / Web Bluetooth Execution**: Direct hardware bridge from Cubyntra web app to the physical robotic rig.
-- [ ] **Kinematic Acceleration Profiling**: S-curve acceleration curves to prevent cube popping during sub-second physical turns.
-- [ ] **Physical Optical Alignment**: Dual-camera stereoscopic rig tracking physical cube faces during mechanical rotation.
+## 4. Not Planned
+Recorded as non-goals in `docs/tutor/GOAL.md`: hosting, accounts, multiple users, teacher
+dashboards, native apps, Bluetooth smart cubes, tracking moves from live video, and languages
+other than English. A physical robotic solver remains a concept document only
+([FUTURE_HARDWARE.md](FUTURE_HARDWARE.md)).
