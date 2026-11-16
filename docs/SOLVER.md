@@ -125,8 +125,16 @@ both run in a Web Worker and the 3D twin never stutters.
   |---|---|---|
   | `init` | none | `{ ready: true }` (tables built) |
   | `solve` | `{ state: CubeState }` | `SolveResult` |
+  | `tutor.plan` | `{ state, method, grip?, stepIndex? }` | `StepPlan \| null` (`planNextStep`; null when solved) |
+  | `tutor.progress` | `{ state, method }` | `TutorProgress` |
+  | `tutor.guidedSolve` | `{ state, method, grip? }` | `GuidedSolve` (`runGuidedSolve`) |
 
-  New jobs (the tutor engine will be next) are an entry in `WorkerJobs` plus a handler in
+  The tutor jobs call the tutor engine (`src/tutor/`, [METHODS.md](tutor/METHODS.md)); a
+  `TutorPlanError` becomes an `ok: false` reply. Step plans are plain data (states, moves,
+  grips, strings), so they cross the boundary unchanged. Shortcuts: `planStepInWorker`,
+  `tutorProgressInWorker`, `guidedSolveInWorker`.
+
+  New jobs are an entry in `WorkerJobs` plus a handler in
   `handlers.ts`; the client is typed from the same map
   (`client.request(type, payload): Promise<result>`). Everything crossing the boundary is plain,
   structured-cloneable data.
@@ -140,7 +148,8 @@ both run in a Web Worker and the 3D twin never stutters.
 
 `tests/solver-worker.test.ts` covers the handlers, the worker entry point, the client with a fake
 worker (concurrent replies matched by id, errors, fallback after a crash) and the main-thread
-fallback; `tests/store-solver-client.test.ts` checks the store goes through the client.
+fallback; `tests/tutor-worker.test.ts` covers the tutor jobs (same plans as the engine, structured
+clone both ways, errors, fallback); `tests/store-solver-client.test.ts` checks the store goes through the client.
 
 ---
 
