@@ -12,7 +12,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "docs:pdf": "tsx scripts/generate-docs.ts"
+    "docs:pdf": "tsx scripts/generate-docs.ts",
+    "coach:eval": "tsx scripts/coach-eval.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.9.0",
