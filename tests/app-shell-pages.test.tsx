@@ -67,7 +67,7 @@ vi.mock('@/sync/CompanionSyncProvider', () => ({
 const { useTutorStore } = await import('@/stores/useTutorStore');
 const { AppShell } = await import('@/components/shell/AppShell');
 const { HomeView } = await import('@/components/home/HomeView');
-const { TrainerView, TimerView, ProgressView } = await import('@/components/placeholders/Placeholders');
+const { TimerView, ProgressView } = await import('@/components/placeholders/Placeholders');
 const { PairView } = await import('@/components/pair/PairView');
 const { resetAppTokenCache } = await import('@/app-shell/appToken');
 
@@ -171,7 +171,6 @@ describe('Home', () => {
 
 describe('placeholder screens', () => {
   it.each([
-    ['Trainer', TrainerView],
     ['Timer', TimerView],
   ])('%s says plainly that it is coming soon', (title, View) => {
     render(<View />);

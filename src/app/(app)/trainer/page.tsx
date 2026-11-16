@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { TrainerView } from '@/components/placeholders/Placeholders';
+import { TrainerView } from '@/components/trainer/TrainerView';
 
 export const metadata: Metadata = { title: 'Trainer' };
 

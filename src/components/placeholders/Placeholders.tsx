@@ -4,7 +4,7 @@
  * Cubyntra - Screens that arrive in Phase 9
  * Necookie Labs (c) 2026
  *
- * Trainer, Timer and Progress already have their real layout so navigation and the shell
+ * Timer and Progress already have their real layout so navigation and the shell
  * can be judged now. Controls that do nothing yet are disabled and say so plainly.
  */
 
@@ -24,40 +24,6 @@ function SoonNote({ children }: { children: React.ReactNode }) {
         Go to Solve
       </BlockLink>
     </Panel>
-  );
-}
-
-const TRAINER_STEPS = [
-  { title: 'See it', body: 'The case is set up on the twin.' },
-  { title: 'Recognise it', body: 'Name the case before you turn.' },
-  { title: 'Do it', body: 'Turn your own cube.' },
-  { title: 'Check it', body: 'Show the camera. Missed cases come back sooner.' },
-];
-
-export function TrainerView() {
-  return (
-    <PageContainer width="lg">
-      <PageHeader eyebrow={<Chip tone="warn">Coming soon</Chip>} title="Trainer" lede="Practise one case at a time until it is automatic." />
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
-        <Panel tone="well" aria-hidden className="flex aspect-square items-center justify-center text-sm font-bold text-muted lg:aspect-auto lg:min-h-[400px]">
-          The case appears here
-        </Panel>
-        <ol className="flex flex-col gap-3">
-          {TRAINER_STEPS.map((step, i) => (
-            <li key={step.title} className="vx-panel flex items-start gap-3 p-4 pb-5">
-              <span className="flex h-8 w-8 shrink-0 items-center justify-center border-2 border-line bg-well font-mono text-sm font-bold">
-                {i + 1}
-              </span>
-              <span className="flex flex-col gap-0.5">
-                <span className="text-sm font-bold text-ink">{step.title}</span>
-                <span className="text-sm text-muted">{step.body}</span>
-              </span>
-            </li>
-          ))}
-        </ol>
-      </div>
-      <SoonNote>The trainer is not built yet. For now, every case comes up during a guided solve.</SoonNote>
-    </PageContainer>
   );
 }
 
