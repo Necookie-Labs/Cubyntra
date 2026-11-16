@@ -199,7 +199,7 @@ install button, iOS "Share → Add to Home Screen" hint, or "Installed").
 - **Scramble** panel: 20 moves of notation in a well, "White on top, green in front", the twin
   showing the scrambled cube, and New scramble.
 - **Pad**: a large block, the whole area is the button (pointer and touch), and Space works the
-  same anywhere except on another control; Escape cancels. Tap to start the 15 s inspection (a
+  same anywhere except on another control (Enter too, on the focused pad); Escape cancels. Tap to start the 15 s inspection (a
   countdown); hold until the pad turns leaf ("Let go to start", after 0.3 s; it is warn-tinted
   while held but not ready); let go to start; tap or Space to stop. Chips call out 8 seconds and 12
   seconds, then "Start now: +2" and DNF. The clock is Geist Mono, tabular figures.

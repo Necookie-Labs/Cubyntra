@@ -123,6 +123,28 @@ describe('Timer', () => {
     expect(useTutorStore.getState().profile.timer.history[0]).toMatchObject({ penalty: 'DNF' });
   });
 
+  it('works from the keyboard alone: Tab to the pad, then Enter or Space', () => {
+    render(<TimerView />);
+    pad().focus();
+    expect(document.activeElement).toBe(pad());
+    fireEvent.keyDown(pad(), { key: 'Enter', code: 'Enter' });
+    fireEvent.keyUp(pad(), { key: 'Enter', code: 'Enter' });
+    expect(pad().getAttribute('data-phase')).toBe('inspecting');
+    at(5_000);
+    fireEvent.keyDown(pad(), { key: 'Enter', code: 'Enter' });
+    at(5_400);
+    frame();
+    expect(pad().getAttribute('data-phase')).toBe('armed');
+    fireEvent.keyUp(pad(), { key: 'Enter', code: 'Enter' });
+    expect(pad().getAttribute('data-phase')).toBe('running');
+    at(15_400);
+    // Space on the focused pad stops it, as it does anywhere else on the page.
+    fireEvent.keyDown(pad(), { code: 'Space', key: ' ' });
+    fireEvent.keyUp(pad(), { code: 'Space', key: ' ' });
+    expect(pad().getAttribute('data-phase')).toBe('idle');
+    expect(useTutorStore.getState().profile.timer.history[0]).toMatchObject({ ms: 10_000, penalty: 'none' });
+  });
+
   it('cancels inspection with Escape', () => {
     render(<TimerView />);
     fireEvent.pointerDown(pad());

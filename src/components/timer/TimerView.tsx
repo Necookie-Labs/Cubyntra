@@ -5,8 +5,8 @@
  * Necookie Labs (c) 2026
  *
  * A scramble (notation and the twin), then the pad: tap to start the 15-second inspection, hold
- * until the pad turns green, let go to start, tap to stop. Space does the same on a keyboard and
- * Escape cancels. The 8 s and 12 s calls show on the pad; starting late adds +2 or makes a DNF
+ * until the pad turns green, let go to start, tap to stop. Space does the same on a keyboard (and
+ * Enter on the focused pad); Escape cancels. The 8 s and 12 s calls show on the pad; starting late adds +2 or makes a DNF
  * (WCA rules, `src/learn/timer.ts`). Best single, ao5 and ao12 come from the saved history.
  */
 
@@ -222,6 +222,17 @@ export function TimerView() {
         }}
         onPointerUp={() => send({ type: 'release', at: performance.now() })}
         onPointerCancel={() => send({ type: 'release', at: performance.now() })}
+        // Enter works the pad like Space when it has focus (Space works anywhere on the page).
+        onKeyDown={(e) => {
+          if (e.key !== 'Enter') return;
+          e.preventDefault();
+          if (!e.repeat) send({ type: 'press', at: performance.now() });
+        }}
+        onKeyUp={(e) => {
+          if (e.key !== 'Enter') return;
+          e.preventDefault();
+          send({ type: 'release', at: performance.now() });
+        }}
         className={cx(
           'flex min-h-[280px] cursor-pointer border-2 border-line shadow-block touch-none flex-col items-center justify-center gap-4 p-6 text-center select-none sm:min-h-[320px]',
           PAD_TONE[phase]
