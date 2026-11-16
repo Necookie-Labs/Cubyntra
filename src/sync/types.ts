@@ -150,6 +150,9 @@ export interface SessionSnapshot {
   scanConfirmed: boolean;
 }
 
+/** How often the event stream sends a `ping` frame while nothing else happens. */
+export const PING_INTERVAL_MS = 15_000;
+
 /** One frame on the event stream (`data: <json>`). */
 export type StreamEvent =
   | { kind: 'snapshot'; snapshot: SessionSnapshot }

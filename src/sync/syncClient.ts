@@ -4,10 +4,12 @@
  *
  * The event stream is read with `fetch` rather than `EventSource` so the session secret can go in
  * a header instead of the URL. The stream reconnects on its own after a network blip and stops
- * for good when the server says the session is gone.
+ * for good when the server says the session is gone. A connection that goes quiet (no event and
+ * no ping for twice the ping interval: a sleeping laptop, a phone that switched networks) is
+ * treated as dead and reconnected, since a half-open TCP connection may never report an error.
  */
 
-import { DeviceRole, StreamEvent, SyncMessage } from './types';
+import { DeviceRole, PING_INTERVAL_MS, StreamEvent, SyncMessage } from './types';
 
 /** Same value as `SESSION_SECRET_HEADER` in `./pairing` (server only, so not imported here). */
 export const SESSION_HEADER = 'x-cubyntra-session';
@@ -25,6 +27,8 @@ export interface SyncStreamOptions {
   onEnded?: (reason: EndReason) => void;
   /** Waits before each reconnect; the last value repeats. */
   retryDelaysMs?: number[];
+  /** Silence after which the connection is dropped and reopened (default 2x the ping interval). */
+  inactivityTimeoutMs?: number;
   fetchImpl?: typeof fetch;
 }
 
@@ -33,6 +37,7 @@ export interface SyncStream {
 }
 
 const DEFAULT_RETRY_MS = [1000, 2000, 5000, 10000];
+export const DEFAULT_INACTIVITY_MS = 2 * PING_INTERVAL_MS;
 
 /** A random id for this page load, so a device can recognise its own messages coming back. */
 export function newClientId(): string {
@@ -63,19 +68,34 @@ export function openSyncStream(options: SyncStreamOptions): SyncStream {
   const { sessionId, secret, role, onEvent, onStatus, onEnded } = options;
   const doFetch = options.fetchImpl ?? fetch;
   const delays = options.retryDelaysMs ?? DEFAULT_RETRY_MS;
+  const inactivityMs = options.inactivityTimeoutMs ?? DEFAULT_INACTIVITY_MS;
   let closed = false;
   let controller: AbortController | null = null;
   let retryTimer: ReturnType<typeof setTimeout> | null = null;
+  let quietTimer: ReturnType<typeof setTimeout> | null = null;
   let attempt = 0;
+
+  const stopWatchdog = () => {
+    if (quietTimer) clearTimeout(quietTimer);
+    quietTimer = null;
+  };
+
+  /** (Re)starts the silence countdown for the current connection; firing aborts it. */
+  const watch = (current: AbortController) => {
+    stopWatchdog();
+    quietTimer = setTimeout(() => current.abort(), inactivityMs);
+  };
 
   const end = (reason: EndReason) => {
     if (closed) return;
     closed = true;
+    stopWatchdog();
     controller?.abort();
     onEnded?.(reason);
   };
 
   const scheduleRetry = () => {
+    stopWatchdog();
     if (closed) return;
     onStatus?.('retrying');
     const delay = delays[Math.min(attempt, delays.length - 1)];
@@ -85,14 +105,17 @@ export function openSyncStream(options: SyncStreamOptions): SyncStream {
 
   async function connect() {
     if (closed) return;
-    controller = new AbortController();
+    const current = new AbortController();
+    controller = current;
     onStatus?.('connecting');
+    // A request that never answers is as dead as a stream that stops talking.
+    watch(current);
     let res: Response;
     try {
       res = await doFetch(`/api/session/${encodeURIComponent(sessionId)}/events?role=${role}`, {
         headers: { [SESSION_HEADER]: secret, Accept: 'text/event-stream' },
         cache: 'no-store',
-        signal: controller.signal,
+        signal: current.signal,
       });
     } catch {
       scheduleRetry();
@@ -115,10 +138,15 @@ export function openSyncStream(options: SyncStreamOptions): SyncStream {
       else onEvent(event);
     });
     const reader = res.body.getReader();
+    // Abort does not always reach a body already being read: cancel the reader too.
+    current.signal.addEventListener('abort', () => void reader.cancel().catch(() => {}), { once: true });
+    watch(current);
     try {
       for (;;) {
         const { value, done } = await reader.read();
         if (done || closed) break;
+        // Any frame (a ping included) proves the connection is alive.
+        watch(current);
         parse(decoder.decode(value, { stream: true }));
       }
     } catch {
@@ -132,6 +160,7 @@ export function openSyncStream(options: SyncStreamOptions): SyncStream {
   return {
     close: () => {
       closed = true;
+      stopWatchdog();
       if (retryTimer) clearTimeout(retryTimer);
       controller?.abort();
     },

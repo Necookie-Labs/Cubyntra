@@ -5,6 +5,7 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  DEFAULT_INACTIVITY_MS,
   SESSION_HEADER,
   createSseParser,
   deleteSyncSession,
@@ -12,7 +13,7 @@ import {
   postSyncMessage,
 } from '../src/sync/syncClient';
 import { SESSION_SECRET_HEADER } from '../src/sync/pairing';
-import { StreamEvent } from '../src/sync/types';
+import { PING_INTERVAL_MS, StreamEvent } from '../src/sync/types';
 
 afterEach(() => vi.useRealTimers());
 
@@ -139,5 +140,93 @@ describe('postSyncMessage and deleteSyncSession', () => {
     const [url, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe('/api/session/s');
     expect(init).toMatchObject({ method: 'DELETE', keepalive: true });
+  });
+});
+
+describe('openSyncStream inactivity watchdog', () => {
+  /** An open stream whose controller the test drives (pings, silence). */
+  function liveStream() {
+    const encoder = new TextEncoder();
+    let push: (e: StreamEvent) => void = () => {};
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        push = (e) => controller.enqueue(encoder.encode(`data: ${JSON.stringify(e)}\n\n`));
+      },
+    });
+    return { response: new Response(body, { headers: { 'Content-Type': 'text/event-stream' } }), ping: (at: number) => push({ kind: 'ping', at }) };
+  }
+
+  it('defaults to twice the ping interval', () => {
+    expect(DEFAULT_INACTIVITY_MS).toBe(2 * PING_INTERVAL_MS);
+  });
+
+  it('keeps a connection that pings, and reconnects one that goes silent', async () => {
+    vi.useFakeTimers();
+    const streams: ReturnType<typeof liveStream>[] = [];
+    const signals: AbortSignal[] = [];
+    const fetchImpl = vi.fn(async (_url: string, init?: RequestInit) => {
+      signals.push(init!.signal!);
+      const s = liveStream();
+      streams.push(s);
+      return s.response;
+    });
+    const statuses: string[] = [];
+    const stream = openSyncStream({
+      sessionId: 's',
+      secret: 'k',
+      role: 'mobile',
+      onEvent: () => {},
+      onStatus: (s) => statuses.push(s),
+      retryDelaysMs: [10],
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+
+    // Pings every interval keep it open well past the timeout.
+    for (let i = 1; i <= 4; i++) {
+      await vi.advanceTimersByTimeAsync(PING_INTERVAL_MS);
+      streams[0].ping(i);
+    }
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(signals[0].aborted).toBe(false);
+
+    // Then silence: just under the limit nothing happens, past it the stream is dropped.
+    await vi.advanceTimersByTimeAsync(DEFAULT_INACTIVITY_MS - 1);
+    expect(signals[0].aborted).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(signals[0].aborted).toBe(true);
+    await vi.advanceTimersByTimeAsync(10);
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(statuses).toEqual(['connecting', 'open', 'retrying', 'connecting', 'open']);
+    stream.close();
+    expect(signals[1].aborted).toBe(true);
+  });
+
+  it('gives up on a request that never answers and tries again', async () => {
+    vi.useFakeTimers();
+    const fetchImpl = vi.fn(
+      (_url: string, init?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          init!.signal!.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')));
+        })
+    );
+    const stream = openSyncStream({
+      sessionId: 's',
+      secret: 'k',
+      role: 'desktop',
+      onEvent: () => {},
+      retryDelaysMs: [10],
+      inactivityTimeoutMs: 1000,
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+    await vi.advanceTimersByTimeAsync(999);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(11);
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    stream.close();
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
   });
 });

@@ -15,11 +15,9 @@
 
 import { sessionManager } from '@/sync/sessionManager';
 import { guardSession, jsonError } from '@/sync/server';
-import { DeviceRole, StreamEvent } from '@/sync/types';
+import { DeviceRole, PING_INTERVAL_MS, StreamEvent } from '@/sync/types';
 
 export const dynamic = 'force-dynamic';
-
-const PING_INTERVAL_MS = 15_000;
 
 export async function GET(req: Request, context: { params: Promise<{ id: string }> }) {
   const { id } = await context.params;
