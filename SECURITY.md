@@ -4,15 +4,16 @@
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 1.0.x   | :white_check_mark: |
-| < 1.0   | :x:                |
+| 2.0.x   | :white_check_mark: |
+| < 2.0   | :x:                |
 
-## Privacy & Client-Side Security
+## Privacy & Local Security
 
-Cubyntra is designed with a **zero-cloud computer vision privacy model**:
-- All webcam stream capture, pixel sampling, color classification, state reconstruction, and solving logic are executed strictly **locally inside the client browser**.
-- Video frames and image samples are never uploaded, stored on servers, or transmitted across the network.
-- No user telemetry or analytics are collected without explicit user consent.
+Cubyntra runs on the student's own laptop, with a phone on the same Wi-Fi as an optional camera:
+- Camera frames are sampled to tile colors in the browser tab that owns the camera and discarded. No image leaves the device that captured it; the phone and laptop exchange cube states only, through the laptop's own server process.
+- With an `ANTHROPIC_API_KEY`, the laptop's server sends Anthropic a small facts JSON about the current step (never images, cube state or the student's name). Without a key nothing is sent.
+- The profile, coach usage and app secret are files in `data/` on the laptop. No telemetry or analytics are collected.
+- Pairing is protected by a 128-bit session secret and a loopback-only app token; the known limits are listed in [docs/SECURITY_PRIVACY.md](docs/SECURITY_PRIVACY.md) §6.3.
 
 ## Reporting a Vulnerability
 
