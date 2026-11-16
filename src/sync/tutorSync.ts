@@ -14,7 +14,8 @@
 import { formatAlgorithm } from '@/cube/transforms';
 import type { Grip } from '@/cube/grip';
 import type { PlaybackSnapshot, PlaybackSpeed } from '@/three/playback';
-import type { StepPlan } from '@/tutor/types';
+import type { CubeState } from '@/cube/types';
+import type { MethodId, StepPlan } from '@/tutor/types';
 import type { CheckpointResultPayload, PlaybackPayload, SyncEvent, SyncMessage } from './types';
 
 /** Short stable id for a step (FNV-1a of its method, index, case and moves). */
@@ -101,4 +102,23 @@ export function tutorActionFor(event: SyncEvent, ownClientId: string, plan: Step
     return { kind: 'checkpoint', payload: p };
   }
   return null;
+}
+
+/** The step the other device is showing, to join when no solve is open here. */
+export interface RemoteStepJoin {
+  state: CubeState;
+  method: MethodId;
+  stepIndex: number;
+}
+
+/**
+ * For a relayed `step` of the guided solve (not solver playback) from the other device, the
+ * step to join: the cube from the `cube-state` message that came just before it. Null for
+ * anything else, or when that cube has not arrived.
+ */
+export function remoteStepFor(event: SyncEvent, ownClientId: string, lastCube: CubeState | null): RemoteStepJoin | null {
+  if (event.type !== 'step' || event.clientId === ownClientId || !lastCube) return null;
+  const { method, stepIndex } = event.payload;
+  if (method !== 'beginner' && method !== 'cfop') return null;
+  return { state: lastCube, method, stepIndex };
 }

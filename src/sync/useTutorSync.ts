@@ -7,9 +7,13 @@
  * While a phone is paired: publishes each step, the grip and every playback change of the twin,
  * reports checkpoint verdicts reached here, and applies the other device's playback commands
  * (in sequence order, last writer wins), grip changes and checkpoint verdicts. See tutorSync.ts.
+ *
+ * Either device can run it: the laptop with its own pairing, a paired phone with
+ * `useMobileTutorTarget`. A device with no solve open joins the step the other one shows.
  */
 
 import { useEffect, useRef } from 'react';
+import type { CubeState } from '@/cube/types';
 import type { PlaybackController, PlaybackSnapshot } from '@/three/playback';
 import { useTutorStore } from '@/stores/useTutorStore';
 import { shouldApplyPlayback } from './playbackSync';
@@ -18,6 +22,7 @@ import type { SyncEvent, SyncMessage } from './types';
 import {
   applyPlaybackToTwin,
   playbackMessages,
+  remoteStepFor,
   stepMessages,
   stepPlanId,
   tutorActionFor,
@@ -35,6 +40,8 @@ export function useTutorSync(target: TutorSyncTarget, playback: PlaybackControll
   const plan = useTutorStore((s) => s.plan);
   const applyingRemote = useRef(false);
   const lastSeq = useRef(0);
+  // The cube the other device's latest step starts from (its `cube-state` comes just before `step`).
+  const remoteCube = useRef<CubeState | null>(null);
 
   // The step on screen, its start state and grip.
   useEffect(() => {
@@ -93,6 +100,15 @@ export function useTutorSync(target: TutorSyncTarget, playback: PlaybackControll
         } finally {
           applyingRemote.current = false;
         }
+        return;
+      }
+      if (event.type === 'cube-state') {
+        if (event.clientId !== getClientId()) remoteCube.current = event.payload.state;
+        return;
+      }
+      const join = remoteStepFor(event, getClientId(), remoteCube.current);
+      if (join) {
+        if (store.phase === 'idle' || store.phase === 'solved') void store.followRemoteStep(join);
         return;
       }
       const action = tutorActionFor(event, getClientId(), store.plan);

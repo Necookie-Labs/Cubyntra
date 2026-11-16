@@ -14,7 +14,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { AlertTriangle, CheckCircle2, Home, RefreshCw, ScanLine, Shuffle } from 'lucide-react';
 import { useTutorStore } from '@/stores/useTutorStore';
 import type { CubeEngine } from '@/three/engine';
-import { useCompanion } from '@/sync/CompanionSyncProvider';
+import { useSolveSyncTarget } from '@/sync/useSolveSyncTarget';
 import { useTutorSync } from '@/sync/useTutorSync';
 import { TeachingTwin } from '@/components/twin/TeachingTwin';
 import { BlockButton, Panel } from '@/components/ui';
@@ -115,8 +115,9 @@ export function SolveView() {
   const [watched, setWatched] = useState<string | null>(null);
   const [engine, setEngine] = useState<CubeEngine | null>(null);
 
-  // A paired phone mirrors the step, the grip and the twin's playback, and can drive them.
-  useTutorSync(useCompanion(), engine?.playback ?? null);
+  // The paired device mirrors the step, the grip and the twin's playback, and can drive them;
+  // on a paired phone the same messages go the other way, so the laptop mirrors the phone.
+  useTutorSync(useSolveSyncTarget(), engine?.playback ?? null);
 
   useWakeLock(phase !== 'idle' && phase !== 'solved');
 
