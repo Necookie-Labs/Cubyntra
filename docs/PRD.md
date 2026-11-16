@@ -3,105 +3,127 @@
 **Product**: Cubyntra  
 **Organization**: Necookie Labs  
 **Tagline**: *See it. Solve it.*  
-**Document Version**: 1.0  
-**Status**: V1 Release  
-**Last Updated**: 2026-09-26  
+**Document Version**: 2.0  
+**Status**: Tutor rebuild (2.0.0)  
+**Last Updated**: 2026-11-17  
 
 ---
 
 ## 1. Product Overview
-**Cubyntra** is a high-precision, web-based Computer Vision Rubik's Cube scanner, state validator, solver, and interactive 3D digital twin. Developed by **Necookie Labs**, Cubyntra enables any user with a standard camera-enabled device (smartphone, laptop, or desktop webcam) to scan a scrambled physical 3×3 Rubik's Cube, receive immediate mathematical validation, calculate an efficient solution sequence using Herbert Kociemba's two-phase algorithm, and follow intuitive 3D animated step-by-step guidance.
+**Cubyntra** is a local, single-student Rubik's Cube tutor. It runs as a PWA from a Next.js 16
+server on the student's laptop (`npm run dev`), with a phone on the same Wi-Fi as an optional
+camera and remote. The student scans their own cube, a 3D twin shows that exact cube in their
+hands and animates each step of either the **beginner's method** or **CFOP**, a coach (Claude)
+explains each step in plain language, and **checkpoint scans** confirm the step was done right.
 
-Cubyntra runs **100% on the client side**: no video streams or image data ever leave the user's browser, guaranteeing absolute privacy.
+The decisions behind it are fixed in `docs/tutor/GOAL.md`; this document states the product
+requirements they imply.
 
 ---
 
 ## 2. Product Vision
-To create the most seamless, privacy-respecting, and mathematically rigorous physical-to-digital puzzle solving experience on the web. Cubyntra bridges physical reality with digital twin computation, laying the architectural groundwork for future autonomous physical robotics.
+Teach one learner to solve the cube by themselves: first with the beginner's method, then with
+CFOP, without ever showing a move the engine has not checked, and without any picture of the
+learner's room leaving the device that took it.
 
 ---
 
 ## 3. Problem Statement
-The standard $3 \times 3 \times 3$ Rubik's Cube has $43,252,003,274,489,856,000$ possible permutations. While deterministic algorithms exist to solve any valid state, everyday users face major friction points:
-1. **Manual Color Entry is Tedious & Error-Prone**: Entering 54 individual facelet colors manually takes 3–5 minutes and frequently suffers from typos that make the cube unsolvable.
-2. **Cloud-Based Solvers Violate Privacy**: Existing scanning tools upload webcam frames to external servers or cloud vision APIs.
-3. **Abstract Move Notation Confuses Beginners**: Standard Singmaster notation ($R, U', F2$) lacks intuitive visual orientation cues, leading users to execute wrong turns.
-4. **Physical Cube Errors Go Unexplained**: If a cube has an internally twisted corner, flipped edge, or swapped stickers, typical solvers simply crash with generic "Invalid Cube" messages without diagnosing what is wrong.
+1. **Solvers solve; they do not teach.** A 20-move Kociemba solution is correct but teaches
+   nothing a learner can repeat on the next scramble.
+2. **Notation is a wall.** `R U R' U'` means little to a 10-year-old; the learner needs to see the
+   turn on *their* cube, held the way they hold it, and hear it in words.
+3. **Mistakes go unnoticed.** One wrong turn mid-algorithm silently breaks the next five steps.
+   Tutorials and videos cannot see the learner's cube.
+4. **AI tutors invent moves.** A language model asked "what do I do next" will confidently name
+   moves that do not solve anything.
+5. **Camera apps leak.** Pointing a camera into a home must not send pictures anywhere.
 
 ---
 
-## 4. Target Users
-- **Novice Puzzle Solvers**: Individuals who scrambled their cube and need clear, step-by-step 3D visual guidance to restore it.
-- **Speedcubers & Enthusiasts**: Cubers looking for efficient move sequences (HTM metric) and reconstruction diagnostics.
-- **STEM Educators & Students**: Learners exploring group theory, computer vision, and coordinate geometry.
-- **Robotics Engineers**: Developers seeking a solid algorithmic and perceptual foundation for physical cube manipulation mechanisms.
+## 4. Target User
+- **One student**, ages 10 and up, learning in English, on their own laptop, with or without a
+  phone. There are no accounts, teachers or multiple users.
+- Progress path: beginner's method → CFOP with the 2-look last layer → full OLL / PLL.
 
 ---
 
 ## 5. User Needs
-- Fast, guided scanning that does not require tedious manual input.
-- Real-time feedback on whether a face is aligned and stable.
-- Complete privacy protection (no video uploads).
-- Clear, unambiguous 3D layer animations and directional arrows showing exactly how to turn each layer.
-- Granular error diagnostics explaining specifically which face or piece has an issue.
+- Scan a real cube quickly, and fix a misread tile before anything is planned from it.
+- See each step on a twin that matches the cube in hand: same colors, same grip, the pieces that
+  matter lit up, the moves as chips and in words.
+- Ask for help at the level needed: what to look for, why it works, the exact moves.
+- Know whether the step was done right, and if not, what probably went wrong and how to recover.
+- Practise algorithms, time solves and see progress grow.
+- Use it offline from the coach (no key, or the spend cap reached) without losing any teaching.
 
 ---
 
 ## 6. Product Goals
-1. Deliver sub-second physical cube state reconstruction from a guided 6-face sequence.
-2. Execute Kociemba's two-phase algorithm client-side, returning solutions averaging 18–22 moves.
-3. Render an interactive 3D digital twin with zero floating-point rotational drift.
-4. Maintain zero cloud dependencies: 100% local processing.
-5. Provide accessible, responsive interfaces across desktop, tablet, and mobile browsers.
+1. A guided solve with either method completes through the tutor engine for every scramble
+   (tested on 10,000 fixed-seed scrambles per method and variant).
+2. Every move shown is chosen by the deterministic engine and replayed on the logical cube first.
+3. A checkpoint catches the student's slip and names it (≥ 95% top-diagnosis accuracy on
+   injected mistakes; measured 100% of the 1,819 detected on synthetic photos).
+4. The coach costs at most $10 a month and falls back to built-in templates without any loss of
+   function.
+5. No image leaves the device that captured it.
+6. Accessible to WCAG 2.2 AA: labels, focus traps, AA contrast, color-blind letters, reduced motion.
 
 ---
 
-## 7. Non-Goals (V1)
-- Physical motor or servo control (ESP32 / Arduino hardware).
-- User authentication, accounts, or persistent cloud databases.
-- Multi-puzzle support ($4\times4, 2\times2$, Pyraminx).
-- Automated unguided free-form 3D object tracking without reticle alignment.
+## 7. Non-Goals
+Hosting or deployment, accounts, multiple users, teacher dashboards, native apps, Bluetooth smart
+cubes, tracking moves from live video, languages other than English, physical robotics.
 
 ---
 
-## 8. Scope Categorization (MoSCoW)
+## 8. Scope (MoSCoW)
 
-### MUST HAVE (V1)
-- WebRTC camera feed with rear/environment camera preference.
-- 3×3 square reticle target with perspective-safe ROI.
-- Trimmed-mean pixel aggregation and HSV/CIELAB color classification.
-- Temporal stability buffer requiring consecutive stable frames before capture.
-- Guided 6-face capture sequence (U, F, R, B, L, D) with physical rotation hints.
-- Strict state validation: 54 stickers, 9 of each color, 6 canonical centers, corner twist parity, edge flip parity, and permutation parity.
-- Client-side Herbert Kociemba two-phase solver.
-- Interactive 3D Rubik's cube with 27 cubies.
-- Zero-drift layer rotation animations with orthogonal matrix snapping.
-- 3D directional curved move arrows.
-- Full playback controls (Play, Pause, Step Next, Step Previous, Reset to Scramble, Speed selector).
-- Real-time Computer Vision Debugger inspection panel.
-- Fallback simulated scramble demo for camera-less environments.
+### MUST HAVE (2.0, implemented)
+- Six-face scan by webcam or paired phone, with a review net and per-tile correction.
+- Tutor engine: beginner's method (8 stages) and CFOP (cross, F2L, 2-look OLL/PLL, AUF).
+- Teaching twin: grip-framed camera, regrips, spotlight, slot outline, move chips, play / step /
+  0.5× / loop, "after" preview.
+- Checkpoint scans with the student's palette, mistake diagnosis, corrective steps, rescan and
+  re-plan, manual "it matches".
+- Claude Haiku 5.5 coach with three hint levels, move guardrail, templates, mock mode and a
+  $10/month cap.
+- App shell: Home, Scan, Solve, Trainer, Timer, Progress, Pair, Settings; installable manifest;
+  wake lock while solving; interrupted solves resume from `data/student.json`.
+- State-only phone ↔ laptop sync with QR + typed-code pairing.
 
-### SHOULD HAVE (V1.x)
-- Manual sticker color correction override prior to solving.
-- Audio cues for frame capture and move execution.
-- Auto-capture toggle settings in preferences.
+### SHOULD HAVE (2.0, implemented)
+- Full 57 OLL / 21 PLL as a CFOP setting.
+- Algorithm trainer with spaced repetition; timer with WCA inspection and averages; progress
+  world with mastery, streaks and graduation suggestions.
+- Light / dark / system themes; color-blind sticker letters; "moves in words".
 
-### COULD HAVE (V2)
-- Real-time move verification via live webcam stream.
-- Web Worker multithreading for table generation.
+### COULD HAVE (not implemented)
+- Service-worker offline caching (needs a certificate the phone trusts; notes in
+  `docs/DEVELOPMENT.md` §6.6).
+- Voice read-out of steps.
 
-### OUT OF SCOPE (V1)
-- *FUTURE / OUT OF SCOPE FOR V1*: ESP32 microcontrollers, stepper motors, servo drivers, robotic grippers, and physical chassis.
+### OUT OF SCOPE
+- Everything in §7.
 
 ---
 
 ## 9. User Stories
-- **US-01 (Scanning)**: As a user, I want the camera viewfinder to guide me through holding each face in a clear sequence so that all 54 stickers are accurately digitized.
-- **US-02 (Stability)**: As a user, I want a visual progress bar indicating when the cube is held steady enough to be captured so that motion blur does not cause misclassifications.
-- **US-03 (Validation)**: As a user, I want instant validation that alerts me if a piece is physically impossible so that I can rescan only the problematic face without starting over.
-- **US-04 (Solving)**: As a user, I want an efficient move sequence generated in milliseconds without having my camera data uploaded to any server.
-- **US-05 (3D Guidance)**: As a user, I want to see the digital twin rotate the exact layers with 3D directional arrows so that I know exactly which face and direction to turn on my physical cube.
-- **US-06 (Playback)**: As a user, I want to step forward, backward, pause, or auto-play through the solution at varying speeds.
+- **US-01 (Scan)**: As a student, I want the camera to guide me face by face and show me the net
+  before solving, so that a misread tile never becomes a wrong plan.
+- **US-02 (Choose)**: As a student, I want to pick the beginner's method or CFOP, so that the
+  steps match what I am learning.
+- **US-03 (Follow)**: As a student, I want the twin to show my cube in my grip and play the step's
+  moves slowly, so that I can copy them.
+- **US-04 (Hint)**: As a student, I want to ask what to look for, why it works, or the exact
+  moves, so that I learn instead of just copying.
+- **US-05 (Check)**: As a student, I want to show the cube after a step and hear whether it is
+  right, and what went wrong if not, so that one slip does not ruin the solve.
+- **US-06 (Resume)**: As a student, I want an interrupted solve to continue where I left off.
+- **US-07 (Practise)**: As a student, I want to drill the cases I keep missing and time my solves.
+- **US-08 (Phone)**: As a student, I want to scan and follow on my phone while the laptop shows
+  the big twin.
 
 ---
 
@@ -109,69 +131,70 @@ The standard $3 \times 3 \times 3$ Rubik's Cube has $43,252,003,274,489,856,000$
 
 ```mermaid
 journey
-    title Cubyntra User Journey
-    section Initialization
-      Open Cubyntra Web App: 5: User
-      Grant Camera Permission: 4: User
-    section Scanning
-      Align White Face: 5: User, Camera
-      Hold Still (Stability Lock): 5: Vision
-      Follow Physical Rotation Cues (6 Faces): 5: User, Vision
-    section Processing & Solving
-      Validate Physical State & Parities: 5: Engine
-      Run Kociemba Two-Phase Solver: 5: Solver
-    section 3D Guidance
-      Inspect 3D Scrambled Digital Twin: 5: User, Three.js
-      Step Through Moves with 3D Directional Arrows: 5: User, Three.js
-      Execute Solution to Solved State: 5: User, Confetti
+    title A guided solve
+    section Start
+      Open Cubyntra on the laptop: 5: Student
+      Pick Beginner's or CFOP: 5: Student
+    section Scan
+      Show six faces (webcam or paired phone): 4: Student, Vision
+      Check the review net and fix a tile: 4: Student
+    section Each step
+      Watch the twin play the step: 5: Student, Twin
+      Ask the coach for a hint: 4: Student, Coach
+      Do it on the real cube, press I did it: 5: Student
+      Show one face to the camera: 4: Student, Vision
+      Block placed, or a named mistake and a fix: 5: Tutor
+    section Finish
+      Solved, progress world grows: 5: Student
 ```
 
 ---
 
 ## 11. Functional Requirements
-- **FR-CAM-001**: Application shall request camera permissions with rear/environment preference.
-- **FR-CV-001**: Application shall sample 9 distinct sticker sub-regions inside a defined central ROI.
-- **FR-CV-002**: Application shall aggregate pixel values using trimmed mean to reject specular glare.
-- **FR-CV-003**: Application shall classify colors into White, Yellow, Green, Blue, Red, Orange.
-- **FR-CV-004**: Application shall require consecutive frame consensus before triggering stability lock.
-- **FR-CUBE-001**: Application shall maintain an independent logical model of 54 facelets and 27 cubie coordinates.
-- **FR-CUBE-002**: Application shall validate sticker counts, centers, edge flip parity, corner twist parity, and permutation parity.
-- **FR-SOLVER-001**: Application shall execute Herbert Kociemba's two-phase algorithm client-side.
-- **FR-SOLVER-002**: Application shall return Half Turn Metric (HTM) sequences verified against an internal simulation.
-- **FR-3D-001**: Application shall construct an interactive 3D Rubik's cube twin.
-- **FR-3D-002**: Application shall snap cubie positions and quaternions to orthogonal integer axes upon rotation completion.
-- **FR-3D-003**: Application shall render 3D curved directional arrows pointing in turn directions.
+Detailed and traced in [SRS.md](SRS.md).
+- **FR-SCAN**: six-face scan, review net, tile correction, valid cube only.
+- **FR-TUTOR**: a step plan per step from the deterministic engine, replayed before it is shown.
+- **FR-TWIN**: the twin matches the logical cube after every step; grip, spotlight, chips,
+  playback, preview.
+- **FR-CHECK**: checkpoint verification, diagnosis and recovery.
+- **FR-COACH**: streaming explanations, guardrail, templates, cap, token and rate limit.
+- **FR-LEARN**: trainer, timer, progress, graduation.
+- **FR-SYNC**: pairing and state-only sync.
+- **FR-PROFILE**: local profile, resume, merge of concurrent changes.
 
 ---
 
 ## 12. Non-Functional Requirements
-- **NFR-PERF-001**: Layer animation execution shall run at a consistent 60 FPS on supported hardware.
-- **NFR-PERF-002**: Kociemba two-phase solve search shall return solutions in under 100ms on typical scrambles.
-- **NFR-PRIV-001**: Zero image or video data shall leave the client device.
-- **NFR-A11Y-001**: All controls shall be keyboard-navigable and respect `prefers-reduced-motion`.
-- **NFR-REL-001**: Application shall gracefully handle camera denial or absence via synthetic scramble fallbacks.
+- **Privacy**: no image leaves the capturing device; the coach receives a facts JSON only.
+- **Correctness**: the logical cube is the ground truth; the twin snaps to integer positions.
+- **Responsiveness**: planning and solving run in a Web Worker.
+- **Accessibility**: WCAG 2.2 AA (see [UI_UX.md](UI_UX.md) §5).
+- **Locality**: runs on localhost; no hosting, no accounts.
 
 ---
 
 ## 13. Acceptance Criteria
-1. When 6 valid faces are scanned or mock loaded, the solver generates a valid solution sequence.
-2. Applying the solution sequence to the 3D cube results in all 6 monochrome faces.
-3. Arbitrary rotations produce exactly 0.000% floating point drift.
-4. An intentionally twisted corner or flipped edge produces a clear, actionable validation error.
+The phase gates in `docs/tutor/GOAL.md`, tracked in `docs/tutor/PROGRESS.md`. In summary:
+1. Both methods complete every one of 10,000 fixed-seed scrambles, each step advancing.
+2. The twin's colors equal `expectedState` after each tutor step plays.
+3. The injected mistake is the top diagnosis in ≥ 95% of synthetic checkpoint cases.
+4. The coach tests (mocked SDK) cover the request shape, guardrail, cap, template fallback and
+   token rejection; the build and tests never call the real API.
+5. `npm run lint` (0/0), `typecheck`, `test` and `build` pass.
 
 ---
 
 ## 14. Risks & Mitigations
 | Risk | Severity | Mitigation |
 | :--- | :--- | :--- |
-| Heavy ambient lighting cast (yellow incandescent) | Medium | Center sticker white-balance calibration and CIELAB perceptual metrics |
-| Motion blur during hand movement | High | Temporal stability buffer requiring consecutive identical frames |
-| Browser camera permission denial | Medium | Informative UI with instant simulated scramble demo button |
-| Floating-point matrix accumulation drift | High | Integer matrix and position snapping after every layer turn |
+| Real cameras, glare and worn stickers read differently from the synthetic tests | High | Per-student palette, "show me again" on low confidence, tile editing, manual "it matches"; by-hand check listed in the morning report |
+| The coach names a move outside the step | High | The engine picks every move; a post-check replaces any such reply with the template |
+| Coach spend | Medium | Hard monthly cap with worst-case reservation per call; templates afterwards |
+| A device on the Wi-Fi joins a pairing | Medium | 128-bit secret, loopback-only app token, single-use typed code with a rate limit |
+| Phone does not trust the self-signed certificate | Medium | One-time warning for the camera; optional certificate install for PWA install |
 
 ---
 
-## 15. Future Robotics Expansion
-*FUTURE / OUT OF SCOPE FOR V1*
-
-Cubyntra's logical move abstraction (`CubeMove[]`) is designed to decouple algorithm generation from physical execution. In future versions (V3/V4), the same move array can be routed to an ESP32 hardware motor controller driving 6 stepper motors or a 2-gripper mechanism to physically solve cubes automatically.
+## 15. Beyond This Release
+See [ROADMAP.md](ROADMAP.md). Physical robotics remains a separate, unbuilt concept
+([FUTURE_HARDWARE.md](FUTURE_HARDWARE.md)).
