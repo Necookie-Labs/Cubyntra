@@ -96,7 +96,7 @@ Checklist for `docs/tutor/GOAL.md`. Tick an item only when it is done and tested
 
 ## Phase 10: Finish
 - [x] Accessibility pass (axe page audit, token contrast, 44px targets, reduced motion in the twin; `docs/UI_UX.md` §5)
-- [ ] Docs, README, CHANGELOG, PDFs
+- [x] Docs, README, CHANGELOG, PDFs (every doc in `docs/` checked against the code; README and CHANGELOG 2.0.0 rewritten; `npm run docs:pdf` builds 25 PDFs, now including the tutor docs and ADR-011 to 015)
 - [ ] Morning report
 - [ ] Final gate passed and pushed
 
