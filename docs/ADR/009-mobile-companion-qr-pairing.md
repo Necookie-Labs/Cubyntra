@@ -1,6 +1,6 @@
 # ADR-009: Mobile Companion Scanner with Ephemeral QR Pairing & Center-Sticker Calibration
 
-**Status**: Accepted  
+**Status**: Accepted (amended by ADR-010, ADR-015)  
 **Date**: 2026-09-27  
 **Deciders**: Necookie Labs Core Engineering Team  
 
@@ -65,3 +65,10 @@ We adopted **Alternative 3**:
 - The phone now sends a photo of each face and the desktop reads it, instead of the phone sending nine color labels.
 - Correction to the Decision Outcome above: `buildDynamicPalette` and `resolve54StickerInvariant` were implemented and unit-tested but not called from any scan path. ADR-010 wires them in.
 - "Zero photos are permanently stored" still holds; photos are now held in server memory until the user confirms. See ADR-010 for the privacy trade-off.
+
+---
+
+## Amendment (2026-11-17, [ADR-015](015-state-only-sync.md))
+- The phone reads each face itself again and sends a state message (`face-scanned`: colors, confidences, tile mean colors). No photos or thumbnails are sent or held anywhere.
+- The 6-character `Math.random` session id is replaced by a crypto UUID, a 128-bit secret checked on every sync route and a single-use typed code. `preferredId` is removed. Sessions are capped at 8 and expire when idle.
+- The `/companion?session=<id>` link is replaced by `/companion#s=<id>&k=<secret>&t=<appToken>`; the phone moves the credentials to sessionStorage and strips them from the address bar.
