@@ -46,7 +46,7 @@ open https://localhost:3000
 | `npm run test:watch`| Runs Vitest in interactive watch mode |
 | `npm run test:coverage` | Generates detailed code coverage metrics |
 | `npm run docs:pdf` | Compiles documentation into PDF artifacts in `docs/pdf/` |
-| `npm run coach:eval` | Runs 50 recorded step situations through the coach and writes `data/coach-eval-report.md` (calls Claude only with a key; see §5) |
+| `npm run coach:eval` | Runs 50 real step situations (guided solves of seeded scrambles) through the coach and writes `data/coach-eval-report.md` (calls Claude only with a key; see §5) |
 
 ---
 
@@ -104,8 +104,10 @@ optional: without a key every hint comes from the built-in templates.
   the coach serves templates until the next month. Delete or edit that file only if you know the
   real spend (the Anthropic Console shows it).
 - The server logs `[coach] usage input=... output=... cache_read=... cache_write=... cost=$...`
-  for every live call. After the first call, `cache_read` should be about 4,500 tokens; if it
+  for every live call. After the first call, `cache_read` should be about 4,900 tokens; if it
   stays at 0, something made the system prompt change between calls.
+- The request turns thinking off (`thinking: { type: "disabled" }`, effort `low`) so the whole
+  400-token budget goes to the reply.
 
 ### 5.3 The app token
 `/api/coach` and `/api/coach/status` need the header `x-cubyntra-token`. The laptop's browser
@@ -119,12 +121,28 @@ curl -skN https://localhost:3000/api/coach -H "x-cubyntra-token: $TOKEN" \
 ```
 
 ### 5.4 The eval
-`npm run coach:eval` runs 50 situations from the F2L, OLL and PLL tables (mixed hint levels,
-setups, failed attempts and diagnoses) through the coach, applies the move guardrail and writes
+`npm run coach:eval` runs 50 situations taken from real tutor plans: guided solves of seeded
+scrambles for both methods (every stage, hint levels 1-3, mixed attempt histories), six of them
+with a diagnosis from `diagnoseMistake` after one move is turned the wrong way or skipped. It
+sends each through the coach, applies the move guardrail and writes
 `data/coach-eval-report.md`: how many live replies were kept, fallbacks by reason, guardrail
 failures (must be 0), cost and cache use. With a key it makes 50 real calls (a few cents in
-total, counted toward the cap); without one it checks the templates only. It is never run by the
-test suite or the build.
+total, counted toward the cap); without one it checks the templates only and makes no API call.
+It is never run by the test suite or the build (`tests/coach-eval-situations.test.ts` imports
+the situation list only).
+
+### 5.5 What the coach is sent, and the guardrail
+- Facts come from the plan: stage and case ids and names, grip, setup and algorithm, the plan's
+  `goal` / `lookFor` / `why` / `repeat`, attempts and, at hint level 3, plain-language move names.
+  Templates are built from the same facts, so new stages or cases need no coach change to work.
+- Pass the tutor's `Diagnosis` to `useCoach({ diagnosis })`; it is projected to kind, detail,
+  moveIndex, confidence and description per mistake (top 3), plus `confident` and `showNext`.
+  Move lists and cube states never leave the browser.
+- The guardrail rejects any move outside the step (plus moves named in the top diagnosis
+  description). A lone capital counts as a move only in move-like context (a run of moves, a
+  suffix, backticks, brackets, or after do/then/turn/try), so ordinary prose such as "plan B" or
+  "the F face" is not mistaken for notation. Add cases to `tests/coach-guard.test.ts` when you
+  change it: it has tables both ways.
 
 ---
 

@@ -6,7 +6,7 @@
 import { createHash } from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
 import { COACH_SYSTEM_PROMPT } from '../src/coach/systemPrompt';
-import { COACH_STAGES } from '../src/coach/stages';
+import { STAGE_TIPS } from '../src/coach/stages';
 
 /** Estimate used across the coach code: about 4 characters per token for English text. */
 const CHARS_PER_TOKEN = 4;
@@ -34,10 +34,15 @@ describe('coach system prompt', () => {
     expect(COACH_SYSTEM_PROMPT).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-/i);
   });
 
-  it('teaches every stage of both methods', () => {
-    for (const stage of COACH_STAGES) {
-      expect(COACH_SYSTEM_PROMPT, stage.id).toContain(`- ${stage.id} (`);
+  it('teaches every stage the coach has notes for', () => {
+    for (const key of Object.keys(STAGE_TIPS)) {
+      const id = key.split(':')[1];
+      expect(COACH_SYSTEM_PROMPT, id).toContain(`- ${id} (`);
     }
+  });
+
+  it('names no stage the tutor does not have', () => {
+    expect(COACH_SYSTEM_PROMPT).not.toContain('- flip (');
   });
 
   it('states the move rule and the three hint levels', () => {

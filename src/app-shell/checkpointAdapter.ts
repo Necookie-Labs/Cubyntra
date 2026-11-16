@@ -36,7 +36,6 @@ import type {
   MistakeKind,
   StepPlan,
 } from '@/tutor/types';
-import type { CoachDiagnosis } from '@/coach/types';
 
 export type Recovery =
   /** The student most likely has `state`, held in `grip`: plan the next step from there. */
@@ -77,16 +76,9 @@ export function checkWithEdits(
   return checkCheckpoint(plan, edited);
 }
 
-/** The compact form the coach accepts. */
-export function toCoachDiagnosis(diagnosis: Diagnosis | null): CoachDiagnosis | undefined {
-  if (!diagnosis || diagnosis.likelyMistakes.length === 0) return undefined;
-  return {
-    likelyMistakes: diagnosis.likelyMistakes.slice(0, 5).map((m) => ({
-      kind: m.kind,
-      moveIndex: m.moveIndex,
-      confidence: m.confidence,
-    })),
-  };
+/** The diagnosis to hand the coach (useCoach projects it), or undefined when there is none. */
+export function toCoachDiagnosis(diagnosis: Diagnosis | null): Diagnosis | undefined {
+  return diagnosis && diagnosis.likelyMistakes.length > 0 ? diagnosis : undefined;
 }
 
 // ---------------------------------------------------------------------------------------------

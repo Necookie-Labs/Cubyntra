@@ -192,6 +192,12 @@ export function HomeView() {
           ))}
         </ul>
       </PageSection>
+
+      <p className="border-t-2 border-line-soft pt-4 text-xs leading-relaxed text-muted">
+        Camera images never leave the device that took them; a paired phone sends only the colors it
+        read. Your profile and the coach’s usage log stay on this computer. With the AI coach on,
+        short descriptions of each step (never pictures) go to Anthropic.
+      </p>
     </PageContainer>
   );
 }

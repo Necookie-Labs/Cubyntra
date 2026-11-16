@@ -12,7 +12,7 @@
 
 import type { CubeState } from '../cube/types';
 import type { Grip } from '../cube/grip';
-import type { GuidedSolve, MethodId, StepPlan, TutorProgress } from '../tutor/types';
+import type { GuidedSolve, MethodId, MethodOptions, StepPlan, TutorProgress } from '../tutor/types';
 import type { SolveResult } from './types';
 
 /** Each job: what the request carries and what a successful reply returns. */
@@ -21,15 +21,21 @@ export interface WorkerJobs {
   init: { payload: Record<never, never>; result: { ready: true } };
   /** Solves a state with the two-phase search (validates it first). */
   solve: { payload: { state: CubeState }; result: SolveResult };
-  /** The tutor's next step for a cube held in `grip` (default: as stored), or null when solved. */
+  /**
+   * The tutor's next step for a cube held in `grip` (default: as stored), or null when solved.
+   * `options` on the tutor jobs are the learner settings (default: none, the method as first taught).
+   */
   'tutor.plan': {
-    payload: { state: CubeState; method: MethodId; grip?: Grip; stepIndex?: number };
+    payload: { state: CubeState; method: MethodId; grip?: Grip; stepIndex?: number; options?: MethodOptions };
     result: StepPlan | null;
   };
   /** How far through the method a cube is. */
-  'tutor.progress': { payload: { state: CubeState; method: MethodId }; result: TutorProgress };
+  'tutor.progress': { payload: { state: CubeState; method: MethodId; options?: MethodOptions }; result: TutorProgress };
   /** Every step of a guided solve, as a student who follows each one would do them. */
-  'tutor.guidedSolve': { payload: { state: CubeState; method: MethodId; grip?: Grip }; result: GuidedSolve };
+  'tutor.guidedSolve': {
+    payload: { state: CubeState; method: MethodId; grip?: Grip; options?: MethodOptions };
+    result: GuidedSolve;
+  };
 }
 
 export type WorkerJobType = keyof WorkerJobs;

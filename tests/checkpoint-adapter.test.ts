@@ -79,7 +79,7 @@ describe('checkpoint adapter', () => {
     expect(fixed.result.status).toBe('match');
   });
 
-  it('hands the coach a compact diagnosis', () => {
+  it('hands the coach the diagnosis only when it names a mistake', () => {
     expect(toCoachDiagnosis(null)).toBeUndefined();
     expect(toCoachDiagnosis({ likelyMistakes: [], confident: false })).toBeUndefined();
     const diagnosis = {
@@ -97,8 +97,6 @@ describe('checkpoint adapter', () => {
         },
       ],
     };
-    expect(toCoachDiagnosis(diagnosis)).toEqual({
-      likelyMistakes: [{ kind: 'skipped-move', moveIndex: 2, confidence: 0.7 }],
-    });
+    expect(toCoachDiagnosis(diagnosis)).toBe(diagnosis);
   });
 });

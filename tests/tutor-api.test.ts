@@ -4,9 +4,12 @@ import { describe, expect, it } from 'vitest';
 import { applyMoves, isCubeSolved, parseAlgorithm } from '../src/cube/transforms';
 import {
   CASE_IDS,
+  CFOP_FULL_CASE_IDS,
   METHODS,
   MethodId,
   TutorPlanError,
+  allCaseIds,
+  caseIdsByStage,
   caseIdsOf,
   countTurns,
   currentStage,
@@ -82,6 +85,95 @@ describe('tutor public API', () => {
     }
     expect(caseIdsOf('cfop')).toHaveLength(1 + 43 + 3 + 7 + 2 + 4 + 3);
     expect(caseIdsOf('beginner')).toHaveLength(22);
+  });
+
+  it('lists the full last-layer case ids under the lastLayer setting, and leaves the default alone', () => {
+    const FULL = { lastLayer: 'full' } as const;
+    expect(caseIdsByStage('cfop')).toBe(CASE_IDS.cfop);
+    expect(caseIdsByStage('cfop', { lastLayer: '2-look' })).toBe(CASE_IDS.cfop);
+    expect(caseIdsByStage('cfop', FULL)).toBe(CFOP_FULL_CASE_IDS);
+    expect(caseIdsByStage('beginner', FULL)).toBe(CASE_IDS.beginner);
+
+    expect(Object.keys(CFOP_FULL_CASE_IDS)).toEqual(getMethod('cfop', FULL).stages.map((s) => s.id));
+    expect(CFOP_FULL_CASE_IDS.oll).toHaveLength(57);
+    expect(CFOP_FULL_CASE_IDS.oll[0]).toBe('oll-01');
+    expect(CFOP_FULL_CASE_IDS.oll[56]).toBe('oll-57');
+    expect(CFOP_FULL_CASE_IDS.pll).toHaveLength(21);
+    expect(CFOP_FULL_CASE_IDS.pll).toContain('pll-ga');
+    for (const stage of ['cross', 'f2l', 'auf']) expect(CFOP_FULL_CASE_IDS[stage]).toBe(CASE_IDS.cfop[stage]);
+
+    const full = caseIdsOf('cfop', FULL);
+    expect(full).toHaveLength(1 + 43 + 57 + 21 + 3);
+    expect(new Set(full).size).toBe(full.length);
+    // No id means one thing in the 2-look tables and another in the full ones.
+    const twoLookOnly = caseIdsOf('cfop').filter((id) => !CASE_IDS.cfop.cross.includes(id) && !CASE_IDS.cfop.f2l.includes(id) && !CASE_IDS.cfop.auf.includes(id));
+    expect(twoLookOnly.filter((id) => full.includes(id))).toEqual([]);
+
+    const all = allCaseIds();
+    expect(new Set(all).size).toBe(all.length);
+    expect(all).toHaveLength(22 + 63 + 57 + 21);
+    for (const id of [...caseIdsOf('beginner'), ...caseIdsOf('cfop'), ...full]) expect(all).toContain(id);
+  });
+});
+
+describe('learner setting: lastLayer', () => {
+  const FULL = { lastLayer: 'full' } as const;
+  /** A scramble as the student has it when the first two layers are done. */
+  const lastLayerStart = (n: number) =>
+    runGuidedSolve(scrambledState(52, n), 'cfop').steps.find((s) => !['cross', 'f2l'].includes(s.stage))!.startState;
+
+  it('defaults to the 2-look last layer, and the default changes nothing', () => {
+    expect(getMethod('cfop', {})).toBe(getMethod('cfop'));
+    expect(getMethod('cfop', { lastLayer: '2-look' })).toBe(getMethod('cfop'));
+    expect(getMethod('cfop').options).toBeUndefined();
+    const start = lastLayerStart(0);
+    const plan = planNextStep(start, 'cfop')!;
+    expect('options' in plan).toBe(false);
+    expect(planNextStep(start, 'cfop', undefined, 0, {})).toEqual(plan);
+    expect(planNextStep(start, 'cfop', undefined, 0, { lastLayer: '2-look' })).toEqual(plan);
+    expect(runGuidedSolve(start, 'cfop', undefined, { lastLayer: '2-look' })).toEqual(runGuidedSolve(start, 'cfop'));
+  });
+
+  it("selects the full last layer with 'full', for CFOP only", () => {
+    const full = getMethod('cfop', FULL);
+    expect(full.id).toBe('cfop');
+    expect(full.options).toEqual(FULL);
+    expect(full.stages.map((s) => s.id)).toEqual(['cross', 'f2l', 'oll', 'pll', 'auf']);
+    expect(getMethod('beginner', FULL)).toBe(getMethod('beginner'));
+    expect(() => getMethod('cfop', { lastLayer: '1-look' as 'full' })).toThrow(TutorPlanError);
+    expect(() => planNextStep(whiteTop, 'cfop', undefined, 0, { lastLayer: 'zbll' as 'full' })).toThrow(TutorPlanError);
+  });
+
+  it('plans, reports progress and solves with the setting, and every plan carries it', () => {
+    for (let n = 0; n < 5; n++) {
+      const start = lastLayerStart(n);
+      const stage = currentStage(start, 'cfop', FULL)!.id;
+      expect(['oll', 'pll']).toContain(stage);
+      expect(progress(start, 'cfop', FULL).stage).toBe(stage);
+
+      const plan = planNextStep(start, 'cfop', undefined, 4, FULL)!;
+      expect(plan).toMatchObject({ method: 'cfop', stage, stepIndex: 4, options: FULL });
+      expect(plan.progressBefore).toBe(progress(start, 'cfop', FULL).value);
+      expect(plan.progressAfter).toBe(progress(plan.expectedState, 'cfop', FULL).value);
+
+      const solve = runGuidedSolve(start, 'cfop', undefined, FULL);
+      expect(isCubeSolved(solve.finalState)).toBe(true);
+      expect(solve.steps.length).toBeLessThanOrEqual(3);
+      for (const step of solve.steps) {
+        expect(step.options).toEqual(FULL);
+        expect(['oll', 'pll', 'auf']).toContain(step.stage);
+      }
+      expect(solve.steps.length).toBeLessThanOrEqual(runGuidedSolve(start, 'cfop').steps.length);
+    }
+  });
+
+  it('solves a scrambled cube from the first step with the full last layer', () => {
+    const start = scrambledState(52, 9);
+    const full = runGuidedSolve(start, 'cfop', { top: 'yellow', front: 'red' }, FULL);
+    expect(isCubeSolved(full.finalState)).toBe(true);
+    expect(full.steps[0].grip).toEqual({ top: 'yellow', front: 'red' });
+    expect(full.steps.every((s) => s.options?.lastLayer === 'full')).toBe(true);
+    expect(progress(full.finalState, 'cfop', FULL)).toMatchObject({ done: true, stageIndex: 5 });
   });
 });
 

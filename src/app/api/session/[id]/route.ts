@@ -1,33 +1,32 @@
 /**
  * Cubyntra - Session Inspection & Deletion Route Handler
- * GET /api/session/[id]
- * DELETE /api/session/[id]
+ * GET    /api/session/[id]   the session snapshot (no secret, no images)
+ * DELETE /api/session/[id]   ends the pairing; open streams receive `ended` and close
+ *
+ * Both require the session secret in `x-cubyntra-session`: 404 unknown session, 403 wrong secret.
  */
 
-import { NextRequest, NextResponse } from 'next/server';
 import { sessionManager } from '@/sync/sessionManager';
+import { guardSession } from '@/sync/server';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(
-  _req: NextRequest,
-  context: { params: Promise<{ id: string }> }
-) {
+type Context = { params: Promise<{ id: string }> };
+
+export async function GET(req: Request, context: Context) {
   const { id } = await context.params;
-  const session = sessionManager.getSession(id);
-
-  if (!session) {
-    return NextResponse.json({ success: false, error: 'Session not found or expired' }, { status: 404 });
-  }
-
-  return NextResponse.json({ success: true, session });
+  const denied = guardSession(req, id);
+  if (denied) return denied;
+  return Response.json(
+    { success: true, snapshot: sessionManager.snapshot(id) },
+    { headers: { 'Cache-Control': 'no-store' } }
+  );
 }
 
-export async function DELETE(
-  _req: NextRequest,
-  context: { params: Promise<{ id: string }> }
-) {
+export async function DELETE(req: Request, context: Context) {
   const { id } = await context.params;
+  const denied = guardSession(req, id);
+  if (denied) return denied;
   sessionManager.deleteSession(id);
-  return NextResponse.json({ success: true, message: 'Session deleted' });
+  return Response.json({ success: true });
 }

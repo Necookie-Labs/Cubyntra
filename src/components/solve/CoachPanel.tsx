@@ -12,8 +12,8 @@
 
 import React, { useEffect, useRef } from 'react';
 import { Eye, Lightbulb, ListOrdered, MessageSquare } from 'lucide-react';
-import type { StepPlan } from '@/tutor/types';
-import type { AttemptRecord, CoachDiagnosis, HintLevel } from '@/coach/types';
+import type { Diagnosis, StepPlan } from '@/tutor/types';
+import type { AttemptRecord, HintLevel } from '@/coach/types';
 import { useCoach } from '@/coach/useCoach';
 import { BlockButton, Chip, Panel, cx } from '@/components/ui';
 
@@ -21,7 +21,7 @@ export interface CoachPanelProps {
   plan: StepPlan;
   token: string | null;
   attempts: readonly AttemptRecord[];
-  diagnosis?: CoachDiagnosis;
+  diagnosis?: Diagnosis;
   /** Ask for an explanation as soon as a diagnosis arrives (after a mismatch). */
   explainDiagnosis?: boolean;
   className?: string;
@@ -39,7 +39,7 @@ export function CoachPanel({ plan, token, attempts, diagnosis, explainDiagnosis 
   const busy = coach.status === 'loading' || coach.status === 'streaming';
 
   // One explanation per diagnosis, not one per render.
-  const explained = useRef<CoachDiagnosis | undefined>(undefined);
+  const explained = useRef<Diagnosis | undefined>(undefined);
   useEffect(() => {
     if (!explainDiagnosis || !diagnosis || explained.current === diagnosis) return;
     explained.current = diagnosis;

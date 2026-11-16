@@ -28,6 +28,7 @@ Key Core Principles:
 - `src/vision/`: Camera capture, 3x3 sampling grid, HSV/CIELAB conversion, center calibration, temporal stability.
 - `src/solver/`: Herbert Kociemba two-phase solving algorithm and move sequence parsing.
 - `src/three/`: Three.js rendering, 27-cubie construction, layer rotation animations, directional arrows, camera controls.
+- `src/sync/`: Phone ↔ laptop pairing and state-only sync (ADR-015). Messages carry cube state, steps and playback, never images; every sync route checks the session secret.
 - `src/stores/`: Zustand store (`useCubyntraStore`) coordinating UI flow and scan/solve states.
 - `src/components/`: Modular React components (Scanner, Visualizer, Controls, Debugger, Background).
 - `docs/`: Comprehensive engineering documentation and architectural decision records (ADRs).

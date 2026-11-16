@@ -209,6 +209,7 @@ export function planNextStepIn(
     ...draft,
     setupMoves,
     method,
+    ...(definition.options ? { options: definition.options } : {}),
     stage: stage.id,
     stageName: stage.name,
     stageIndex: before.stageIndex,

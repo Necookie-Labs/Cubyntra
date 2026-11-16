@@ -1,52 +1,70 @@
 'use client';
 
 /**
- * Cubyntra - Phone Side of a Scanning Session
+ * Cubyntra - Phone Side of a Pairing
  * Necookie Labs (c) 2026
  *
- * Sends face photos to the desktop and listens for its decisions: whether each photo
- * could be read, requests to retake a face, and confirmation that the scan is done.
+ * The phone reads each face itself and sends only the colors (`face-scanned`). It hears the
+ * laptop's scan decisions (retake a face, scan confirmed), mirrors the step and playback, and can
+ * control playback too. No image ever leaves the phone (ADR-015).
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { CubeColor, Face } from '@/cube/types';
-import { CaptureQualitySummary, FaceVerdictPayload, RescanRequestPayload, SessionEvent } from './types';
+import { Face } from '@/cube/types';
+import { PairingCredentials } from './pairingLink';
+import { applyPlaybackAction, PlaybackView, shouldApplyPlayback, viewFromState } from './playbackSync';
+import { newClientId, openSyncStream, postSyncMessage } from './syncClient';
+import { FaceScannedPayload, PlaybackPayload, StepPayload, SyncEvent, SyncMessage } from './types';
 
-export type PhoneFaceStatus = 'sending' | 'reading' | 'accepted' | 'rejected';
-
-/** How long to wait for the computer to read a photo before telling the user something is off. */
-const VERDICT_TIMEOUT_MS = 15_000;
+export type PhoneFaceStatus = 'sending' | 'accepted' | 'rejected';
 
 export interface MobileSession {
+  /** The event stream to the laptop is open. */
   connected: boolean;
+  /** The laptop ended the pairing or it expired; a new QR code or code is needed. */
+  ended: boolean;
   status: Partial<Record<Face, PhoneFaceStatus>>;
   reasons: Partial<Record<Face, string>>;
-  previews: Partial<Record<Face, CubeColor[]>>;
-  /** The user confirmed the scan on the computer. */
+  /** The student confirmed the scan on the laptop. */
   confirmed: boolean;
-  /** Latest request from the computer to retake a face; `at` distinguishes repeats. */
+  /** Latest request from the laptop to retake a face; `at` distinguishes repeats. */
   rescanRequest: { face: Face; at: number } | null;
-  sendPhoto: (face: Face, imageDataUrl: string, quality?: CaptureQualitySummary) => Promise<void>;
+  step: StepPayload | null;
+  playback: PlaybackView;
+  /** Sends a face read on this phone (or just accepts it when not paired). */
+  sendFace: (payload: FaceScannedPayload) => Promise<void>;
+  /** Marks a face as needing a retake, with the reason to show. */
+  rejectFace: (face: Face, reason: string) => void;
+  /** Play / pause / seek / speed from the phone. */
+  controlPlayback: (payload: PlaybackPayload) => void;
   reset: () => void;
-  /** Scan another cube on the same pairing: clears this phone and tells the computer. */
+  /** Scan another cube on the same pairing: clears this phone and tells the laptop. */
   startOver: () => Promise<void>;
 }
 
-export function useMobileSession(sessionId: string | null): MobileSession {
+const INITIAL_PLAYBACK: PlaybackView = { playing: false, index: -1, speed: 1 };
+
+export function useMobileSession(
+  creds: PairingCredentials | null,
+  options: { onEnded?: () => void } = {}
+): MobileSession {
   const [connected, setConnected] = useState(false);
+  const [ended, setEnded] = useState(false);
   const [status, setStatus] = useState<Partial<Record<Face, PhoneFaceStatus>>>({});
   const [reasons, setReasons] = useState<Partial<Record<Face, string>>>({});
-  const [previews, setPreviews] = useState<Partial<Record<Face, CubeColor[]>>>({});
   const [confirmed, setConfirmed] = useState(false);
   const [rescanRequest, setRescanRequest] = useState<{ face: Face; at: number } | null>(null);
-  const timeouts = useRef<Partial<Record<Face, ReturnType<typeof setTimeout>>>>({});
-  const statusRef = useRef(status);
+  const [step, setStep] = useState<StepPayload | null>(null);
+  const [playback, setPlayback] = useState<PlaybackView>(INITIAL_PLAYBACK);
+
+  const clientIdRef = useRef<string | null>(null);
+  const lastPlaybackSeqRef = useRef(0);
+  const onEndedRef = useRef(options.onEnded);
   useEffect(() => {
-    statusRef.current = status;
-  }, [status]);
+    onEndedRef.current = options.onEnded;
+  }, [options.onEnded]);
 
   const settle = useCallback((face: Face, next: PhoneFaceStatus | undefined, reason?: string) => {
-    clearTimeout(timeouts.current[face]);
     setStatus((s) => {
       const copy = { ...s };
       if (next) copy[face] = next;
@@ -57,106 +75,167 @@ export function useMobileSession(sessionId: string | null): MobileSession {
   }, []);
 
   const reset = useCallback(() => {
-    Object.values(timeouts.current).forEach((t) => clearTimeout(t));
-    timeouts.current = {};
     setStatus({});
     setReasons({});
-    setPreviews({});
     setConfirmed(false);
     setRescanRequest(null);
+    setStep(null);
   }, []);
+
+  const send = useCallback(
+    async (message: SyncMessage) => {
+      if (!creds) return null;
+      clientIdRef.current ??= newClientId();
+      const result = await postSyncMessage(creds.sessionId, creds.secret, {
+        ...message,
+        role: 'mobile',
+        clientId: clientIdRef.current,
+      } as SyncMessage & { role: 'mobile'; clientId: string });
+      if (!result.ok && (result.status === 403 || result.status === 404)) {
+        setEnded(true);
+        onEndedRef.current?.();
+      }
+      return result;
+    },
+    [creds]
+  );
+
+  const handleEvent = useCallback(
+    (event: SyncEvent) => {
+      if (event.type === 'playback') {
+        clientIdRef.current ??= newClientId();
+        const apply = shouldApplyPlayback(event, {
+          lastSeq: lastPlaybackSeqRef.current,
+          ownClientId: clientIdRef.current,
+          drives: false,
+          locallyPlaying: false,
+        });
+        lastPlaybackSeqRef.current = Math.max(lastPlaybackSeqRef.current, event.seq);
+        if (apply) setPlayback((v) => applyPlaybackAction(v, event.payload));
+        return;
+      }
+      if (event.type === 'step') {
+        setStep(event.payload);
+        return;
+      }
+      if (event.type !== 'scan-control') return;
+      const control = event.payload;
+      if (control.action === 'rescan') {
+        settle(control.face, undefined);
+        setConfirmed(false);
+        setRescanRequest({ face: control.face, at: event.seq });
+      } else if (control.action === 'confirmed') {
+        setConfirmed(true);
+      } else if (event.role === 'desktop') {
+        reset();
+      }
+    },
+    [reset, settle]
+  );
+
+  const handleEventRef = useRef(handleEvent);
+  useEffect(() => {
+    handleEventRef.current = handleEvent;
+  }, [handleEvent]);
+
+  useEffect(() => {
+    if (!creds) return;
+    const stream = openSyncStream({
+      sessionId: creds.sessionId,
+      secret: creds.secret,
+      role: 'mobile',
+      onStatus: (s) => {
+        setConnected(s === 'open');
+        if (s === 'open') {
+          void send({
+            type: 'presence',
+            payload: { visible: document.visibilityState === 'visible', screen: 'scan' },
+          });
+        }
+      },
+      onEnded: () => {
+        setConnected(false);
+        setEnded(true);
+        onEndedRef.current?.();
+      },
+      onEvent: (event) => {
+        if (event.kind === 'snapshot') {
+          const { snapshot } = event;
+          setEnded(false);
+          setConfirmed(snapshot.scanConfirmed);
+          setStatus((s) => {
+            const next = { ...s };
+            for (const face of Object.keys(snapshot.faces) as Face[]) next[face] = 'accepted';
+            return next;
+          });
+          setStep(snapshot.step?.type === 'step' ? snapshot.step.payload : null);
+          lastPlaybackSeqRef.current = snapshot.playback.seq;
+          setPlayback(viewFromState(snapshot.playback));
+        } else if (event.kind === 'message') {
+          handleEventRef.current(event.event);
+        }
+      },
+    });
+
+    const onVisibility = () =>
+      void send({ type: 'presence', payload: { visible: document.visibilityState === 'visible' } });
+    document.addEventListener('visibilitychange', onVisibility);
+
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      stream.close();
+      setConnected(false);
+    };
+  }, [creds, send]);
+
+  const sendFace = useCallback(
+    async (payload: FaceScannedPayload) => {
+      // Without a pairing the phone scans on its own.
+      if (!creds) {
+        settle(payload.face, 'accepted');
+        return;
+      }
+      settle(payload.face, 'sending');
+      const result = await send({ type: 'face-scanned', payload });
+      if (result?.ok) settle(payload.face, 'accepted');
+      else if (result && (result.status === 403 || result.status === 404)) {
+        settle(payload.face, 'rejected', 'This pairing has ended. Scan the QR code on your computer again.');
+      } else {
+        settle(payload.face, 'rejected', 'Could not reach your computer. Check that both are on the same Wi-Fi.');
+      }
+    },
+    [creds, send, settle]
+  );
+
+  const rejectFace = useCallback((face: Face, reason: string) => settle(face, 'rejected', reason), [settle]);
+
+  const controlPlayback = useCallback(
+    (payload: PlaybackPayload) => {
+      setPlayback((v) => applyPlaybackAction(v, payload));
+      void send({ type: 'playback', payload });
+    },
+    [send]
+  );
 
   const startOver = useCallback(async () => {
     reset();
-    if (!sessionId) return;
-    try {
-      // The computer answers with SESSION_RESET and starts a fresh phone scan.
-      await fetch(`/api/session/${sessionId}/reset`, { method: 'POST' });
-    } catch {
-      // If the computer cannot be reached, the next photo reports it.
-    }
-  }, [reset, sessionId]);
+    // The laptop answers by starting a fresh phone scan on the same pairing.
+    await send({ type: 'scan-control', payload: { action: 'reset' } });
+  }, [reset, send]);
 
-  useEffect(() => {
-    if (!sessionId) return;
-    const es = new EventSource(`/api/session/${sessionId}/events?role=mobile`);
-    es.onopen = () => setConnected(true);
-    es.onerror = () => setConnected(false);
-    es.onmessage = (msg) => {
-      let event: SessionEvent;
-      try {
-        event = JSON.parse(msg.data) as SessionEvent;
-      } catch {
-        return;
-      }
-      switch (event.type) {
-        case 'FACE_VERDICT': {
-          const verdict = event.payload as FaceVerdictPayload;
-          settle(verdict.face, verdict.accepted ? 'accepted' : 'rejected', verdict.reason);
-          if (verdict.previewColors) setPreviews((p) => ({ ...p, [verdict.face]: verdict.previewColors }));
-          break;
-        }
-        case 'RESCAN_REQUEST': {
-          const { face } = event.payload as RescanRequestPayload;
-          settle(face, undefined);
-          setConfirmed(false);
-          setRescanRequest({ face, at: event.timestamp });
-          break;
-        }
-        case 'SCAN_CONFIRMED':
-          setConfirmed(true);
-          break;
-        case 'SESSION_RESET':
-          reset();
-          break;
-      }
-    };
-    return () => {
-      es.close();
-      setConnected(false);
-    };
-  }, [sessionId, settle, reset]);
-
-  useEffect(() => {
-    const pending = timeouts.current;
-    return () => Object.values(pending).forEach((t) => clearTimeout(t));
-  }, []);
-
-  const sendPhoto = useCallback(
-    async (face: Face, imageDataUrl: string, quality?: CaptureQualitySummary) => {
-      // Without a session the phone scans on its own; there is no computer to ask.
-      if (!sessionId) {
-        settle(face, 'accepted');
-        return;
-      }
-
-      settle(face, 'sending');
-      try {
-        const res = await fetch(`/api/session/${sessionId}/face`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ face, imageDataUrl, capturedAt: Date.now(), quality }),
-        });
-        if (!res.ok) {
-          const body = await res.json().catch(() => ({}));
-          settle(face, 'rejected', res.status === 404 ? 'This session has ended. Scan the QR code again.' : body.error);
-          return;
-        }
-      } catch {
-        settle(face, 'rejected', 'Could not reach your computer. Check that both are on the same Wi-Fi.');
-        return;
-      }
-
-      setStatus((s) => ({ ...s, [face]: 'reading' }));
-      clearTimeout(timeouts.current[face]);
-      timeouts.current[face] = setTimeout(() => {
-        if (statusRef.current[face] === 'reading') {
-          settle(face, 'rejected', 'Your computer did not answer. Is the Cubyntra tab still open?');
-        }
-      }, VERDICT_TIMEOUT_MS);
-    },
-    [sessionId, settle]
-  );
-
-  return { connected, status, reasons, previews, confirmed, rescanRequest, sendPhoto, reset, startOver };
+  return {
+    connected,
+    ended,
+    status,
+    reasons,
+    confirmed,
+    rescanRequest,
+    step,
+    playback,
+    sendFace,
+    rejectFace,
+    controlPlayback,
+    reset,
+    startOver,
+  };
 }

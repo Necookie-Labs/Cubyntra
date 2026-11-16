@@ -67,8 +67,14 @@ const MAX_GAIN = 2;
 const GAIN_OFFSET = 4;
 /** Times the gains are re-fitted to all tiles that already sit near a palette color. */
 const GAIN_REFINEMENTS = 2;
-/** Cost of correcting, per squared log-gain: keeps the smallest correction among equal fits. */
-const GAIN_PENALTY = 6;
+/**
+ * Cost of correcting, so the smallest correction wins among equal fits. Light changes mostly in
+ * brightness (all channels together) and only a little in color, so a correction that pulls the
+ * channels apart costs far more than one that scales them together: without that, a dim, warm
+ * photo of an all-yellow face could be "corrected" into an all-orange one.
+ */
+const BRIGHTNESS_PENALTY = 2;
+const TINT_PENALTY = 40;
 /** One tile cannot add more than this to a correction's cost (glare, a finger). */
 const TILE_COST_CAP = 6;
 
@@ -243,12 +249,13 @@ function refitGains(
   rgbs: readonly RGBColor[],
   readings: readonly PaletteReading[],
   centerColor: CubeColor,
-  palette: StudentPalette
+  palette: StudentPalette,
+  skip?: readonly boolean[]
 ): Gains {
   const top = [0, 0, 0];
   const bottom = [0, 0, 0];
   rgbs.forEach((rgb, i) => {
-    if (i !== 4 && readings[i].distance > TILE_COST_CAP) return;
+    if (i !== 4 && (skip?.[i] || readings[i].distance > TILE_COST_CAP)) return;
     const target = palette.colors[i === 4 ? centerColor : readings[i].color].rgb;
     const observed = [rgb.r, rgb.g, rgb.b];
     [target.r, target.g, target.b].forEach((t, c) => {
@@ -264,9 +271,14 @@ function refitGains(
  * correcting for the lighting of this photo. Seven corrections are tried: none, and one per
  * cube color that maps the observed center onto that color, each then re-fitted to all the
  * tiles it explains. The one under which the other eight tiles sit closest to palette colors
- * wins, with a small cost for correcting at all.
+ * wins, with a small cost for correcting at all. Tiles marked in `skip` (glare) are still
+ * classified but take no part in choosing the correction.
  */
-export function classifyFaceWithPalette(rgbs: readonly RGBColor[], palette: StudentPalette): PaletteReading[] {
+export function classifyFaceWithPalette(
+  rgbs: readonly RGBColor[],
+  palette: StudentPalette,
+  skip?: readonly boolean[]
+): PaletteReading[] {
   if (rgbs.length !== 9) throw new Error(`A face has 9 tiles, got ${rgbs.length}`);
 
   const read = (gains: Gains) => rgbs.map((rgb) => classifyWithPalette(applyGains(rgb, gains), palette));
@@ -275,13 +287,18 @@ export function classifyFaceWithPalette(rgbs: readonly RGBColor[], palette: Stud
     let readings = read(gains);
     if (centerColor) {
       for (let round = 0; round < GAIN_REFINEMENTS; round++) {
-        gains = refitGains(rgbs, readings, centerColor, palette);
+        gains = refitGains(rgbs, readings, centerColor, palette, skip);
         readings = read(gains);
       }
     }
-    const fit = readings.reduce((sum, r, i) => (i === 4 ? sum : sum + Math.min(r.distance, TILE_COST_CAP)), 0);
-    const correction = gains.reduce((sum, g) => sum + Math.log(g) ** 2, 0);
-    return { readings, cost: fit + GAIN_PENALTY * correction };
+    const fit = readings.reduce(
+      (sum, r, i) => (i === 4 || skip?.[i] ? sum : sum + Math.min(r.distance, TILE_COST_CAP)),
+      0
+    );
+    const logs = gains.map(Math.log);
+    const brightness = (logs[0] + logs[1] + logs[2]) / 3;
+    const tint = logs.reduce((sum, l) => sum + (l - brightness) ** 2, 0);
+    return { readings, cost: fit + 3 * BRIGHTNESS_PENALTY * brightness ** 2 + TINT_PENALTY * tint };
   };
 
   const plain = attempt(IDENTITY);
@@ -312,8 +329,12 @@ export function classifyFaceWithPalette(rgbs: readonly RGBColor[], palette: Stud
  * Classifies a face with the student's palette, or with the static classifier when no full
  * scan has stored one yet. Static readings the classifier rejects as non-cube get confidence 0.
  */
-export function classifyFace(rgbs: readonly RGBColor[], palette?: StudentPalette | null): PaletteReading[] {
-  if (palette) return classifyFaceWithPalette(rgbs, palette);
+export function classifyFace(
+  rgbs: readonly RGBColor[],
+  palette?: StudentPalette | null,
+  skip?: readonly boolean[]
+): PaletteReading[] {
+  if (palette) return classifyFaceWithPalette(rgbs, palette, skip);
   return rgbs.map((rgb) => {
     const result = classifyColor(rgb);
     const runnerUp = COLORS.filter((c) => c !== result.color).sort((x, y) => result.scores[y] - result.scores[x])[0];

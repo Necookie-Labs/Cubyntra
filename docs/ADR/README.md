@@ -19,8 +19,10 @@ This directory contains records of key architectural and engineering decisions m
 | [ADR-006](006-ml-cube-detection-face-rejection.md) | Client-Side Machine Learning Cube Presence & Face Rejection Pipeline | Accepted | 2026-09 |
 | [ADR-007](007-empirical-dataset-gamut-gating.md) | Empirical Dataset Color Profiling & Strict Non-Cube Gamut Gating | Accepted | 2026-09 |
 | [ADR-008](008-speedcube-pbr-geometry-digital-twin.md) | High-Precision Speedcube Physical Geometry & PBR Digital Twin | Visual direction superseded by ADR-011 | 2026-09 |
-| [ADR-009](009-mobile-companion-qr-pairing.md) | Mobile Companion Scanner with Ephemeral QR Pairing & Center-Sticker Calibration | Amended by ADR-010 | 2026-09 |
-| [ADR-010](010-desktop-side-analysis-and-global-color-resolution.md) | Desktop-Side Photo Analysis & Global 54-Sticker Color Resolution | Accepted | 2026-09 |
+| [ADR-009](009-mobile-companion-qr-pairing.md) | Mobile Companion Scanner with Ephemeral QR Pairing & Center-Sticker Calibration | Amended by ADR-010, ADR-015 | 2026-09 |
+| [ADR-010](010-desktop-side-analysis-and-global-color-resolution.md) | Desktop-Side Photo Analysis & Global 54-Sticker Color Resolution | Transport amended by ADR-015 | 2026-09 |
 | [ADR-011](011-voxel-design-system.md) | Voxel Design System: Flat Tokens, Blocks and Enforced Style Rules | Accepted | 2026-11 |
 | [ADR-012](012-deterministic-tutor-engine.md) | Deterministic Tutor Engine, Claude as Explainer Only | Accepted | 2026-11 |
+| [ADR-013](013-checkpoint-verification.md) | Checkpoint Verification, Mistake Diagnosis and Recovery | Accepted | 2026-11 |
 | [ADR-014](014-claude-coach.md) | Claude Coach: Haiku 5.5 Explanations with a Move Guardrail, Templates and a Spend Cap | Accepted | 2026-11 |
+| [ADR-015](015-state-only-sync.md) | State-Only Phone ↔ Laptop Sync: Authenticated Pairing, No Pixels Leave the Device | Accepted | 2026-11 |

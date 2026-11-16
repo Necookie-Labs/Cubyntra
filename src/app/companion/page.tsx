@@ -4,16 +4,21 @@
  * Cubyntra - Mobile Companion Scanner
  * Necookie Labs (c) 2026
  *
- * The phone half of a scan. It coaches the user through six photos, checks each live frame
- * for the usual problems (wrong face, glare, darkness, motion), takes the photo by itself
- * once the frame holds steady, and sends a crop of exactly the reticle to the computer,
- * which reads the colors and answers.
+ * The phone half of a scan. It coaches the user through six faces, checks each live frame
+ * for the usual problems (wrong face, glare, darkness, motion), reads the face by itself once
+ * the frame holds steady, and sends only the colors to the computer (ADR-015). The photo is
+ * read in this tab and discarded; it never leaves the phone.
+ *
+ * Pairing: the QR link carries the credentials in its fragment; they move to sessionStorage and
+ * the fragment is stripped (`src/sync/pairingStorage.ts`). Without a QR scan the student can
+ * type the six-character code instead.
  */
 
 import React, { useCallback, useEffect, useRef, useState, useSyncExternalStore, Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
 import { SCAN_SEQUENCE } from '@/cube/constants';
-import { CubeColor } from '@/cube/types';
+import { CubeColor, Face } from '@/cube/types';
+import { formatMove, parseAlgorithm } from '@/cube/transforms';
+import { moveName } from '@/cube/moveNames';
 import {
   initializeCameraStream,
   lockWhiteBalance,
@@ -23,11 +28,20 @@ import {
 import { mapElementRectToVideo, sampleGridFromContext } from '@/vision/sampling';
 import { detectCubeInROISync } from '@/vision/cubeDetector';
 import { assessCaptureQuality, CaptureQuality, measureGlare } from '@/vision/captureQuality';
-import { ROIBounds, StickerSample } from '@/vision/types';
+import { ROIBounds, RGBColor, StickerSample } from '@/vision/types';
+import { analyzeFaceContext } from '@/vision/faceImageAnalyzer';
 import { useMobileSession } from '@/sync/useMobileSession';
+import { faceScannedFromSamples } from '@/sync/faceSamples';
+import {
+  getPairingSnapshot,
+  getServerPairingSnapshot,
+  setPairing,
+  subscribePairing,
+} from '@/sync/pairingStorage';
 import { CompanionReticle, ReticleTone } from '@/components/companion/CompanionReticle';
 import { FaceGuide } from '@/components/companion/FaceGuide';
 import { CaptureCoach, hasSeenCaptureCoach } from '@/components/companion/CaptureCoach';
+import { PairCodeDialog } from '@/components/companion/PairCodeDialog';
 import { BlockButton, IconButton, Panel, cx, stickerColor } from '@/components/ui';
 import {
   AlertCircle,
@@ -37,13 +51,16 @@ import {
   ChevronLeft,
   ChevronRight,
   CircleHelp,
+  Link2,
   Loader2,
   Monitor,
+  Pause,
+  Play,
   RotateCcw,
   Zap,
 } from 'lucide-react';
 
-/** Size of the photo sent to the computer: plenty for nine tiles, small enough to send fast. */
+/** Size of the crop read on the phone: plenty for nine tiles. It is never sent anywhere. */
 const PHOTO_SIZE = 512;
 /** How often the live frame is checked. */
 const SAMPLE_INTERVAL_MS = 150;
@@ -70,9 +87,12 @@ function toScreenRect(el: Element) {
 }
 
 function CompanionScannerContent() {
-  const searchParams = useSearchParams();
-  const sessionId = searchParams.get('session');
-  const session = useMobileSession(sessionId);
+  const pairing = useSyncExternalStore(subscribePairing, getPairingSnapshot, getServerPairingSnapshot);
+  const sessionId = pairing?.sessionId ?? null;
+  const session = useMobileSession(pairing, { onEnded: () => setPairing(null) });
+  const [showCodeEntry, setShowCodeEntry] = useState(false);
+  // Faces read on this phone, used to calibrate each next face against the centers seen so far.
+  const acceptedSamplesRef = useRef<Partial<Record<Face, StickerSample[]>>>({});
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -101,7 +121,7 @@ function CompanionScannerContent() {
   const isAccepted = (i: number) => session.status[SCAN_SEQUENCE[i].face] === 'accepted';
   const isAllComplete = SCAN_SEQUENCE.every((_, i) => isAccepted(i));
   const currentStatus = session.status[currentStep.face];
-  const isWaitingOnComputer = currentStatus === 'sending' || currentStatus === 'reading';
+  const isWaitingOnComputer = currentStatus === 'sending';
 
   // Move on once the computer has read the current face. Faces can be done out of order,
   // so jump to the first one still missing.
@@ -172,9 +192,9 @@ function CompanionScannerContent() {
     };
   }, [cameraAttempt]);
 
-  // Take the photo: crop exactly the reticle square and send it to the computer.
+  // Read the face: crop exactly the reticle square, read it here, send only the colors.
   const takePhoto = useCallback(
-    async (snapshot: CaptureQuality | null) => {
+    async () => {
       const video = videoRef.current;
       const roi = reticleRegion();
       if (!video || !roi || isCapturing) return;
@@ -191,17 +211,26 @@ function CompanionScannerContent() {
         const photo = document.createElement('canvas');
         photo.width = PHOTO_SIZE;
         photo.height = PHOTO_SIZE;
-        const pctx = photo.getContext('2d');
+        const pctx = photo.getContext('2d', { willReadFrequently: true });
         if (!pctx) throw new Error('Canvas context unavailable');
         pctx.drawImage(video, roi.x, roi.y, roi.size, roi.size, 0, 0, PHOTO_SIZE, PHOTO_SIZE);
 
-        await session.sendPhoto(
-          currentStep.face,
-          photo.toDataURL('image/jpeg', 0.9),
-          snapshot
-            ? { passed: snapshot.ready, failing: snapshot.checks.filter((c) => !c.ok).map((c) => c.id) }
-            : undefined
-        );
+        const face = currentStep.face;
+        const knownCenters: Partial<Record<Face, RGBColor>> = {};
+        for (const [f, samples] of Object.entries(acceptedSamplesRef.current) as [Face, StickerSample[]][]) {
+          if (f !== face) knownCenters[f] = samples[4].rgb;
+        }
+        const analysis = analyzeFaceContext(pctx, PHOTO_SIZE, PHOTO_SIZE, face, knownCenters);
+        // The pixels end here: drop the crop before anything is sent.
+        photo.width = 0;
+        photo.height = 0;
+
+        if (!analysis.accepted) {
+          session.rejectFace(face, analysis.reason ?? 'Take this one again.');
+          return;
+        }
+        acceptedSamplesRef.current[face] = analysis.samples;
+        await session.sendFace(faceScannedFromSamples(face, analysis.samples, analysis.previewColors));
       } catch (err) {
         console.error('[Companion] Capture failed:', err);
       } finally {
@@ -293,7 +322,7 @@ function CompanionScannerContent() {
         armedRef.current = false;
         readySinceRef.current = null;
         setHoldProgress(0);
-        void state.takePhoto(q);
+        void state.takePhoto();
       }
     };
 
@@ -311,9 +340,22 @@ function CompanionScannerContent() {
 
   const handleReset = useCallback(() => {
     void session.startOver();
+    acceptedSamplesRef.current = {};
     setAdvancedFor(null);
     setStepIndex(0);
   }, [session]);
+
+  // Remote control for the solve on the computer (solver mode sends the whole solution).
+  const solutionMoves = (() => {
+    try {
+      return session.step?.algorithm ? parseAlgorithm(session.step.algorithm) : [];
+    } catch {
+      return [];
+    }
+  })();
+  const playIndex = session.playback.index;
+  const playMove = playIndex >= 0 && playIndex < solutionMoves.length ? solutionMoves[playIndex] : null;
+  const atEnd = playIndex >= solutionMoves.length - 1;
 
   // What the reticle and the hint line say right now, most urgent first.
   let tone: ReticleTone = 'idle';
@@ -323,10 +365,7 @@ function CompanionScannerContent() {
     hint = { text: session.reasons[currentStep.face] ?? 'Take this one again.', kind: 'error' };
   } else if (currentStatus === 'sending') {
     tone = 'steady';
-    hint = { text: 'Sending to your computer…', kind: 'progress' };
-  } else if (currentStatus === 'reading') {
-    tone = 'steady';
-    hint = { text: 'Reading on your computer…', kind: 'progress' };
+    hint = { text: 'Sending the colors to your computer…', kind: 'progress' };
   } else if (quality && !quality.ready) {
     tone = quality.topHint === 'Hold still.' ? 'idle' : 'fix';
     hint = { text: quality.topHint ?? 'Line up the cube', kind: 'fix' };
@@ -365,6 +404,11 @@ function CompanionScannerContent() {
           </span>
         </div>
         <div className="flex items-center gap-2">
+          {!sessionId && (
+            <IconButton label="Link with a code" variant="ghost" onClick={() => setShowCodeEntry(true)}>
+              <Link2 className="w-5 h-5" />
+            </IconButton>
+          )}
           <IconButton label="How to take the photos" variant="ghost" onClick={() => setCoachOverride(true)}>
             <CircleHelp className="w-5 h-5" />
           </IconButton>
@@ -510,7 +554,7 @@ function CompanionScannerContent() {
               <button
                 type="button"
                 data-variant="primary"
-                onClick={() => void takePhoto(quality)}
+                onClick={() => void takePhoto()}
                 disabled={isCapturing || isWaitingOnComputer}
                 aria-label="Take photo"
                 className="vx-block w-20 h-20 pb-1 grid place-items-center"
@@ -576,17 +620,56 @@ function CompanionScannerContent() {
           </span>
           <Panel className="vx-place flex flex-col gap-3 max-w-xs p-4 pb-6">
             <h2 className="text-2xl leading-tight">
-              {session.confirmed ? 'Solving on your computer' : sessionId ? 'All six faces read' : 'All six photos taken'}
+              {session.confirmed ? 'Solving on your computer' : sessionId ? 'All six faces read' : 'All six faces read here'}
             </h2>
             <p className="text-sm text-muted leading-relaxed flex items-start gap-2 text-left">
               <Monitor className="w-4 h-4 mt-0.5 shrink-0 text-ink" />
               {session.confirmed
-                ? 'Follow the moves on the 3D cube. You can put your phone down.'
+                ? 'Follow the moves on the 3D cube. You can control them from here too.'
                 : sessionId
                 ? 'Check the cube on your computer, fix any tile it marks, then press Confirm & solve.'
-                : 'Open Cubyntra on a computer and scan its QR code to send your photos there.'}
+                : 'To use a computer, open Cubyntra there and scan its QR code before you scan the cube.'}
             </p>
           </Panel>
+
+          {/* Remote control: either device can play, pause and step; the computer shows the turns. */}
+          {session.confirmed && sessionId && solutionMoves.length > 0 && (
+            <Panel as="section" aria-label="Solution controls" className="flex flex-col items-center gap-3 w-full max-w-xs p-4 pb-5">
+              <p role="status" className="text-sm font-bold text-ink">
+                {playMove
+                  ? `Move ${playIndex + 1} of ${solutionMoves.length}: ${formatMove(playMove)}`
+                  : playIndex < 0
+                  ? `${solutionMoves.length} moves`
+                  : 'Solved'}
+              </p>
+              {playMove && <p className="text-xs text-muted">{moveName(playMove)}</p>}
+              <div className="flex items-center gap-3">
+                <IconButton
+                  label="Previous move"
+                  disabled={playIndex < 0}
+                  onClick={() => session.controlPlayback({ action: 'seek', index: playIndex - 1 })}
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </IconButton>
+                <IconButton
+                  label={session.playback.playing ? 'Pause' : 'Play'}
+                  variant="primary"
+                  size="lg"
+                  disabled={!session.playback.playing && atEnd}
+                  onClick={() => session.controlPlayback({ action: session.playback.playing ? 'pause' : 'play' })}
+                >
+                  {session.playback.playing ? <Pause className="w-6 h-6" /> : <Play className="w-6 h-6" />}
+                </IconButton>
+                <IconButton
+                  label="Next move"
+                  disabled={atEnd}
+                  onClick={() => session.controlPlayback({ action: 'seek', index: playIndex + 1 })}
+                >
+                  <ChevronRight className="w-5 h-5" />
+                </IconButton>
+              </div>
+            </Panel>
+          )}
           <BlockButton size="lg" onClick={handleReset} icon={<RotateCcw className="w-5 h-5" />}>
             Scan another cube
           </BlockButton>
@@ -594,6 +677,15 @@ function CompanionScannerContent() {
       )}
 
       {showCoach && <CaptureCoach onDone={() => setCoachOverride(false)} />}
+
+      <PairCodeDialog
+        open={showCodeEntry && !sessionId}
+        onClose={() => setShowCodeEntry(false)}
+        onPaired={(creds) => {
+          setShowCodeEntry(false);
+          setPairing(creds);
+        }}
+      />
     </div>
   );
 }

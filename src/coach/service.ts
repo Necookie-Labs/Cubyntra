@@ -3,19 +3,19 @@
  * Necookie Labs (c) 2026
  *
  * Produces one coach reply as a sequence of stream events. In live mode it streams Claude
- * Haiku 5.5 (effort low, at most 400 tokens, cached system prompt) and relays text as it
- * arrives, holding back the last partial word so the move guardrail sees each token before the
- * student does. Whenever the reply cannot be trusted (guardrail, refusal, truncation, an API
+ * Haiku 5.5 (thinking off, effort low, at most 400 tokens, cached system prompt) and relays
+ * text as it arrives, holding back the last partial word (and a trailing bare move letter) so
+ * the move guardrail sees each token before the student does. Whenever the reply cannot be trusted (guardrail, refusal, truncation, an API
  * error) the student gets the built-in template instead. Mock mode (no key) and capped mode
  * (monthly cap reached) serve templates through the same events.
  */
 
 import Anthropic from '@anthropic-ai/sdk';
-import { allowedMoves } from './facts';
-import { checkReplyMoves } from './guard';
+import { allowedMoves, guardNames } from './facts';
+import { checkReplyMoves, relayableLength } from './guard';
 import { COACH_MAX_TOKENS, COACH_MODEL, SpendTracker, estimateCallCost, getSpendTracker } from './spend';
 import { COACH_SYSTEM_PROMPT } from './systemPrompt';
-import { CASE_NOTES, NOTICES, templateText } from './templates';
+import { NOTICES, templateText } from './templates';
 import { CoachFacts, CoachMode, CoachStatus, CoachStreamEvent, FallbackReason } from './types';
 
 export interface CoachReplyOptions {
@@ -54,20 +54,22 @@ export function coachStatus(tracker: SpendTracker = getSpendTracker()): CoachSta
   };
 }
 
-/** The exact request sent to Claude. No sampling parameters: the API rejects them. */
+/**
+ * The exact request sent to Claude. No sampling parameters: the API rejects them. Thinking is
+ * off: Haiku 5.5 thinks adaptively by default, and thinking tokens would eat into the 400-token
+ * reply budget (a cut-off reply falls back to the template). Disabled thinking is accepted on
+ * Haiku 5.5 at effort high or below, and this request uses low.
+ */
 export function buildCoachRequest(facts: CoachFacts): Anthropic.MessageStreamParams {
   const messages: Anthropic.MessageParam[] = [{ role: 'user', content: JSON.stringify(facts) }];
   return {
     model: COACH_MODEL,
     max_tokens: COACH_MAX_TOKENS,
+    thinking: { type: 'disabled' },
     output_config: { effort: 'low' },
     system: [{ type: 'text', text: COACH_SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }],
     messages,
   };
-}
-
-function guardNames(facts: CoachFacts): string[] {
-  return [facts.caseName, facts.stageName, CASE_NOTES[facts.caseId]?.name ?? ''];
 }
 
 function fallbackReason(error: unknown): FallbackReason {
@@ -118,8 +120,8 @@ export async function* coachReply(facts: CoachFacts, options: CoachReplyOptions 
     for await (const event of stream) {
       if (rejected || event.type !== 'content_block_delta' || event.delta.type !== 'text_delta') continue;
       full += event.delta.text;
-      // Relay up to the last whitespace: a token is complete once a space follows it.
-      const cut = Math.max(full.lastIndexOf(' '), full.lastIndexOf('\n')) + 1;
+      // Relay only complete tokens, holding back a bare letter that may start a run of moves.
+      const cut = relayableLength(full);
       if (cut <= sent) continue;
       if (!checkReplyMoves(full.slice(0, cut), allowed, names).ok) {
         // Swap in the template now; keep reading so the call's usage can be recorded.

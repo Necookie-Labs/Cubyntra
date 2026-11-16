@@ -102,35 +102,38 @@ The centralized Zustand store (`src/stores/useCubyntraStore.ts`) broadcasts stat
 
 ---
 
-## 5. Phone-to-Desktop Scan Flow ([ADR-010](ADR/010-desktop-side-analysis-and-global-color-resolution.md))
+## 5. Phone-to-Laptop Scan Flow ([ADR-015](ADR/015-state-only-sync.md))
 
 ```mermaid
 sequenceDiagram
     participant P as Phone (/companion)
-    participant S as Session relay (server memory)
-    participant D as Desktop (browser)
+    participant S as Sync relay (laptop server memory)
+    participant D as Laptop (browser)
 
-    D->>S: POST /api/session (QR shows LAN address)
-    P->>S: GET /events?role=mobile (phone connected)
+    D->>D: GET /api/auth/token (loopback only)
+    D->>S: POST /api/session (app token) -> id, 128-bit secret, typed code
+    D->>D: QR = /companion#s=id&k=secret&t=appToken (+ the code to type)
+    P->>P: fragment -> sessionStorage, address bar stripped
+    P->>S: GET /events?role=mobile (secret header)
     loop each of 6 faces
         P->>P: live checks: framing, right face, light, glare, steady
-        P->>S: POST /face { 512 px JPEG crop of the reticle }
-        S-->>D: FACE_IMAGE notice (no pixels)
-        D->>S: GET /face?face=X
-        D->>D: analyze: sample 9 tiles, ML cube check, center check
-        D->>S: POST /verdict { accepted | reason, preview colors }
-        S-->>P: FACE_VERDICT, advance or ask for a retake
+        P->>P: read the crop: sample 9 tiles, ML cube check, center check; pixels discarded
+        P->>S: POST /messages face-scanned { 9 colors, 9 confidences, 9 tile means }
+        S-->>D: message (seq n)
     end
     D->>D: resolve 54 tiles: center calibration, 9-per-color assignment, orientation repair
-    D->>D: review net: user checks flagged tiles against own photos
-    D->>S: POST /confirm (server drops all photos)
-    S-->>P: SCAN_CONFIRMED, "Solving on your computer"
+    D->>D: review net: student checks flagged tiles against the cube in hand
+    D->>S: scan-control confirmed, cube-state, step (solution)
+    S-->>P: "Solving on your computer" + remote controls
+    P->>S: playback play / pause / seek (either device, last writer wins by seq)
     D->>D: Kociemba solve, animated playback on the 3D twin
 ```
 
-- Photos live only in server memory, in a map separate from `SessionState`, from upload until confirm, reset, delete or expiry.
-- Faces may arrive in any order; progress is keyed by face. A newer photo of a face supersedes an older one still being read.
-- The review screen can send `RESCAN_REQUEST` to return the phone to a specific face.
+- No photo leaves the phone. The relay holds only the latest state messages, in memory, until the
+  session is deleted or expires.
+- Faces may arrive in any order; progress is keyed by face. A reading that arrives during review
+  while the student has fixed tiles by hand is held until they choose to use it.
+- The review screen can send `scan-control` `rescan` to return the phone to a specific face.
 
 ---
 

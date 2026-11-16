@@ -53,12 +53,12 @@ Checklist for `docs/tutor/GOAL.md`. Tick an item only when it is done and tested
 - [x] Phase gate passed and pushed
 
 ## Phase 5: Checkpoint checks
-- [ ] Partial-face verification with the student's palette
-- [ ] Mistake diagnosis
-- [ ] Rescan and replan path; manual fallback
-- [ ] Injected-mistake tests (≥ 95% top diagnosis)
-- [ ] ADR-013
-- [ ] Phase gate passed and pushed
+- [x] Partial-face verification with the student's palette (`src/vision/palette.ts`, `checkpointCapture.ts`, `src/tutor/checkpoint.ts`; pure modules, UI wiring pending)
+- [x] Mistake diagnosis (`src/tutor/diagnose.ts`)
+- [x] Rescan and replan path; manual fallback (`src/tutor/recovery.ts`, `confirmManually`, `applyTileEdits`; buttons pending in the UI)
+- [x] Injected-mistake tests (≥ 95% top diagnosis): 1821 / 1821 on synthetic photos, see `docs/tutor/CHECKPOINTS.md`
+- [x] ADR-013
+- [x] Phase gate passed and pushed
 
 ## Phase 6: Claude coach
 - [x] `/api/coach` with streaming, Haiku 5.5, cached system prompt
@@ -80,11 +80,11 @@ Checklist for `docs/tutor/GOAL.md`. Tick an item only when it is done and tested
 - [ ] Phase gate passed and pushed
 
 ## Phase 8: Sync
-- [ ] State-only sync; photo relay removed
-- [ ] Pairing secret and typed code
-- [ ] Two-way playback control
-- [ ] ADR-015 and privacy docs
-- [ ] Phase gate passed and pushed
+- [x] State-only sync; photo relay removed
+- [x] Pairing secret and typed code
+- [x] Two-way playback control (solver playback; `grip` and `checkpoint-result` are relayed but not consumed until the Phase 7 tutor screens)
+- [x] ADR-015 and privacy docs
+- [x] Phase gate passed and pushed
 
 ## Phase 9: Learning features
 - [ ] Algorithm trainer
