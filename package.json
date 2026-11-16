@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:tutor-soak": "vitest run --config vitest.soak.config.mts",
     "docs:pdf": "tsx scripts/generate-docs.ts"
   },
   "dependencies": {
