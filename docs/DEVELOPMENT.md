@@ -46,6 +46,7 @@ open https://localhost:3000
 | `npm run test:watch`| Runs Vitest in interactive watch mode |
 | `npm run test:coverage` | Generates detailed code coverage metrics |
 | `npm run docs:pdf` | Compiles documentation into PDF artifacts in `docs/pdf/` |
+| `npm run coach:eval` | Runs 50 recorded step situations through the coach and writes `data/coach-eval-report.md` (calls Claude only with a key; see §5) |
 
 ---
 
@@ -76,3 +77,50 @@ open https://localhost:3000
   - Sampled RGB, HSV, and CIELAB tuples for each of the 9 cells.
   - Active color assignment and Euclidean $\Delta E$ distance to the closest calibrated reference swatch.
   - Consecutive stable frame counter (0 to 10).
+
+---
+
+## 5. Coach (Claude)
+
+The tutor's coach explains each step in plain words ([ADR-014](ADR/014-claude-coach.md)). It is
+optional: without a key every hint comes from the built-in templates.
+
+### 5.1 Adding the key
+1. Create `.env.local` in the project root (git-ignored; see `.env.example`):
+   ```bash
+   ANTHROPIC_API_KEY=sk-ant-...
+   COACH_MONTHLY_CAP_USD=10   # optional, default 10
+   ```
+2. Restart `npm run dev`. The key is read only by the server (`src/coach/service.ts`); it is
+   never sent to the browser. Never prefix it with `NEXT_PUBLIC_`.
+3. Check the mode: `GET /api/coach/status` (with the app token, see 5.3) returns
+   `{ mode: "live" | "mock" | "capped", monthSpendUsd, capUsd, month }`.
+
+### 5.2 Mock mode and the cap
+- **Mock** (no key): `/api/coach` streams the template for the step through the same event
+  stream, with a notice. Use it for all UI work; tests never call the real API.
+- **Capped**: spend is recorded per UTC month in `data/coach-usage.json`. Once it reaches the cap
+  the coach serves templates until the next month. Delete or edit that file only if you know the
+  real spend (the Anthropic Console shows it).
+- The server logs `[coach] usage input=... output=... cache_read=... cache_write=... cost=$...`
+  for every live call. After the first call, `cache_read` should be about 4,500 tokens; if it
+  stays at 0, something made the system prompt change between calls.
+
+### 5.3 The app token
+`/api/coach` and `/api/coach/status` need the header `x-cubyntra-token`. The laptop's browser
+gets it from `GET /api/auth/token`, which only answers on `localhost` / `127.0.0.1` / `[::1]`.
+The secret lives in `data/app-secret`; delete the file to rotate it (paired devices then need the
+new one). For a quick manual call:
+```bash
+TOKEN=$(curl -sk https://localhost:3000/api/auth/token | node -pe 'JSON.parse(require("fs").readFileSync(0)).token')
+curl -skN https://localhost:3000/api/coach -H "x-cubyntra-token: $TOKEN" \
+  -H 'Content-Type: application/json' -d @facts.json   # body: { "facts": { ... } }
+```
+
+### 5.4 The eval
+`npm run coach:eval` runs 50 situations from the F2L, OLL and PLL tables (mixed hint levels,
+setups, failed attempts and diagnoses) through the coach, applies the move guardrail and writes
+`data/coach-eval-report.md`: how many live replies were kept, fallbacks by reason, guardrail
+failures (must be 0), cost and cache use. With a key it makes 50 real calls (a few cents in
+total, counted toward the cap); without one it checks the templates only. It is never run by the
+test suite or the build.

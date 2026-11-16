@@ -61,14 +61,14 @@ Checklist for `docs/tutor/GOAL.md`. Tick an item only when it is done and tested
 - [ ] Phase gate passed and pushed
 
 ## Phase 6: Claude coach
-- [ ] `/api/coach` with streaming, Haiku 5.5, cached system prompt
-- [ ] Templates for every stage and case; mock mode
-- [ ] Move guardrail
-- [ ] Spend cap and usage file
-- [ ] Session-token check and rate limit
-- [ ] Tests with a mocked SDK
-- [ ] `scripts/coach-eval.ts`
-- [ ] ADR-014
+- [x] `/api/coach` with streaming, Haiku 5.5, cached system prompt
+- [x] Templates for every stage and case; mock mode
+- [x] Move guardrail
+- [x] Spend cap and usage file
+- [x] Session-token check and rate limit
+- [x] Tests with a mocked SDK
+- [x] `scripts/coach-eval.ts`
+- [x] ADR-014
 - [ ] Phase gate passed and pushed
 
 ## Phase 7: App shell and PWA
