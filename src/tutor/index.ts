@@ -37,5 +37,5 @@ export {
 export type { CheckpointOptions, TileEdit } from './checkpoint';
 export { MISTAKE_PRIORS, diagnoseMistake, enumerateMistakes } from './diagnose';
 export type { DiagnoseOptions, MistakeCandidate } from './diagnose';
-export { MAX_CORRECTIVE_TURNS, decideRecovery, replanFromScan, resumeFrom } from './recovery';
+export { MAX_CORRECTIVE_TURNS, correctivePlanFrom, decideRecovery, replanFromScan, resumeFrom } from './recovery';
 export type { Recovery, RecoveryOptions, ResumePlan, ScanReplan } from './recovery';

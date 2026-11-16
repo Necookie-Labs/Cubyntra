@@ -113,3 +113,14 @@ phone's commands; the phone mirrors the laptop's position.
   device with no solve open joins the step the other shows (the tutor is deterministic, so the same
   cube, grip and step number give the same plan). Two devices running different solves at once
   still share one grip; the app assumes one student and one solve.
+- Every grip names its step (`planId`, `stepIndex`) and is applied only to that very step, so a
+  late grip from a step already left cannot re-plan the wrong step. A device that makes a new plan
+  for a step (a corrective step after a diagnosed slip, a re-plan after a regrip or rescan) or moves
+  on to the next step publishes `cube-state`, `step` and `grip` one after another; the other device
+  adopts that plan instead of planning on its own: a corrective step is rebuilt from its own plan,
+  the cube sent and the step's moves, anything else is planned from the cube sent, and either is
+  taken only if its plan id matches. A step older than the one on screen is ignored. `step` also
+  carries `solveStartedAt`, so both devices save progress as the same solve (see the
+  `PATCH /api/student` merge rules in `API_REFERENCE.md`).
+- Each event stream watches for silence: no frame (not even the 15 s ping) for 30 s means a dead
+  connection, which the client drops and reopens.

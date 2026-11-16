@@ -27,6 +27,9 @@ import { gripOf, viewInGrip, type Grip } from '@/cube/grip';
 import type { AttemptRecord } from '@/coach/types';
 import { planStepInWorker } from '@/solver/client';
 import { applyTileEdits, type TileEdit } from '@/tutor/checkpoint';
+import { correctivePlanFrom } from '@/tutor/recovery';
+import { parseAlgorithm } from '@/cube/transforms';
+import { stepPlanId } from '@/sync/tutorSync';
 import type { FaceObservation, MethodId, MethodOptions, StepPlan } from '@/tutor/types';
 import type { StudentPalette } from '@/vision/palette';
 import { completedStage, localDay, stageKey } from '@/learn/mastery';
@@ -65,6 +68,8 @@ export interface TutorStore {
   stepIndex: number;
   plan: StepPlan | null;
   phase: SolvePhase;
+  /** When this solve started: its id in the saved profile, shared with the paired device. */
+  solveStartedAt: string | null;
   attempts: AttemptRecord[];
   /** Faces shown so far for this checkpoint (a face shown again replaces its old reading). */
   observations: FaceObservation[];
@@ -105,6 +110,13 @@ export interface TutorStore {
    * grip and step number plan the very same step (the tutor is deterministic).
    */
   followRemoteStep: (remote: RemoteStep) => Promise<void>;
+  /**
+   * The paired device shows another plan for this step (a corrective step, a re-plan after a
+   * regrip or rescan) or a later step: take the very same plan (same plan id) from the cube it
+   * sent, rather than planning on our own. Resolves true if the plan was adopted. A step older
+   * than ours, or one that cannot be rebuilt with that id, is ignored.
+   */
+  adoptRemoteStep: (remote: RemoteStep & { planId: string; algorithm?: string }) => Promise<boolean>;
   abandonSolve: () => void;
   /** The coach was asked for a hint at `level` on the current step. */
   noteHint: (level: HintUse) => void;
@@ -124,6 +136,8 @@ export interface RemoteStep {
   state: CubeState;
   method: MethodId;
   stepIndex: number;
+  /** When the paired device's solve started, so both save it as the same solve. */
+  solveStartedAt?: string;
 }
 
 export interface RemoteCheckpoint {
@@ -141,6 +155,7 @@ const SESSION_RESET = {
   stepIndex: 0,
   plan: null,
   phase: 'idle' as SolvePhase,
+  solveStartedAt: null as string | null,
   attempts: [],
   observations: [],
   checkpoint: null,
@@ -241,6 +256,11 @@ export const useTutorStore = create<TutorStore>((set, get) => {
   const solveRecord = (): CurrentSolve | null => {
     const { profile, method, cube, grip, stepIndex, attempts, stageHint } = get();
     if (!method || !cube || !grip) return null;
+    let startedAt = get().solveStartedAt;
+    if (!startedAt) {
+      startedAt = profile.currentSolve?.startedAt ?? stamp();
+      set({ solveStartedAt: startedAt });
+    }
     return {
       method,
       state: cube,
@@ -248,7 +268,7 @@ export const useTutorStore = create<TutorStore>((set, get) => {
       stepIndex,
       attempts: attempts.slice(-MAX_SAVED_ATTEMPTS),
       ...(stageHint > 0 ? { stageHint } : {}),
-      startedAt: profile.currentSolve?.startedAt ?? stamp(),
+      startedAt,
       updatedAt: stamp(),
     };
   };
@@ -261,7 +281,7 @@ export const useTutorStore = create<TutorStore>((set, get) => {
 
   /** Clears the saved solve (finished or abandoned), closing it so a late save cannot revive it. */
   const clearSolveOp = (): ProfileOp[] => {
-    const startedAt = get().profile.currentSolve?.startedAt;
+    const startedAt = get().solveStartedAt ?? get().profile.currentSolve?.startedAt;
     return startedAt ? [{ op: 'clearCurrentSolve', startedAt }] : [];
   };
 
@@ -324,7 +344,7 @@ export const useTutorStore = create<TutorStore>((set, get) => {
 
     startSolve: async (state, method) => {
       const closing = clearSolveOp();
-      set({ ...SESSION_RESET, method, cube: state, grip: gripOf(state), phase: 'loading' });
+      set({ ...SESSION_RESET, method, cube: state, grip: gripOf(state), phase: 'loading', solveStartedAt: stamp() });
       commit(...closing);
       persistSolve();
       await get().loadPlan();
@@ -341,6 +361,7 @@ export const useTutorStore = create<TutorStore>((set, get) => {
         stepIndex: saved.stepIndex,
         attempts: saved.attempts,
         stageHint: saved.stageHint ?? 0,
+        solveStartedAt: saved.startedAt,
         phase: 'loading',
       });
       await get().loadPlan();
@@ -516,17 +537,68 @@ export const useTutorStore = create<TutorStore>((set, get) => {
       }
     },
 
-    followRemoteStep: async ({ state, method, stepIndex }) => {
-      const { phase } = get();
+    followRemoteStep: async ({ state, method, stepIndex, solveStartedAt }) => {
+      const { phase, profile } = get();
       if (phase !== 'idle' && phase !== 'solved') return;
-      set({ ...SESSION_RESET, method, cube: state, grip: gripOf(state), stepIndex, phase: 'loading' });
+      // The same solve as the other device's: its start time, else the saved one of this method.
+      const startedAt =
+        solveStartedAt ?? (profile.currentSolve?.method === method ? profile.currentSolve.startedAt : null);
+      set({ ...SESSION_RESET, method, cube: state, grip: gripOf(state), stepIndex, phase: 'loading', solveStartedAt: startedAt });
       persistSolve();
       await get().loadPlan();
     },
 
+    adoptRemoteStep: async (remote) => {
+      const before = get();
+      if (!before.method || remote.method !== before.method || remote.stepIndex < before.stepIndex) return false;
+      if (before.plan && stepPlanId(before.plan) === remote.planId) return false;
+      const sameStep = before.plan?.stepIndex === remote.stepIndex;
+
+      // A corrective step for the step on screen is rebuilt from our plan and its moves; any
+      // other plan (a re-plan, the next step) comes from planning the cube that was sent.
+      let next: StepPlan | null = null;
+      if (before.plan && sameStep && remote.algorithm !== undefined) {
+        try {
+          const corrective = correctivePlanFrom(before.plan, remote.state, parseAlgorithm(remote.algorithm));
+          if (corrective && stepPlanId(corrective) === remote.planId) next = corrective;
+        } catch {
+          // Not notation we can read: try planning below.
+        }
+      }
+      if (!next) {
+        try {
+          const options = methodOptionsFor(remote.method, before.profile.settings);
+          const planned = await planStep(remote.state, remote.method, gripOf(remote.state), remote.stepIndex, options);
+          if (planned && stepPlanId(planned) === remote.planId) next = planned;
+        } catch {
+          // No plan from that cube: keep ours.
+        }
+      }
+      const now_ = get();
+      // Something newer happened here while planning.
+      if (!next || now_.method !== before.method || now_.stepIndex > remote.stepIndex) return false;
+      if (now_.plan && stepPlanId(now_.plan) === remote.planId) return false;
+      set({
+        cube: next.startState,
+        grip: next.grip,
+        stepIndex: next.stepIndex,
+        plan: next,
+        phase: 'step',
+        checkpoint: null,
+        observations: [],
+        errorMessage: null,
+        // A new step starts with no tries; a new plan for the same step keeps them.
+        ...(sameStep ? {} : { attempts: [], stageHint: 0 as HintUse }),
+        ...(remote.solveStartedAt ? { solveStartedAt: remote.solveStartedAt } : {}),
+      });
+      persistSolve();
+      return true;
+    },
+
     abandonSolve: () => {
+      const closing = clearSolveOp();
       set({ ...SESSION_RESET });
-      commit(...clearSolveOp());
+      commit(...closing);
     },
 
     noteHint: (level) => {

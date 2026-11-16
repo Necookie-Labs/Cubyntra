@@ -10,7 +10,8 @@ import { act, cleanup, renderHook } from '@testing-library/react';
 import { planNextStep } from '@/tutor';
 import { defaultStudentProfile } from '@/lib/studentProfile';
 import type { SessionSnapshot, StreamEvent, SyncEvent, SyncMessage } from '@/sync/types';
-import { remoteStepFor, stepMessages, stepPlanId, tutorActionFor } from '@/sync/tutorSync';
+import { remoteStepFor, stepAlgorithm, stepMessages, stepPlanId, tutorActionFor } from '@/sync/tutorSync';
+import { viewInGrip } from '@/cube/grip';
 import { scrambledState } from './helpers/scrambles';
 
 const client = vi.hoisted(() => ({
@@ -69,7 +70,13 @@ describe('remoteStepFor', () => {
   const step = fromLaptop(stepMessages(laptopPlan)[1]);
 
   it('joins a guided-solve step from the other device, with the cube sent before it', () => {
-    expect(remoteStepFor(step, 'phone', cube)).toEqual({ state: cube, method: 'cfop', stepIndex: 2 });
+    expect(remoteStepFor(step, 'phone', cube)).toEqual({
+      state: cube,
+      method: 'cfop',
+      stepIndex: 2,
+      planId: stepPlanId(laptopPlan),
+      algorithm: stepAlgorithm(laptopPlan),
+    });
   });
 
   it('ignores its own steps, solver playback and steps without a cube', () => {
@@ -157,10 +164,23 @@ describe('a solve on the paired phone', () => {
       await useTutorStore.getState().setGrip({ top: 'yellow', front: 'red' });
     });
     await flush();
+    // The phone re-planned this step in the new grip and announces that plan.
+    const regripped = planNextStep(viewInGrip(laptopPlan.startState, { top: 'yellow', front: 'red' }).state, 'cfop', { top: 'yellow', front: 'red' }, 2)!;
+    const step = posted().find((m) => m.type === 'step')!;
+    expect(step).toMatchObject({ role: 'mobile', payload: { stepIndex: 2, planId: stepPlanId(regripped) } });
     const grip = posted().find((m) => m.type === 'grip')!;
-    expect(grip).toMatchObject({ role: 'mobile', payload: { top: 'yellow', front: 'red' } });
+    expect(grip).toMatchObject({
+      role: 'mobile',
+      payload: { top: 'yellow', front: 'red', stepIndex: 2, planId: stepPlanId(regripped) },
+    });
+    // The laptop takes the grip only for a plan it has; otherwise it adopts the step message
+    // (see sync-tutor), so a stale grip can never re-plan the wrong step.
     const relayed = { ...grip, seq: ++seq, at: 0 } as SyncEvent;
-    expect(tutorActionFor(relayed, 'laptop', laptopPlan)).toEqual({ kind: 'grip', grip: { top: 'yellow', front: 'red' } });
+    const sameId = stepPlanId(regripped) === stepPlanId(laptopPlan);
+    expect(tutorActionFor(relayed, 'laptop', laptopPlan)).toEqual(
+      sameId ? { kind: 'grip', grip: { top: 'yellow', front: 'red' } } : null
+    );
+    expect(tutorActionFor(relayed, 'laptop', regripped)).toEqual({ kind: 'grip', grip: { top: 'yellow', front: 'red' } });
   });
 
   it('does not replace a solve already open on the phone', async () => {

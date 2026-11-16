@@ -252,9 +252,9 @@ takePairingFromLocation(window)                       // save + history.replaceS
 type SyncMessageInput = { role: 'desktop' | 'mobile'; clientId: string } & (
   | { type: 'cube-state'; payload: { state: CubeState } }
   | { type: 'face-scanned'; payload: { face; colors: CubeColor[9]; confidences: number[9]; tileRgb: [r, g, b][9]; capturedAt } }
-  | { type: 'step'; payload: { method: 'solver' | 'beginner' | 'cfop'; stepIndex; planId; algorithm?; stepCount? } }
+  | { type: 'step'; payload: { method: 'solver' | 'beginner' | 'cfop'; stepIndex; planId; algorithm?; stepCount?; solveStartedAt? } }
   | { type: 'playback'; payload: { action: 'play' | 'pause' | 'seek' | 'index' | 'speed'; index?; speed? } }
-  | { type: 'grip'; payload: { top: CubeColor; front: CubeColor } }
+  | { type: 'grip'; payload: { top: CubeColor; front: CubeColor; planId?; stepIndex? } } // the step it belongs to
   | { type: 'checkpoint-result'; payload: { planId; stepIndex; result: 'matched' | 'mismatch' | 'unsure'; mistakes? } }
   | { type: 'presence'; payload: { visible: boolean; screen?: 'pairing' | 'scan' | 'review' | 'solve' | 'idle' } }
   | { type: 'scan-control'; payload: { action: 'rescan'; face } | { action: 'confirmed' } | { action: 'reset' } }
@@ -262,7 +262,8 @@ type SyncMessageInput = { role: 'desktop' | 'mobile'; clientId: string } & (
 parseSyncMessage(body: unknown): { ok: true; value: SyncMessageInput } | { ok: false; error: string }
 
 // Browser transport (src/sync/syncClient.ts)
-openSyncStream({ sessionId, secret, role, onEvent, onStatus?, onEnded? }): { close() } // fetch-based, reconnects
+openSyncStream({ sessionId, secret, role, onEvent, onStatus?, onEnded?, inactivityTimeoutMs? }): { close() }
+  // fetch-based, reconnects; no frame for inactivityTimeoutMs (default 2 x PING_INTERVAL_MS = 30 s) -> reconnect
 postSyncMessage(sessionId, secret, message): Promise<{ ok: true; seq } | { ok: false; status }>
 deleteSyncSession(sessionId, secret): Promise<void>  // keepalive
 
@@ -270,9 +271,12 @@ deleteSyncSession(sessionId, secret): Promise<void>  // keepalive
 useCompanionSync()   // laptop: initSession (single-flight, cancelled on unmount), disconnect (DELETE),
                      // selectHost, send, subscribe, requestRescan, confirmScan, connections, code, …
 useMobileSession(creds, { onEnded? }) // phone: sendFace, rejectFace, controlPlayback, startOver, …
-useTutorSync(sync, twinPlayback) // device on /solve: publishes step, start cube, grip, twin playback and
-                     // checkpoint verdicts; applies the other device's playback, grip and verdicts
+useTutorSync(sync, twinPlayback) // device on /solve: publishes step, start cube, grip (in that order), twin
+                     // playback and checkpoint verdicts; applies the other device's playback, and a
+                     // grip or verdict only for the step on screen (same planId and stepIndex);
+                     // adopts the other device's plan for this or a later step (adoptRemoteStep)
                      // (src/sync/tutorSync.ts; wire index = moves applied - 1)
+correctivePlanFrom(plan, from, moves): StepPlan | null   // src/tutor/recovery.ts: rebuilds a corrective step sent by the other device
 ```
 
 Playback is last-writer-wins by the server's sequence number: each device applies playback messages
@@ -460,7 +464,9 @@ startSolve(state, method); resumeSolve(): Promise<boolean>; loadPlan();
 beginCheckpoint(); submitObservation(observation); editTiles(face, edits); confirmByHand();
 advance(); replayStep(); continueFromDiagnosis(); showNextFace(); replanFromRescan(scanned);
 setGrip(grip); applyRemoteCheckpoint({ stepIndex, result, mistakes? }); abandonSolve();
-followRemoteStep({ state, method, stepIndex })   // join the paired device's step when no solve is open here
+followRemoteStep({ state, method, stepIndex, solveStartedAt? })   // join the paired device's step when no solve is open here
+adoptRemoteStep({ state, method, stepIndex, planId, algorithm?, solveStartedAt? }): Promise<boolean>
+  // take the paired device's plan for this or a later step, if it can be rebuilt with the same id
 updateSettings(patch); setName(name); savePalette(palette); loadProfile();
 // Every profile change is a ProfileOp applied to the local copy at once and queued; the queue is
 //   sent as one PATCH per batch, in order, once there is a token and the profile has loaded (or

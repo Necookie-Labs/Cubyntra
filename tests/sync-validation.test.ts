@@ -65,6 +65,8 @@ describe('message payloads', () => {
     expect(msg('step', step).ok).toBe(true);
     expect(msg('step', { ...step, method: 'roux' }).ok).toBe(false);
     expect(msg('step', { ...step, stepIndex: -1 }).ok).toBe(false);
+    expect(msg('step', { ...step, solveStartedAt: '2026-11-17T10:00:00.000Z' }).ok).toBe(true);
+    expect(msg('step', { ...step, solveStartedAt: 'yesterday' }).ok).toBe(false);
     expect(msg('step', { ...step, planId: 'has spaces' }).ok).toBe(false);
     expect(msg('step', { ...step, algorithm: 'R Q' }).ok).toBe(false);
     expect(msg('step', { ...step, algorithm: 'R '.repeat(201) }).ok).toBe(false);
@@ -83,6 +85,9 @@ describe('message payloads', () => {
   it('grip must be physically possible', () => {
     expect(msg('grip', { top: 'yellow', front: 'red' }).ok).toBe(true);
     expect(msg('grip', { top: 'white', front: 'yellow' }).ok).toBe(false);
+    expect(msg('grip', { top: 'yellow', front: 'red', planId: 'step-abc', stepIndex: 3 }).ok).toBe(true);
+    expect(msg('grip', { top: 'yellow', front: 'red', planId: 'bad id!', stepIndex: 3 }).ok).toBe(false);
+    expect(msg('grip', { top: 'yellow', front: 'red', planId: 'step-abc', stepIndex: -1 }).ok).toBe(false);
   });
 
   it('checkpoint-result checks the result and mistake kinds', () => {

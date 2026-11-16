@@ -128,6 +128,12 @@ function parseStep(p: Record<string, unknown>): ParseResult<StepPayload> {
     if (!isIntIn(p.stepCount, 0, MAX_STEP_INDEX + 1)) return fail('Invalid stepCount');
     value.stepCount = p.stepCount;
   }
+  if (p.solveStartedAt !== undefined) {
+    if (typeof p.solveStartedAt !== 'string' || p.solveStartedAt.length > 40 || Number.isNaN(Date.parse(p.solveStartedAt))) {
+      return fail('Invalid solveStartedAt');
+    }
+    value.solveStartedAt = p.solveStartedAt;
+  }
   return { ok: true, value };
 }
 
@@ -150,7 +156,17 @@ function parsePlayback(p: Record<string, unknown>): ParseResult<PlaybackPayload>
 function parseGrip(p: Record<string, unknown>): ParseResult<GripPayload> {
   if (!isCubeColor(p.top) || !isCubeColor(p.front)) return fail('Grip colors must be cube colors');
   const grip = { top: p.top, front: p.front };
-  return isValidGrip(grip) ? { ok: true, value: grip } : fail('Impossible grip');
+  if (!isValidGrip(grip)) return fail('Impossible grip');
+  const value: GripPayload = grip;
+  if (p.planId !== undefined) {
+    if (typeof p.planId !== 'string' || !PLAN_ID.test(p.planId)) return fail('Invalid planId');
+    value.planId = p.planId;
+  }
+  if (p.stepIndex !== undefined) {
+    if (!isIntIn(p.stepIndex, 0, MAX_STEP_INDEX)) return fail('Invalid stepIndex');
+    value.stepIndex = p.stepIndex;
+  }
+  return { ok: true, value };
 }
 
 function parseCheckpoint(p: Record<string, unknown>): ParseResult<CheckpointResultPayload> {

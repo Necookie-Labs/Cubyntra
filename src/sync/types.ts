@@ -58,6 +58,8 @@ export interface StepPayload {
   /** Move notation for the step (or the whole solution in solver mode). */
   algorithm?: string;
   stepCount?: number;
+  /** Guided solve: when the solve started (its id), so both devices save the same solve. */
+  solveStartedAt?: string;
 }
 
 export const PLAYBACK_ACTIONS = ['play', 'pause', 'seek', 'index', 'speed'] as const;
@@ -78,6 +80,9 @@ export interface PlaybackPayload {
 export interface GripPayload {
   top: CubeColor;
   front: CubeColor;
+  /** Guided solve: the step this grip belongs to. A grip for any other step is ignored. */
+  planId?: string;
+  stepIndex?: number;
 }
 
 export const CHECKPOINT_RESULTS = ['matched', 'mismatch', 'unsure'] as const;

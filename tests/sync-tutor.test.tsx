@@ -19,6 +19,9 @@ import {
   type TwinPlayback,
 } from '@/sync/tutorSync';
 import { scrambledState } from './helpers/scrambles';
+import { stateAfter } from './helpers/mistakes';
+import { invertMove } from '@/cube/transforms';
+import { resumeFrom } from '@/tutor/recovery';
 
 vi.mock('@/solver/client', () => ({
   planStepInWorker: vi.fn(async (state, method, grip, stepIndex) => planNextStep(state, method, grip, stepIndex)),
@@ -74,7 +77,12 @@ describe('tutor sync helpers', () => {
     expect(cube).toEqual({ type: 'cube-state', payload: { state: plan.startState } });
     expect(step.type).toBe('step');
     expect(step.payload).toMatchObject({ method: 'beginner', stepIndex: plan.stepIndex, planId: stepPlanId(plan) });
-    expect(grip).toEqual({ type: 'grip', payload: plan.grip });
+    expect(grip).toEqual({ type: 'grip', payload: { ...plan.grip, planId: stepPlanId(plan), stepIndex: plan.stepIndex } });
+  });
+
+  it('names the solve in the step message when it is known', () => {
+    const [, step] = stepMessages(plan, '2026-11-17T10:00:00.000Z');
+    expect(step.payload).toMatchObject({ solveStartedAt: '2026-11-17T10:00:00.000Z' });
   });
 
   it('turns twin changes into playback messages, with -1 meaning before the first move', () => {
@@ -96,12 +104,15 @@ describe('tutor sync helpers', () => {
     expect(twin.setSpeed).not.toHaveBeenCalled();
   });
 
-  it('accepts a grip from the other device, and a verdict only for the step on screen', () => {
-    expect(tutorActionFor(event({ type: 'grip', payload: { top: 'yellow', front: 'red' } }), 'laptop', plan)).toEqual({
-      kind: 'grip',
-      grip: { top: 'yellow', front: 'red' },
-    });
-    expect(tutorActionFor(event({ type: 'grip', payload: { top: 'yellow', front: 'red' } }, 'laptop'), 'laptop', plan)).toBeNull();
+  it('accepts a grip and a verdict from the other device only for the step on screen', () => {
+    const here = { planId: stepPlanId(plan), stepIndex: plan.stepIndex };
+    const grip = (extra: object) => event({ type: 'grip', payload: { top: 'yellow', front: 'red', ...extra } });
+    expect(tutorActionFor(grip(here), 'laptop', plan)).toEqual({ kind: 'grip', grip: { top: 'yellow', front: 'red' } });
+    expect(tutorActionFor(event({ type: 'grip', payload: { top: 'yellow', front: 'red', ...here } }, 'laptop'), 'laptop', plan)).toBeNull();
+    // A grip that does not say which step, or names another step or plan, is ignored.
+    expect(tutorActionFor(grip({}), 'laptop', plan)).toBeNull();
+    expect(tutorActionFor(grip({ ...here, stepIndex: plan.stepIndex + 1 }), 'laptop', plan)).toBeNull();
+    expect(tutorActionFor(grip({ ...here, planId: 'step-older' }), 'laptop', plan)).toBeNull();
     const verdict = { planId: stepPlanId(plan), stepIndex: plan.stepIndex, result: 'matched' as const };
     expect(tutorActionFor(event({ type: 'checkpoint-result', payload: verdict }), 'laptop', plan)?.kind).toBe('checkpoint');
     expect(
@@ -109,6 +120,11 @@ describe('tutor sync helpers', () => {
     ).toBeNull();
   });
 });
+
+const settle = () =>
+  act(async () => {
+    for (let i = 0; i < 30; i++) await Promise.resolve();
+  });
 
 describe('useTutorSync', () => {
   let listeners: Array<(e: SyncEvent) => void>;
@@ -144,6 +160,7 @@ describe('useTutorSync', () => {
     const { twin, emit } = fakeTwin();
     const t = target();
     renderHook(() => useTutorSync(t, twin as never));
+    await settle();
     expect(sent.map((m) => m.type)).toEqual(['cube-state', 'step', 'grip']);
 
     act(() => emit({ playing: true }));
@@ -159,8 +176,9 @@ describe('useTutorSync', () => {
     const t = target();
     renderHook(() => useTutorSync(t, null));
     const current = useTutorStore.getState().plan!;
+    const here = { planId: stepPlanId(current), stepIndex: current.stepIndex };
     await act(async () => {
-      listeners.forEach((l) => l(event({ type: 'grip', payload: { top: 'yellow', front: 'blue' } })));
+      listeners.forEach((l) => l(event({ type: 'grip', payload: { top: 'yellow', front: 'blue', ...here } })));
       for (let i = 0; i < 20; i++) await Promise.resolve();
     });
     expect(useTutorStore.getState().grip).toEqual({ top: 'yellow', front: 'blue' });
@@ -174,6 +192,83 @@ describe('useTutorSync', () => {
     );
     expect(useTutorStore.getState().phase).toBe('celebrate');
     expect(sent.filter((m) => m.type === 'checkpoint-result')).toEqual([]);
+  });
+
+  /** Delivers the other device's messages in the given order. */
+  const deliver = async (messages: SyncMessage[]) => {
+    for (const m of messages) act(() => listeners.forEach((l) => l(event(m))));
+    await settle();
+  };
+
+  it('ignores a late grip from a step this device has already left', async () => {
+    renderHook(() => useTutorSync(target(), null));
+    const first = useTutorStore.getState().plan!;
+    act(() => useTutorStore.getState().confirmByHand());
+    await act(async () => {
+      await useTutorStore.getState().advance();
+    });
+    const second = useTutorStore.getState().plan!;
+    expect(second.stepIndex).toBe(first.stepIndex + 1);
+    const late = { top: 'yellow' as const, front: 'blue' as const, planId: stepPlanId(first), stepIndex: first.stepIndex };
+    await deliver([{ type: 'grip', payload: late }]);
+    expect(useTutorStore.getState().plan).toBe(second);
+    expect(useTutorStore.getState().grip).toEqual(second.grip);
+  });
+
+  it("adopts the other device's corrective step, whatever order its messages arrive in", async () => {
+    renderHook(() => useTutorSync(target(), null));
+    const original = useTutorStore.getState().plan!;
+    // The phone saw a slip (the last move turned the wrong way) and made a corrective step.
+    const list = [...original.setupMoves, ...original.algorithm];
+    const performedMoves = [...list.slice(0, -1), invertMove(list[list.length - 1])];
+    const resume = resumeFrom(original, { performedMoves, resultingState: stateAfter(original, performedMoves) });
+    expect(resume.kind).toBe('corrective');
+    const corrective = resume.plan!;
+    const [cube, step, grip] = stepMessages(corrective);
+
+    // The grip arrives first: it names a plan this device does not have yet, so it is ignored.
+    await deliver([grip]);
+    expect(useTutorStore.getState().plan).toBe(original);
+    await deliver([cube, step]);
+    const now = useTutorStore.getState();
+    expect(stepPlanId(now.plan!)).toBe(stepPlanId(corrective));
+    expect(now.plan).toEqual(corrective);
+    expect(now.cube).toEqual(corrective.startState);
+    expect(now.phase).toBe('step');
+    // The same messages again change nothing.
+    await deliver([cube, step, grip]);
+    expect(useTutorStore.getState().plan).toBe(now.plan);
+  });
+
+  it("adopts the other device's next step instead of staying behind", async () => {
+    renderHook(() => useTutorSync(target(), null));
+    const first = useTutorStore.getState().plan!;
+    const next = planNextStep(first.expectedState, 'beginner', first.gripAfter, first.stepIndex + 1)!;
+    await deliver(stepMessages(next));
+    const now = useTutorStore.getState();
+    expect(now.stepIndex).toBe(first.stepIndex + 1);
+    expect(stepPlanId(now.plan!)).toBe(stepPlanId(next));
+  });
+
+  it('ignores a step older than the one on screen', async () => {
+    renderHook(() => useTutorSync(target(), null));
+    const first = useTutorStore.getState().plan!;
+    act(() => useTutorStore.getState().confirmByHand());
+    await act(async () => {
+      await useTutorStore.getState().advance();
+    });
+    const second = useTutorStore.getState().plan!;
+    await deliver(stepMessages(first));
+    expect(useTutorStore.getState().plan).toBe(second);
+  });
+
+  it('keeps its own plan when the step sent cannot be rebuilt with the same id', async () => {
+    renderHook(() => useTutorSync(target(), null));
+    const mine = useTutorStore.getState().plan!;
+    const [cube, step] = stepMessages(mine);
+    const forged = { ...step, payload: { ...(step.payload as object), planId: 'step-unknown', algorithm: "R U R' U'" } } as SyncMessage;
+    await deliver([cube, forged]);
+    expect(useTutorStore.getState().plan).toBe(mine);
   });
 
   it('reports a verdict reached on this device', () => {

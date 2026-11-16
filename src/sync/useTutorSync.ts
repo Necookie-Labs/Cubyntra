@@ -43,10 +43,13 @@ export function useTutorSync(target: TutorSyncTarget, playback: PlaybackControll
   // The cube the other device's latest step starts from (its `cube-state` comes just before `step`).
   const remoteCube = useRef<CubeState | null>(null);
 
-  // The step on screen, its start state and grip.
+  // The step on screen, its start state and grip, one after another so they arrive in order.
   useEffect(() => {
     if (!sessionId || !plan) return;
-    for (const message of stepMessages(plan)) void send(message);
+    const messages = stepMessages(plan, useTutorStore.getState().solveStartedAt);
+    void (async () => {
+      for (const message of messages) await send(message);
+    })();
   }, [sessionId, plan, send]);
 
   // Local playback changes.
@@ -109,6 +112,7 @@ export function useTutorSync(target: TutorSyncTarget, playback: PlaybackControll
       const join = remoteStepFor(event, getClientId(), remoteCube.current);
       if (join) {
         if (store.phase === 'idle' || store.phase === 'solved') void store.followRemoteStep(join);
+        else void store.adoptRemoteStep(join);
         return;
       }
       const action = tutorActionFor(event, getClientId(), store.plan);

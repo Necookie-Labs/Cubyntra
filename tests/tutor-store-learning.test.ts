@@ -144,6 +144,15 @@ describe('following the paired device', () => {
     expect(store().plan).toEqual(other);
   });
 
+  it("saves the step as the other device's solve, so neither overwrites the other", async () => {
+    const other = planNextStep(scramble, 'cfop', { top: 'yellow', front: 'red' }, 4)!;
+    const startedAt = '2026-11-17T09:00:00.000Z';
+    await store().followRemoteStep({ state: other.startState, method: 'cfop', stepIndex: 4, solveStartedAt: startedAt });
+    await flushTutorSaves();
+    expect(store().solveStartedAt).toBe(startedAt);
+    expect(server.profile().currentSolve).toMatchObject({ startedAt, stepIndex: 4 });
+  });
+
   it('does not replace a solve already open', async () => {
     await store().startSolve(scramble, 'beginner');
     const mine = store().plan;

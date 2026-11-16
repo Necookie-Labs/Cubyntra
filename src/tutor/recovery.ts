@@ -113,6 +113,38 @@ function correctiveCheckpoint(plan: StepPlan, from: CubeState): CheckpointSpec {
   return { facesToShow: plan.checkpoint.facesToShow, stickers };
 }
 
+function buildCorrective(plan: StepPlan, from: CubeState, regrip: Move[], turns: Move[]): StepPlan {
+  return {
+    ...plan,
+    setupMoves: regrip,
+    algorithm: turns,
+    grip: plan.gripAfter,
+    startState: from,
+    checkpoint: correctiveCheckpoint(plan, from),
+    facts: {
+      goal: `Fix the slip, then finish: ${plan.facts.goal}`,
+      lookFor: plan.facts.lookFor,
+      why: 'These moves take back what went wrong and then finish the step.',
+    },
+    progressBefore: progress(from, plan.method, plan.options).value,
+  };
+}
+
+/**
+ * Rebuilds the corrective step another device made for `plan` (ADR-015): the same step, started
+ * from `from` (the cube that device diagnosed), with `moves` (its regrip, then its turns). Null
+ * unless the moves really take `from` to the step's expected state.
+ */
+export function correctivePlanFrom(plan: StepPlan, from: CubeState, moves: readonly Move[]): StepPlan | null {
+  let split = 0;
+  while (split < moves.length && moves[split].kind === 'rotation') split++;
+  const regrip = moves.slice(0, split);
+  const turns = moves.slice(split);
+  if (!turns.length || turns.some((m) => m.kind === 'rotation')) return null;
+  if (!sameState(applyMoves(from, moves), plan.expectedState)) return null;
+  return buildCorrective(plan, from, regrip, turns);
+}
+
 /**
  * The way on from a diagnosed mistake. The student holds the cube as the plan's `gripAfter`
  * says (that is how it was shown for the check), so the returned plan starts from the
@@ -146,21 +178,7 @@ export function resumeFrom(
 
   const reaches = sameState(applyMoves(from, [...regrip, ...turns]), plan.expectedState);
   if (reaches && turns.length > 0 && countTurns(turns) <= maxTurns) {
-    const corrective: StepPlan = {
-      ...plan,
-      setupMoves: regrip,
-      algorithm: turns,
-      grip: plan.gripAfter,
-      startState: from,
-      checkpoint: correctiveCheckpoint(plan, from),
-      facts: {
-        goal: `Fix the slip, then finish: ${plan.facts.goal}`,
-        lookFor: plan.facts.lookFor,
-        why: 'These moves take back what went wrong and then finish the step.',
-      },
-      progressBefore: progress(from, plan.method, plan.options).value,
-    };
-    return { kind: 'corrective', plan: corrective, undoMoves, redoMoves };
+    return { kind: 'corrective', plan: buildCorrective(plan, from, regrip, turns), undoMoves, redoMoves };
   }
   return { kind: 'replan', plan: planNextStep(from, plan.method, plan.gripAfter, plan.stepIndex, plan.options) };
 }
