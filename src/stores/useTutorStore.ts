@@ -194,8 +194,8 @@ const newId = () =>
 export const useTutorStore = create<TutorStore>((set, get) => {
   /** Sends everything queued, if there is a token and the profile has loaded (or failed to). */
   const flush = () => {
-    const { token } = get();
-    if (!token) return;
+    const { token, profileStatus } = get();
+    if (!token || profileStatus === 'idle' || profileStatus === 'loading') return;
     saveChain = saveChain.then(async () => {
       const batch = pendingOps;
       if (!batch.length) return;
@@ -302,10 +302,13 @@ export const useTutorStore = create<TutorStore>((set, get) => {
         return;
       }
       set({ profileStatus: 'loading' });
+      // Batches already on their way land first, so the profile read includes them.
+      await saveChain;
       try {
         const res = await fetch('/api/student', { headers: { [APP_TOKEN_HEADER]: token }, cache: 'no-store' });
         const parsed = res.ok ? parseStudentProfile(await res.json()) : null;
-        if (parsed?.ok) set({ profile: parsed.profile, profileStatus: 'ready' });
+        // Changes made before the profile arrived (while loading, or before the token) go on top.
+        if (parsed?.ok) set({ profile: applyProfileOps(parsed.profile, pendingOps), profileStatus: 'ready' });
         else set({ profileStatus: 'unsaved' });
       } catch {
         set({ profileStatus: 'unsaved' });

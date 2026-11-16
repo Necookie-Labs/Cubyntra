@@ -76,6 +76,57 @@ describe('profile saves', () => {
     expect(server.profile().timer.history.map((s) => s.id)).toEqual(['laptop-1', 'laptop-2']);
   });
 
+  it('queues changes made while the profile loads and applies them on top of it', async () => {
+    let release: () => void = () => {};
+    const gate = new Promise<void>((r) => (release = r));
+    const realFetch = server.fetch.getMockImplementation() as (url: string, init?: RequestInit) => Promise<Response>;
+    server.fetch.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (!init?.method) await gate;
+      return realFetch(url, init);
+    });
+
+    useTutorStore.setState({ token: 'secret' });
+    const loading = store().loadProfile();
+    expect(store().profileStatus).toBe('loading');
+    store().updateSettings({ stickerLetters: true });
+    store().addTimerSolve(solveAt(19_000));
+    await flushTutorSaves();
+    // Nothing is sent while loading: a default profile never goes out over the real one.
+    expect(patches()).toHaveLength(0);
+    expect(store().profileStatus).toBe('loading');
+
+    release();
+    await loading;
+    await flushTutorSaves();
+    expect(patches()).toHaveLength(1);
+    const local = store().profile;
+    expect(local.name).toBe('Sam');
+    expect(local.settings.stickerLetters).toBe(true);
+    expect(local.timer.history).toHaveLength(3);
+    expect(server.profile()).toEqual(local);
+  });
+
+  it('merges an unpaired phone’s changes once it gets a token', async () => {
+    store().addTimerSolve(solveAt(31_000));
+    store().answerTrainerCase('h-perm', false);
+    store().updateSettings({ plainLanguage: false });
+    expect(store().profileStatus).toBe('unsaved');
+    expect(server.fetch).not.toHaveBeenCalled();
+    expect(pendingProfileOps()).toHaveLength(4);
+
+    store().setToken('secret');
+    await store().loadProfile();
+    await flushTutorSaves();
+    const saved = server.profile();
+    expect(saved.timer.history).toHaveLength(3);
+    expect(Object.keys(saved.trainer.cards).sort()).toEqual(['h-perm', 'sune']);
+    expect(saved.settings.plainLanguage).toBe(false);
+    expect(saved.name).toBe('Sam');
+    expect(saved.currentSolve).toEqual(sampleProfile().currentSolve);
+    expect(store().profile).toEqual(saved);
+    expect(pendingProfileOps()).toEqual([]);
+  });
+
   it('keeps a batch for later when the server cannot be reached', async () => {
     useTutorStore.setState({ token: 'secret' });
     await store().loadProfile();
