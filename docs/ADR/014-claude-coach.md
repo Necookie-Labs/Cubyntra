@@ -25,8 +25,8 @@ private off the laptop.
   budget (a cut-off reply becomes a template), so thinking is turned off; Haiku 5.5 accepts
   disabled thinking at effort `high` or below. No `temperature` / `top_p` / `top_k` (the current
   API rejects them).
-- System prompt: one fixed text (`src/coach/systemPrompt.ts`, about 19,800 characters, roughly
-  4,900 tokens) with the curriculum for both methods, stage-by-stage teaching notes, the tone for
+- System prompt: one fixed text (`src/coach/systemPrompt.ts`, about 20,100 characters, roughly
+  5,000 tokens) with the curriculum for both methods, stage-by-stage teaching notes, the tone for
   ages 10+, the hint levels and the rules. It is sent as a text block with
   `cache_control: { type: "ephemeral" }`. It contains nothing per request (a test hashes it and
   rejects dates and ids) so the prefix stays cached; it is well above the minimum cacheable size.
@@ -36,6 +36,15 @@ private off the laptop.
   level 3 only, `moveWords`: one plain-language line per taught move (`R = turn the right side
   up`, from `src/cube/moveNames.ts`; the server recomputes it from the notation). No cube state,
   no images.
+- Case notes: every request also carries `caseTip`, the case's own teaching note for the hint
+  level (a recognition cue at level 1, the idea and a common mistake at level 2, a fingertrick or
+  practice tip at level 3). `src/coach/caseNotes.ts` generates the notes for every id in
+  `allCaseIds()` from the tutor tables (OLL patterns, PLL cycles and recognition, algorithms)
+  plus a short hand-written note per group or stage, so they cannot contradict the tables. Cue
+  and idea name no moves; the tip names only moves of the case's algorithm, and any sentence
+  with a move outside the facts is dropped. The server recomputes `caseTip` from `caseId`, the
+  templates append it, and the notes stay out of the cached system prompt (which only describes
+  the field) so the prompt stays byte-stable.
 - Diagnosis: `useCoach` and `buildCoachFacts` take the tutor's own `Diagnosis` /
   `LikelyMistake` (`src/tutor/types.ts`). Only a compact projection is sent:
   `{ likelyMistakes: [{ kind, detail?, moveIndex?, confidence, description? }] (at most 3),

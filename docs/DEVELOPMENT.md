@@ -104,7 +104,7 @@ optional: without a key every hint comes from the built-in templates.
   the coach serves templates until the next month. Delete or edit that file only if you know the
   real spend (the Anthropic Console shows it).
 - The server logs `[coach] usage input=... output=... cache_read=... cache_write=... cost=$...`
-  for every live call. After the first call, `cache_read` should be about 4,900 tokens; if it
+  for every live call. After the first call, `cache_read` should be about 5,000 tokens; if it
   stays at 0, something made the system prompt change between calls.
 - The request turns thinking off (`thinking: { type: "disabled" }`, effort `low`) so the whole
   400-token budget goes to the reply.
@@ -135,6 +135,11 @@ the situation list only).
 - Facts come from the plan: stage and case ids and names, grip, setup and algorithm, the plan's
   `goal` / `lookFor` / `why` / `repeat`, attempts and, at hint level 3, plain-language move names.
   Templates are built from the same facts, so new stages or cases need no coach change to work.
+- Per-case notes: `src/coach/caseNotes.ts` generates a cue, an idea plus common mistake and a
+  fingertrick tip for every id in `allCaseIds()` from the case tables and a short note per group.
+  The server sends the one for the hint level as `caseTip` (never in the cached system prompt),
+  and the templates use it. A new case id needs a group or stage note there to pass
+  `tests/coach-case-notes.test.ts`.
 - Pass the tutor's `Diagnosis` to `useCoach({ diagnosis })`; it is projected to kind, detail,
   moveIndex, confidence and description per mistake (top 3), plus `confident` and `showNext`.
   Move lists and cube states never leave the browser.
