@@ -174,6 +174,18 @@ describe('Solve', () => {
     expect(useTutorStore.getState().phase).toBe('step');
   });
 
+  it('counts the highest hint asked for on the stage', async () => {
+    await act(async () => {
+      await useTutorStore.getState().startSolve(scrambledState(5, 3), 'cfop');
+    });
+    render(<SolveView />);
+    await flush();
+    const hints = screen.getByRole('group', { name: 'Hints' });
+    fireEvent.click(within(hints).getByRole('button', { name: /Show the moves/ }));
+    await flush();
+    expect(useTutorStore.getState().stageHint).toBe(3);
+  });
+
   it('explains a planning failure with a retry', () => {
     useTutorStore.setState({ phase: 'error', errorMessage: 'The tutor could not find a step.' });
     render(<SolveView />);

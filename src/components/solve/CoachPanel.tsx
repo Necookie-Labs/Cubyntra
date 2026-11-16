@@ -24,6 +24,8 @@ export interface CoachPanelProps {
   diagnosis?: Diagnosis;
   /** Ask for an explanation as soon as a diagnosis arrives (after a mismatch). */
   explainDiagnosis?: boolean;
+  /** Called with the level of every hint the student asks for (mastery counts them). */
+  onHint?: (level: HintLevel) => void;
   className?: string;
 }
 
@@ -33,7 +35,15 @@ const HINTS: { level: HintLevel; label: string; Icon: typeof Eye }[] = [
   { level: 3, label: 'Show the moves', Icon: ListOrdered },
 ];
 
-export function CoachPanel({ plan, token, attempts, diagnosis, explainDiagnosis = false, className }: CoachPanelProps) {
+export function CoachPanel({
+  plan,
+  token,
+  attempts,
+  diagnosis,
+  explainDiagnosis = false,
+  onHint,
+  className,
+}: CoachPanelProps) {
   const coach = useCoach({ plan, token, attempts, diagnosis });
   const { requestHint } = coach;
   const busy = coach.status === 'loading' || coach.status === 'streaming';
@@ -91,7 +101,10 @@ export function CoachPanel({ plan, token, attempts, diagnosis, explainDiagnosis 
             size="sm"
             aria-pressed={coach.hintLevel === level && coach.status !== 'idle'}
             disabled={busy}
-            onClick={() => requestHint(level)}
+            onClick={() => {
+              requestHint(level);
+              onHint?.(level);
+            }}
             icon={<Icon aria-hidden className="h-4 w-4" />}
             className="justify-start"
           >

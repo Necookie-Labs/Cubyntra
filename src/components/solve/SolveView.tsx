@@ -111,6 +111,7 @@ export function SolveView() {
   const profileStatus = useTutorStore((s) => s.profileStatus);
   const hasSaved = useTutorStore((s) => s.profile.currentSolve !== null);
   const beginCheckpoint = useTutorStore((s) => s.beginCheckpoint);
+  const noteHint = useTutorStore((s) => s.noteHint);
   const [watched, setWatched] = useState<string | null>(null);
   const [engine, setEngine] = useState<CubeEngine | null>(null);
 
@@ -162,6 +163,7 @@ export function SolveView() {
           attempts={attempts}
           diagnosis={mismatch ? toCoachDiagnosis(checkpoint?.diagnosis ?? null) : undefined}
           explainDiagnosis={mismatch}
+          onHint={noteHint}
         />
       </div>
 
