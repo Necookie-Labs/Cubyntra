@@ -1,7 +1,8 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Geist_Mono, Nunito_Sans, Pixelify_Sans } from 'next/font/google';
 import './globals.css';
 import { THEME_BOOT_SCRIPT } from '@/lib/theme';
+import { APP_METADATA, APP_VIEWPORT } from './appMetadata';
 
 // Pixel display face for headings only; body text stays in a readable sans.
 const pixel = Pixelify_Sans({
@@ -20,14 +21,8 @@ const code = Geist_Mono({
   subsets: ['latin'],
 });
 
-export const metadata: Metadata = {
-  title: "Cubyntra — Computer Vision Rubik's Cube Scanner & Solver",
-  description:
-    "High-precision, 100% client-side Computer Vision Rubik's Cube scanner, state validator, solver, and interactive 3D digital twin by Necookie Labs. See it. Solve it.",
-  icons: {
-    icon: '/favicon.ico',
-  },
-};
+export const metadata: Metadata = APP_METADATA;
+export const viewport: Viewport = APP_VIEWPORT;
 
 export default function RootLayout({
   children,

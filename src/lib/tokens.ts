@@ -39,3 +39,17 @@ export const TWIN_THEME_HEX: Readonly<Record<ThemeName, TwinThemeTokens>> = {
   light: { ink: '#2E4A22', focus: '#1D5FB8' },
   dark: { ink: '#E4EFD8', focus: '#8CC4FF' },
 };
+
+/**
+ * Colors the browser chrome uses outside CSS: the PWA manifest (splash screen, title bar),
+ * the `theme-color` meta tag and the generated app icons. `ground` is `--vx-ground` and
+ * `ink` is `--vx-ink` in each theme.
+ */
+export const APP_CHROME_HEX: Readonly<Record<ThemeName, { ground: string; ink: string }>> = {
+  light: { ground: '#EAF4E2', ink: '#2E4A22' },
+  dark: { ground: '#16210F', ink: '#E4EFD8' },
+};
+
+/** `--vx-leaf` and `--vx-leaf-edge`. */
+export const LEAF_HEX = '#5FA83A';
+export const LEAF_EDGE_HEX = '#3F7A24';
