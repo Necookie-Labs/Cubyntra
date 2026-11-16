@@ -488,6 +488,8 @@ checkCheckpoint(plan, observations): { result: CheckpointResult; diagnosis: Diag
 confirmCheckpointByHand(plan); checkWithEdits(plan, observations, face, edits); toCoachDiagnosis(diagnosis)
 replanAfterRescan(scanned, method, grip, stepIndex, options?): ScanReplan   // replanFromScan
 faceToShowNext(outcome): Face | null   // needsRescan with showNext
+// decideRecovery never throws TutorPlanError: a failed re-plan is { action: 'needsRescan', reason: 'no-plan' }.
+// The store runs each check guarded: any other error -> phase 'error' with errorMessage ("Try again" re-plans).
 ```
 
 

@@ -5,7 +5,9 @@
  * Three ways on after a mismatch, from cheapest to surest:
  * 1. The diagnosis is confident: the cube is known, so give a short corrective step (take back
  *    what went wrong, then finish the step), or a fresh plan when taking it back is too long.
- * 2. The diagnosis is not confident, or nothing fits: ask for a full rescan.
+ * 2. The diagnosis is not confident, or nothing fits, or no plan can be made from the cube it
+ *    names (most likely a misread color): ask for a full rescan. Recovery never throws a
+ *    `TutorPlanError`, so a checkpoint cannot leave the student stuck.
  * 3. After the rescan: plan again from the scanned cube, however it was held for the scan.
  * Pure TypeScript: no DOM, camera or vision imports.
  */
@@ -53,7 +55,8 @@ export type Recovery =
   | { action: 'resume'; mistake: LikelyMistake; resume: ResumePlan }
   | {
       action: 'needsRescan';
-      reason: 'nothing-fits' | 'not-confident';
+      /** `no-plan`: the diagnosed cube could not be planned from (the tutor threw). */
+      reason: 'nothing-fits' | 'not-confident' | 'no-plan';
       /** A cheaper thing to try first: show this face too, then diagnose again. */
       showNext?: Face;
     };
@@ -197,7 +200,12 @@ export function decideRecovery(plan: StepPlan, diagnosis: Diagnosis, options: Re
       ...(diagnosis.showNext ? { showNext: diagnosis.showNext } : {}),
     };
   }
-  return { action: 'resume', mistake, resume: resumeFrom(plan, mistake, options) };
+  try {
+    return { action: 'resume', mistake, resume: resumeFrom(plan, mistake, options) };
+  } catch (error) {
+    if (error instanceof TutorPlanError) return { action: 'needsRescan', reason: 'no-plan' };
+    throw error;
+  }
 }
 
 export type ScanReplan =

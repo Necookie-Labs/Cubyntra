@@ -285,6 +285,27 @@ export const useTutorStore = create<TutorStore>((set, get) => {
     return startedAt ? [{ op: 'clearCurrentSolve', startedAt }] : [];
   };
 
+  /**
+   * Runs a checkpoint check from a click handler. Recovery already turns a planner error into a
+   * rescan; anything else unexpected must not leave the student stuck on the camera sheet, so it
+   * lands on the error screen, from which "Try again" re-plans the step.
+   */
+  const runCheck = (check: () => CheckpointOutcome) => {
+    let outcome: CheckpointOutcome;
+    try {
+      outcome = check();
+    } catch (error) {
+      console.error('[Cubyntra] Checking the checkpoint failed:', error);
+      set({
+        phase: 'error',
+        checkpoint: null,
+        errorMessage: 'Something went wrong while checking the cube. Try the step again, or scan the cube again.',
+      });
+      return;
+    }
+    recordOutcome(outcome);
+  };
+
   const recordOutcome = (outcome: CheckpointOutcome) => {
     const status = outcome.result.status;
     if (status === 'match') {
@@ -412,21 +433,20 @@ export const useTutorStore = create<TutorStore>((set, get) => {
       if (!plan || phase !== 'checking') return;
       const next = [...observations.filter((o) => o.face !== observation.face), observation];
       set({ observations: next });
-      recordOutcome(checkCheckpoint(plan, next));
+      runCheck(() => checkCheckpoint(plan, next));
     },
 
     editTiles: (face, edits) => {
       const { plan, observations } = get();
       if (!plan) return;
-      const outcome = checkWithEdits(plan, observations, face, edits);
       set({ observations: observations.map((o) => (o.face === face ? applyTileEdits(o, edits) : o)) });
-      recordOutcome(outcome);
+      runCheck(() => checkWithEdits(plan, observations, face, edits));
     },
 
     confirmByHand: () => {
       const { plan } = get();
       if (!plan) return;
-      recordOutcome(confirmCheckpointByHand(plan));
+      runCheck(() => confirmCheckpointByHand(plan));
     },
 
     advance: async () => {

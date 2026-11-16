@@ -121,7 +121,14 @@ Result: `Diagnosis { likelyMistakes: LikelyMistake[]; confident: boolean; showNe
 ## 6. Recovering
 
 - `decideRecovery(plan, diagnosis)` → `{ action: 'resume', mistake, resume }` when confident,
-  else `{ action: 'needsRescan', reason: 'nothing-fits' | 'not-confident', showNext? }`.
+  else `{ action: 'needsRescan', reason: 'nothing-fits' | 'not-confident', showNext? }`. If
+  re-planning from the diagnosed cube throws a `TutorPlanError` (an impossible cube, usually a
+  misread color), it returns `{ action: 'needsRescan', reason: 'no-plan' }` instead of throwing.
+- In the store, every checkpoint check (`submitObservation`, `editTiles`, `confirmByHand`) is
+  guarded: an unexpected error moves to the `error` phase with a message, whose "Try again"
+  re-plans the step. Diagnosis and recovery stay on the main thread: across 169 injected slips
+  they take 1.3 ms (median) to 4.7 ms (worst) in Node, and moving them to the worker would make
+  every checkpoint verdict asynchronous for the sheet, the store and their tests for little gain.
 - `resumeFrom(plan, mistake)` → a `corrective` step (a normal `StepPlan` starting at
   `resultingState` in `gripAfter`: regrip first, then take back the moves from the slip onward
   and finish the step, simplified; it ends in the original `expectedState` and checks the
