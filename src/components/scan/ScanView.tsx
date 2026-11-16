@@ -28,6 +28,7 @@ import { useCompanion } from '@/sync/CompanionSyncProvider';
 import { BlockButton, Panel } from '@/components/ui';
 import { Busy, PageContainer } from '@/components/shell/Page';
 import { buildStudentPalette } from '@/vision/palette';
+import { warmUpSolver } from '@/solver/client';
 
 /** Scan states after which the cube is known and the solve can start. */
 const CONFIRMED = new Set(['processing', 'solution_ready', 'solving', 'solved']);
@@ -49,6 +50,12 @@ export function ScanView() {
   // earlier visit does not start a solve on arrival.
   const armed = useRef(false);
   const handled = useRef(false);
+
+  // Build the solver tables in the worker while the student scans, so checking the finished
+  // scan does not wait for them.
+  useEffect(() => {
+    warmUpSolver();
+  }, []);
 
   useEffect(() => {
     const state = useCubyntraStore.getState().appState;

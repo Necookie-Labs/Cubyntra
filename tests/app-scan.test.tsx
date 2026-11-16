@@ -10,6 +10,7 @@ import { act, cleanup, fireEvent, render, screen, within } from '@testing-librar
 import { planNextStep } from '@/tutor';
 import { defaultStudentProfile } from '@/lib/studentProfile';
 import { createSolvedCubeState } from '@/cube/constants';
+import { warmUpSolver } from '@/solver/client';
 
 const nav = vi.hoisted(() => ({ pathname: '/', push: vi.fn(), refresh: vi.fn() }));
 vi.mock('next/navigation', () => ({
@@ -118,6 +119,13 @@ describe('Scan', () => {
     expect(useCubyntraStore.getState().appState).toBe('scanning');
     expect(screen.getByText('camera scanner')).toBeTruthy();
     expect(screen.getByText('Camera not working?')).toBeTruthy();
+  });
+
+  it('warms up the solver while the student scans', () => {
+    vi.mocked(warmUpSolver).mockClear();
+    useCubyntraStore.getState().resetAll();
+    render(<ScanView />);
+    expect(warmUpSolver).toHaveBeenCalledTimes(1);
   });
 
   it('lets a paired phone read the faces instead', () => {
