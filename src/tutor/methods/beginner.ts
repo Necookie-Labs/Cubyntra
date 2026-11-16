@@ -253,6 +253,75 @@ function planWhiteCorners(view: CubeState): StepDraft {
 }
 
 // ---------------------------------------------------------------------------------------------
+// 4. Middle-layer edges
+// ---------------------------------------------------------------------------------------------
+
+const MIDDLE_RIGHT = "U R U' R' U' F' U F";
+const MIDDLE_LEFT = "U' L' U L U F U' F'";
+
+/** Edges solved count double; a middle edge waiting in the top layer counts one. */
+function middleEdgeProgress(view: CubeState): number {
+  const unsolved = MIDDLE_EDGES.filter(([a, b]) => !isPieceSolved(view, [a, b]));
+  const waiting = unsolved.some(([a, b]) => findEdge(view, [a, b]).stickers.some((s) => view[s.face][4] === LAST));
+  return (4 - unsolved.length) * 2 + Number(waiting);
+}
+
+function planMiddleEdges(view: CubeState): StepDraft {
+  const solving = new Cheapest();
+  const extracting = new Cheapest();
+  for (const [a, b] of MIDDLE_EDGES) {
+    if (isPieceSolved(view, [a, b])) continue;
+    const label = `${a}-${b}`;
+    const inTop = findEdge(view, [a, b]).slot.startsWith('U');
+    for (let quarters = 0; quarters < 4; quarters++) {
+      for (let turns = 0; turns < 4; turns++) {
+        if (!inTop && quarters > 0) continue;
+        const setup = [...rotations('y', turns), ...faceTurns('U', quarters)];
+        const v = applyMoves(view, setup);
+        const slot = findEdge(v, [a, b]).slot;
+
+        if (inTop && slot === 'UF' && v.F[1] === v.F[4]) {
+          const goesRight = v.U[7] === v.R[4];
+          const algorithm = alg(goesRight ? MIDDLE_RIGHT : MIDDLE_LEFT);
+          if (!isPieceSolved(applyMoves(v, algorithm), [a, b])) continue;
+          const sideName = goesRight ? 'right' : 'left';
+          solving.offer(setup.length + algorithm.length, () => ({
+            caseId: `middle-edge-${sideName}`,
+            caseName: `Middle edge to the ${sideName}`,
+            setupMoves: setup,
+            algorithm: [...algorithm],
+            highlightPieces: [edgeRef(a, b)],
+            targetSlot: edgeRef(a, b),
+            facts: {
+              goal: `Drop the ${label} edge from the top layer into the middle layer on the ${sideName}.`,
+              lookFor: `Find the ${label} edge in the top layer (no yellow on it). Turn the top until its side sticker matches the center below it and hold that side in front. Its top sticker matches the ${sideName} center.`,
+              why: `The edge is moved away from the ${sideName}, the ${sideName} slot comes up to collect it, and the white corner underneath is put back.`,
+            },
+          }));
+        } else if (!inTop && slot === 'FR') {
+          const algorithm = alg(MIDDLE_RIGHT);
+          extracting.offer(setup.length + algorithm.length, () => ({
+            caseId: 'middle-edge-extract',
+            caseName: 'Free a stuck middle edge',
+            setupMoves: setup,
+            algorithm: [...algorithm],
+            highlightPieces: [edgeRef(a, b)],
+            facts: {
+              goal: `Bring the ${label} edge up to the top layer so it can be put in properly.`,
+              lookFor: `The ${label} edge is in the middle layer but in the wrong place or flipped. Hold it at the front-right.`,
+              why: 'Putting a top-layer edge into this slot pushes the stuck edge out to the top.',
+            },
+          }));
+        }
+      }
+    }
+  }
+  const draft = solving.get() ?? extracting.get();
+  if (!draft) throw new TutorPlanError('No middle edge can be placed');
+  return draft;
+}
+
+// ---------------------------------------------------------------------------------------------
 // Detectors. Each one includes every earlier stage; all of them count a cube that is part-way
 // through the last stage as having finished the stages before it.
 // ---------------------------------------------------------------------------------------------
@@ -295,6 +364,15 @@ const STAGES: StageDefinition[] = [
     progress: whiteCornerProgress,
     plan: planWhiteCorners,
     check: { prefer: ['U', 'F', 'R'] },
+  },
+  {
+    id: 'middle-edges',
+    name: 'Middle layer',
+    top: LAST,
+    isComplete: middleEdgesDone,
+    progress: middleEdgeProgress,
+    plan: planMiddleEdges,
+    check: { prefer: ['F', 'R', 'L'] },
   },
 ];
 
