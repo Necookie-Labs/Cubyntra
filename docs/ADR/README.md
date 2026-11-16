@@ -23,4 +23,5 @@ This directory contains records of key architectural and engineering decisions m
 | [ADR-010](010-desktop-side-analysis-and-global-color-resolution.md) | Desktop-Side Photo Analysis & Global 54-Sticker Color Resolution | Accepted | 2026-09 |
 | [ADR-011](011-voxel-design-system.md) | Voxel Design System: Flat Tokens, Blocks and Enforced Style Rules | Accepted | 2026-11 |
 | [ADR-012](012-deterministic-tutor-engine.md) | Deterministic Tutor Engine, Claude as Explainer Only | Accepted | 2026-11 |
+| [ADR-013](013-checkpoint-verification.md) | Checkpoint Verification, Mistake Diagnosis and Recovery | Accepted | 2026-11 |
 | [ADR-014](014-claude-coach.md) | Claude Coach: Haiku 5.5 Explanations with a Move Guardrail, Templates and a Spend Cap | Accepted | 2026-11 |
