@@ -72,7 +72,7 @@ Checklist for `docs/tutor/GOAL.md`. Tick an item only when it is done and tested
 - [ ] Phase gate passed and pushed
 
 ## Phase 7: App shell and PWA
-- [x] Routes and navigation (`(app)` route group, tab bar and side nav; Trainer/Timer/Progress are layout shells for Phase 9; `/pair` opens the existing pairing dialog until Phase 8)
+- [x] Routes and navigation (`(app)` route group, tab bar and side nav; Trainer, Timer and Progress built in Phase 9; `/pair` shows the QR and typed code)
 - [x] Phone solve layout and desktop layout
 - [x] Manifest, icons, wake lock
 - [x] Student profile and resume (`data/student.json`)
@@ -82,15 +82,16 @@ Checklist for `docs/tutor/GOAL.md`. Tick an item only when it is done and tested
 ## Phase 8: Sync
 - [x] State-only sync; photo relay removed
 - [x] Pairing secret and typed code
-- [x] Two-way playback control (solver playback; `grip` and `checkpoint-result` are relayed but not consumed until the Phase 7 tutor screens)
+- [x] Two-way playback control (solver and tutor playback; `grip` and `checkpoint-result` are consumed by both devices since Phase 9, including a solve done on the phone)
 - [x] ADR-015 and privacy docs
 - [x] Phase gate passed and pushed
 
 ## Phase 9: Learning features
-- [ ] Algorithm trainer
-- [ ] Timer
-- [ ] Progress world
-- [x] Full OLL 57 / PLL 21 (engine side: `cases/oll.ts`, `cases/pll.ts`, `lastLayer: 'full'` setting, 10,000-scramble soak: 62.3 turns average; trainer UI and coach notes for the new ids still to come)
+- [x] Algorithm trainer (`/trainer`: five sets with group filter, drills planned as tutor steps from solved + random top turn, name / algorithm / coach on request, Got it / Missed it or the checkpoint camera, Leitner boxes counted in drills; `src/learn/trainerSets.ts`, `drill.ts`, `leitner.ts`)
+- [x] Timer (`/timer`: 20-move scramble on the twin, 15 s inspection with 8 s / 12 s calls, +2 and DNF per WCA, hold-to-arm by pad or Space, best single, best ao5, ao5, ao12 with WCA trimming, history of 100; `src/learn/timer.ts`, `scramble.ts`)
+- [x] Progress world (`/progress`: flat isometric SVG islands per method with a block per stage mastered, streak and four-week calendar, algorithm collection; mastered = 3 of the newest 5 completions without a level-3 hint; stage hints recorded by `useTutorStore`; graduation card on Home and the CFOP last-layer setting in Settings; profile v2 with a v1 migration)
+- [x] Phone side of a solve (`/solve` on a paired phone syncs as `mobile` and sends grip and checkpoint results; `/companion` after a scan shows the guided-solve step with "Solve on this phone")
+- [x] Full OLL 57 / PLL 21 (engine side: `cases/oll.ts`, `cases/pll.ts`, `lastLayer: 'full'` setting, 10,000-scramble soak: 62.3 turns average; coach case notes for every new id; trainer sets for both)
 - [ ] Phase gate passed and pushed
 
 ## Phase 10: Finish

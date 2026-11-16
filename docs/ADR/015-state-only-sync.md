@@ -106,5 +106,10 @@ phone's commands; the phone mirrors the laptop's position.
   QR code shares that trust until the session ends; the app token itself lasts until
   `data/app-secret` is deleted.
 - The relay still needs one long-running server process (as under ADR-009/010).
-- `grip` and `checkpoint-result` are relayed and kept in the snapshot, but nothing consumes them
-  yet; the tutor screens (Phase 7) will.
+- `grip` and `checkpoint-result` are relayed and kept in the snapshot. Since Phase 9 both devices
+  consume them: whichever device runs `/solve` publishes its step, grip, playback and checkpoint
+  verdicts (the laptop over the pairing it created, a paired phone as `mobile` over the pairing it
+  joined, `useSolveSyncTarget`), and the other applies the grip and a verdict for the same step. A
+  device with no solve open joins the step the other shows (the tutor is deterministic, so the same
+  cube, grip and step number give the same plan). Two devices running different solves at once
+  still share one grip; the app assumes one student and one solve.
