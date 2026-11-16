@@ -276,3 +276,45 @@ templateText(facts: CoachFacts): string
 getAppSecret(): string          // creates data/app-secret on first use
 getPairingToken(): string       // the value to put in the phone pairing QR (Phase 8)
 ```
+
+---
+
+## 8. Student Profile and Tutor Session (`src/lib/`, `src/stores/useTutorStore.ts`)
+
+| Route | Auth | Body | Response |
+|---|---|---|---|
+| `GET /api/student` | token | – | `StudentProfile` (the default one before anything is saved) |
+| `PUT /api/student` | token | whole `StudentProfile` (≤ 32 KB) | the saved profile; `400` invalid, `401` no token, `413` too large |
+
+```typescript
+// src/lib/studentProfile.ts (shared; no Node or DOM)
+interface StudentProfile {
+  version: 1;
+  name: string;                                   // ≤ 40 characters
+  settings: { methodDefault: MethodId; plainLanguage: boolean; stickerLetters: boolean;
+              reducedMotion: boolean; theme: 'light' | 'dark' | 'system' };
+  palette: StudentPalette | null;                 // src/vision/palette.ts
+  currentSolve: { method: MethodId; state: CubeState; grip: Grip; stepIndex: number;
+                  attempts: AttemptRecord[]; startedAt: string; updatedAt: string } | null;
+  stats: { solvesCompleted: number; stepsCompleted: number; checkpointsPassed: number; lastSolveAt: string | null };
+}
+parseStudentProfile(input: unknown): { ok: true; profile: StudentProfile } | { ok: false; error: string }
+defaultStudentProfile(): StudentProfile
+
+// src/lib/studentFile.ts (server only)
+readStudentProfile(): StudentProfile             // default when missing; damaged file -> student.json.bad
+writeStudentProfile(profile: StudentProfile): void  // atomic; throws ProfileTooLargeError
+
+// src/stores/useTutorStore.ts
+type SolvePhase = 'idle' | 'loading' | 'step' | 'checking' | 'celebrate' | 'mismatch' | 'solved' | 'error';
+startSolve(state, method); resumeSolve(): Promise<boolean>; loadPlan();
+beginCheckpoint(); submitObservation(observation); editTiles(face, edits); confirmByHand();
+advance(); replayStep(); continueFromDiagnosis(); abandonSolve();
+updateSettings(patch); setName(name); savePalette(palette); loadProfile();
+
+// src/app-shell/checkpointAdapter.ts
+checkCheckpoint(plan, observations): { result: CheckpointResult; diagnosis: Diagnosis | null; recovery: Recovery | null }
+confirmCheckpointByHand(plan); checkWithEdits(plan, observations, face, edits); toCoachDiagnosis(diagnosis)
+type Recovery = { kind: 'continue'; state; grip; description } | { kind: 'show-face'; face } | { kind: 'rescan' }
+```
+

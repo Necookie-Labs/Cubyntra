@@ -88,12 +88,20 @@ cd Cubyntra
 # 2. Install dependencies
 npm install
 
-# 3. Start local development server (with Turbopack)
+# 3. Optional: a Claude key for the live coach (without it the coach uses built-in notes)
+echo "ANTHROPIC_API_KEY=sk-ant-..." > .env.local
+
+# 4. Start the local development server (HTTPS, needed for the phone camera)
 npm run dev
 
-# 4. Open https://localhost:3000 and accept the one-time certificate warning
-#    (HTTPS is required for the phone camera; see docs/DEVELOPMENT.md)
+# 5. Open https://localhost:3000 and accept the one-time certificate warning
 ```
+
+Then: pick **Beginner's** or **CFOP** on the home screen, **Scan my cube** (or **Try a demo
+cube**), and follow the twin on `/solve`, pressing **I did it** after each step so the camera can
+check it. The student's profile and an interrupted solve are kept in `data/student.json` on this
+laptop. On a phone, open `https://<laptop-ip>:3000` and add it to the home screen from Settings;
+see [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) §6.
 
 ### Automated Testing & Quality Gates
 ```bash
