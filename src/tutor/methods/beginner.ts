@@ -164,6 +164,95 @@ function planWhiteCross(view: CubeState): StepDraft {
 }
 
 // ---------------------------------------------------------------------------------------------
+// 3. White corners (white on top, corners come up from the bottom)
+// ---------------------------------------------------------------------------------------------
+
+/** Corners solved count double; a white corner waiting in the bottom layer counts one. */
+function whiteCornerProgress(view: CubeState): number {
+  const unsolved = FIRST_CORNERS.filter((c) => !isPieceSolved(view, c));
+  const waiting = unsolved.some((c) => findCorner(view, c).stickers.some((s) => view[s.face][4] === LAST));
+  return (4 - unsolved.length) * 2 + Number(waiting);
+}
+
+function cornerDraft(
+  corner: [CubeColor, CubeColor, CubeColor],
+  kind: 'below' | 'twisted' | 'wrong-slot',
+  setupMoves: Move[],
+  times: number
+): StepDraft {
+  const unit = alg(CORNER_TRIGGER);
+  const label = corner.join('-');
+  const text = {
+    below: {
+      name: 'Corner below its home',
+      goal: `Lift the ${label} corner into its home in the top layer.`,
+      lookFor: `The ${label} corner is in the bottom layer. Turn the bottom until it sits right under its home, between the ${corner[1]} and ${corner[2]} centers, and hold it at the front-right.`,
+    },
+    twisted: {
+      name: 'Corner home but twisted',
+      goal: `Turn the ${label} corner the right way round without moving it away.`,
+      lookFor: `The ${label} corner is in its home but white is not facing up. Hold it at the front-right.`,
+    },
+    'wrong-slot': {
+      name: 'Corner in the wrong home',
+      goal: `Take the ${label} corner out of the top layer so it can go to its own home.`,
+      lookFor: `The ${label} corner is in the top layer but between the wrong centers. Hold it at the front-right.`,
+    },
+  }[kind];
+  return {
+    caseId: `white-corner-${kind}`,
+    caseName: text.name,
+    setupMoves,
+    algorithm: repeatMoves(unit, times),
+    highlightPieces: [cornerRef(corner[0], corner[1], corner[2])],
+    targetSlot: kind === 'wrong-slot' ? undefined : cornerRef(corner[0], corner[1], corner[2]),
+    facts: {
+      goal: text.goal,
+      lookFor: text.lookFor,
+      why: 'Each round of these four turns swaps the front-right corners of the top and bottom and twists them, while the white cross comes back every time.',
+      repeat: { unit: [...unit], times },
+    },
+  };
+}
+
+function planWhiteCorners(view: CubeState): StepDraft {
+  const unit = alg(CORNER_TRIGGER);
+  const solving = new Cheapest();
+  const extracting = new Cheapest();
+  for (const corner of FIRST_CORNERS) {
+    if (isPieceSolved(view, corner)) continue;
+    for (let turns = 0; turns < 4; turns++) {
+      const hold = rotations('y', turns);
+      const v = applyMoves(view, hold);
+      const slot = findCorner(v, corner).slot;
+      const homeAtFrontRight = corner.includes(v.F[4]) && corner.includes(v.R[4]);
+
+      if (slot.startsWith('D') && homeAtFrontRight) {
+        for (let quarters = 0; quarters < 4; quarters++) {
+          const setup = [...hold, ...faceTurns('D', quarters)];
+          const below = applyMoves(view, setup);
+          if (findCorner(below, corner).slot !== 'DFR') continue;
+          for (const times of [1, 3, 5]) {
+            if (!isPieceSolved(applyMoves(below, repeatMoves(unit, times)), corner)) continue;
+            solving.offer(setup.length + 4 * times, () => cornerDraft(corner, 'below', setup, times));
+          }
+        }
+      } else if (slot === 'UFR' && homeAtFrontRight) {
+        for (const times of [2, 4]) {
+          if (!isPieceSolved(applyMoves(v, repeatMoves(unit, times)), corner)) continue;
+          solving.offer(hold.length + 4 * times, () => cornerDraft(corner, 'twisted', hold, times));
+        }
+      } else if (slot === 'UFR') {
+        extracting.offer(hold.length + 4, () => cornerDraft(corner, 'wrong-slot', hold, 1));
+      }
+    }
+  }
+  const draft = solving.get() ?? extracting.get();
+  if (!draft) throw new TutorPlanError('No white corner can be placed');
+  return draft;
+}
+
+// ---------------------------------------------------------------------------------------------
 // Detectors. Each one includes every earlier stage; all of them count a cube that is part-way
 // through the last stage as having finished the stages before it.
 // ---------------------------------------------------------------------------------------------
@@ -197,6 +286,15 @@ const STAGES: StageDefinition[] = [
     progress: (view) => SIDES.filter((side) => isPieceSolved(view, [FIRST, side])).length,
     plan: planWhiteCross,
     check: { prefer: ['F', 'R', 'L', 'B', 'D'] },
+  },
+  {
+    id: 'white-corners',
+    name: 'White corners',
+    top: FIRST,
+    isComplete: whiteCornersDone,
+    progress: whiteCornerProgress,
+    plan: planWhiteCorners,
+    check: { prefer: ['U', 'F', 'R'] },
   },
 ];
 
