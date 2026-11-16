@@ -129,6 +129,9 @@ export const REFERENCE_LAB: Record<CubeColor, LABColor> = {
   orange: { l: 62, a: 50, b: 65 },
 };
 
+/** Hue (degrees) where the classifier stops boosting red and starts boosting orange. */
+export const RED_ORANGE_HUE_SPLIT = 8;
+
 export interface ClassifiedColorResult {
   color: CubeColor;
   confidence: number;
@@ -216,13 +219,16 @@ export function classifyColor(
     scores.blue += 40;
   }
 
-  // 5. Orange: Hue 12-42, high saturation
-  if (hsv.h >= 12 && hsv.h < 42 && hsv.s >= 40) {
+  // 5/6. Orange vs red split at RED_ORANGE_HUE_SPLIT. The Kaggle dataset means are red
+  // h = 1.7 deg and orange h = 9.9 deg (RGB 201,82,58), so a split at 12 deg boosted the average
+  // orange sticker as red. 8 deg sits between the two means, leaning towards red's wider spread.
+  // 5. Orange: Hue [8, 42), high saturation
+  if (hsv.h >= RED_ORANGE_HUE_SPLIT && hsv.h < 42 && hsv.s >= 40) {
     scores.orange += 35;
   }
 
-  // 6. Red: Hue wrap-around [0, 12) or [340, 360]
-  if ((hsv.h < 12 || hsv.h >= 340) && hsv.s >= 40) {
+  // 6. Red: Hue wrap-around [0, 8) or [340, 360]
+  if ((hsv.h < RED_ORANGE_HUE_SPLIT || hsv.h >= 340) && hsv.s >= 40) {
     scores.red += 40;
   }
 

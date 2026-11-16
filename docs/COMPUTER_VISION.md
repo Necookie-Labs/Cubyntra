@@ -150,8 +150,9 @@ Reference plastic centroid coordinates in CIELAB space:
 - **Yellow Detection**: Hue $H \in [42^\circ, 75^\circ]$, $S \ge 35\%$, $V \ge 45\%$, and strongly positive $b^* > 20$.
 - **Green Detection**: Hue $H \in [80^\circ, 168^\circ]$, $S \ge 28\%$, and strongly negative $a^* < -10$.
 - **Blue Detection**: Hue $H \in [175^\circ, 265^\circ]$, $S \ge 30\%$, and strongly negative $b^* < -10$.
-- **Orange Detection**: Hue $H \in [12^\circ, 42^\circ)$, $S \ge 40\%$, positive $a^* > 10$, and positive $b^* > 20$.
-- **Red Detection**: Hue wrap-around $H \in [0^\circ, 12^\circ) \cup [340^\circ, 360^\circ]$, $S \ge 40\%$, and high positive $a^* > 25$.
+- **Orange Detection**: Hue $H \in [8^\circ, 42^\circ)$, $S \ge 40\%$, positive $a^* > 10$, and positive $b^* > 20$.
+- **Red Detection**: Hue wrap-around $H \in [0^\circ, 8^\circ) \cup [340^\circ, 360^\circ]$, $S \ge 40\%$, and high positive $a^* > 25$.
+- **Red / orange split (`RED_ORANGE_HUE_SPLIT = 8°`)**: the Kaggle dataset means are red $H = 1.7^\circ$ and orange $H = 9.9^\circ$ (RGB 201, 82, 58), so the earlier 12° split boosted the average orange sticker as red. `tests/color-boundary.test.ts` pins both dataset means and typical reds.
 
 ---
 
