@@ -29,7 +29,7 @@ Checklist for `docs/tutor/GOAL.md`. Tick an item only when it is done and tested
 - [x] Plain-language move names
 - [x] Property tests
 - [x] 3D engine animates the new moves
-- [ ] Phase gate passed and pushed
+- [x] Phase gate passed and pushed
 
 ## Phase 3: Tutor engine
 - [ ] Step-plan types and method framework
