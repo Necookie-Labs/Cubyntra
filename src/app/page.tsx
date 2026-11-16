@@ -29,7 +29,7 @@ const PILLARS: Array<{ Icon: typeof Shield; sticker: CubeColor; title: string; b
     Icon: Shield,
     sticker: 'yellow',
     title: 'Private by design',
-    body: 'Webcam frames never leave your browser. Phone photos are held in memory only until you confirm.',
+    body: 'Camera images never leave the device that took them. Your phone sends only the colors it read.',
   },
   {
     Icon: Cpu,
@@ -166,7 +166,7 @@ function Workspace() {
             <div className="vx-place flex flex-col gap-6 max-w-lg mx-auto lg:mx-0 py-6">
               <div className="flex flex-col items-start gap-4">
                 <Chip tone="leaf" icon={<Shield className="w-3.5 h-3.5" aria-hidden />}>
-                  Runs in your browser
+                  Runs on your computer
                 </Chip>
                 <h1 className="text-5xl sm:text-6xl leading-none text-ink">
                   See it.
@@ -174,7 +174,9 @@ function Workspace() {
                 </h1>
                 <p className="text-base text-muted leading-relaxed max-w-md">
                   Show your cube to the camera, check the colors, then follow the 3D twin one turn at a time.
-                  Colors are read on your device and nothing is stored.
+                  Colors are read on the device that sees the cube, and no photo is ever uploaded. The app keeps
+                  its files, like the coach&apos;s usage log, on this computer. If you switch the AI coach on, short
+                  descriptions of each step (never pictures) go to Anthropic.
                 </p>
               </div>
 
