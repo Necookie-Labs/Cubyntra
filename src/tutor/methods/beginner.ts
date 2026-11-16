@@ -365,6 +365,71 @@ function planYellowCross(view: CubeState): StepDraft {
 }
 
 // ---------------------------------------------------------------------------------------------
+// 6. Yellow edges
+// ---------------------------------------------------------------------------------------------
+
+const EDGE_SWAP = "R U R' U R U2 R' U";
+
+/**
+ * 0 = two opposite edges match, 1 = two neighbouring edges match, 2 = all four match after a
+ * top turn, 3 = all four match now. Needs yellow on top.
+ */
+function yellowEdgeProgress(view: CubeState): number {
+  let pair: number | null = null;
+  for (let quarters = 0; quarters < 4; quarters++) {
+    const turned = applyMoves(view, faceTurns('U', quarters));
+    const solved = SIDES.filter((side) => isPieceSolved(turned, [LAST, side]));
+    if (solved.length === 4) return quarters === 0 ? 3 : 2;
+    if (solved.length === 2 && pair === null) {
+      const faces = solved.map((side) => faceOfColor(turned, side));
+      const opposite = (faces.includes('F') && faces.includes('B')) || (faces.includes('L') && faces.includes('R'));
+      pair = opposite ? 0 : 1;
+    }
+  }
+  return pair ?? 0;
+}
+
+function planYellowEdges(view: CubeState): StepDraft {
+  const now = yellowEdgeProgress(view);
+  if (now === 2) {
+    const quarters = [1, 2, 3].find((q) => solvedLastEdges(applyMoves(view, faceTurns('U', q))) === 4)!;
+    return {
+      caseId: 'yellow-edges-align',
+      caseName: 'Line up the yellow edges',
+      setupMoves: [],
+      algorithm: faceTurns('U', quarters),
+      highlightPieces: lastLayerEdgeRefs(),
+      facts: {
+        goal: 'Turn the top until all four yellow edges match the centers below them.',
+        lookFor: 'The yellow edges are in the right order but sit a turn away from their centers.',
+        why: 'Turning only the top moves all four edges together, so they line up at the same time.',
+      },
+    };
+  }
+  let best: { reached: number; setup: Move[] } | null = null;
+  for (let quarters = 0; quarters < 4; quarters++) {
+    const setup = faceTurns('U', quarters);
+    const reached = yellowEdgeProgress(applyMoves(view, [...setup, ...alg(EDGE_SWAP)]));
+    if (!best || reached > best.reached) best = { reached, setup };
+  }
+  const neighbours = now === 1;
+  return {
+    caseId: neighbours ? 'yellow-edges-adjacent' : 'yellow-edges-opposite',
+    caseName: neighbours ? 'Two neighbouring edges match' : 'Two opposite edges match',
+    setupMoves: best!.setup,
+    algorithm: [...alg(EDGE_SWAP)],
+    highlightPieces: lastLayerEdgeRefs(),
+    facts: {
+      goal: 'Get the yellow edges into the right order around the top.',
+      lookFor: neighbours
+        ? 'Turn the top until two yellow edges match their centers. They are next to each other: hold them at the back and the right.'
+        : 'Turn the top until two yellow edges match their centers. They are across from each other, so one round is needed to bring two matching edges side by side.',
+      why: 'The algorithm swaps the front and left yellow edges and keeps the yellow cross.',
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------------------------
 // Detectors. Each one includes every earlier stage; all of them count a cube that is part-way
 // through the last stage as having finished the stages before it.
 // ---------------------------------------------------------------------------------------------
@@ -425,6 +490,15 @@ const STAGES: StageDefinition[] = [
     progress: yellowCrossShape,
     plan: planYellowCross,
     check: { prefer: ['U', 'F'] },
+  },
+  {
+    id: 'yellow-edges',
+    name: 'Yellow edges',
+    top: LAST,
+    isComplete: yellowEdgesDone,
+    progress: yellowEdgeProgress,
+    plan: planYellowEdges,
+    check: { prefer: ['F', 'R', 'U'] },
   },
 ];
 
