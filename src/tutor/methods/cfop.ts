@@ -1,10 +1,14 @@
 /**
- * Cubyntra - CFOP Method (2-look last layer)
+ * Cubyntra - CFOP Method (2-look and full last layer)
  * Necookie Labs (c) 2026
  *
  * White stays on the bottom from start to finish. Stages: cross (shortest solution by search),
  * F2L (one pair per step, from the 41-case table), 2-look OLL (yellow cross, then yellow
  * corners), 2-look PLL (corners, then edges) and a last turn of the top.
+ *
+ * `CFOP_FULL_METHOD` is the same method with the last layer in two steps instead of four: one
+ * OLL algorithm from the 57-case table, then one PLL algorithm from the 21-case table. The
+ * learner setting `lastLayer: 'full'` selects it (see `api.ts`).
  *
  * Cases are recognised by construction, never by hand-written patterns: the F2L index is built
  * by undoing each table algorithm on a solved cube, and last-layer cases are found by trying
@@ -25,7 +29,9 @@ import {
 } from '../../cube/pieces';
 import { applyMoves, invertAlgorithm, isCubeSolved } from '../../cube/transforms';
 import { F2LCase, F2L_CASES, describeF2LPosition, f2lPositionKey } from '../cases/f2l';
+import { OLL_CASES } from '../cases/oll';
 import { LastLayerCase, OLL_CORNER_CASES, OLL_EDGE_CASES } from '../cases/oll2look';
+import { PLL_CASES } from '../cases/pll';
 import { PLL_CORNER_CASES, PLL_EDGE_CASES } from '../cases/pll2look';
 import { crossDistance, solveCross } from '../crossSearch';
 import {
@@ -293,25 +299,37 @@ function planAuf(view: CubeState): StepDraft {
 
 const noProgress = () => 0;
 
-const STAGES: StageDefinition[] = [
-  {
-    id: 'cross',
-    name: 'White cross',
-    top: LAST,
-    isComplete: crossDone,
-    progress: (view) => 8 - crossDistance(view),
-    plan: planCross,
-    check: { prefer: ['D', 'F', 'R'] },
-  },
-  {
-    id: 'f2l',
-    name: 'First two layers',
-    top: LAST,
-    isComplete: f2lDone,
-    progress: f2lProgress,
-    plan: planF2L,
-    check: { prefer: ['F', 'R', 'U'] },
-  },
+const CROSS_STAGE: StageDefinition = {
+  id: 'cross',
+  name: 'White cross',
+  top: LAST,
+  isComplete: crossDone,
+  progress: (view) => 8 - crossDistance(view),
+  plan: planCross,
+  check: { prefer: ['D', 'F', 'R'] },
+};
+
+const F2L_STAGE: StageDefinition = {
+  id: 'f2l',
+  name: 'First two layers',
+  top: LAST,
+  isComplete: f2lDone,
+  progress: f2lProgress,
+  plan: planF2L,
+  check: { prefer: ['F', 'R', 'U'] },
+};
+
+const AUF_STAGE: StageDefinition = {
+  id: 'auf',
+  name: 'Final turn',
+  top: LAST,
+  isComplete: isCubeSolved,
+  progress: noProgress,
+  plan: planAuf,
+  check: { prefer: ['F', 'R'] },
+};
+
+const TWO_LOOK_STAGES: StageDefinition[] = [
   {
     id: 'oll-edges',
     name: 'Yellow cross',
@@ -385,13 +403,51 @@ const STAGES: StageDefinition[] = [
       })),
     check: { prefer: ['F', 'R'] },
   },
+];
+
+/**
+ * The last layer in one look each. An algorithm only finishes its stage from its own case (one
+ * yellow pattern for OLL, one arrangement for PLL), so the first table entry that works is the
+ * case the cube shows.
+ */
+const FULL_STAGES: StageDefinition[] = [
   {
-    id: 'auf',
-    name: 'Final turn',
+    id: 'oll',
+    name: 'Yellow top in one look',
     top: LAST,
-    isComplete: isCubeSolved,
+    isComplete: ollCornersDone,
     progress: noProgress,
-    plan: planAuf,
+    plan: (view) =>
+      planLastLayer(
+        view,
+        OLL_CASES,
+        (after) => orientedLastEdges(after) === 4 && orientedLastCorners(after) === 4,
+        (c) => ({
+          highlightPieces: [...lastLayerEdgeRefs(), ...lastLayerCornerRefs()],
+          facts: {
+            goal: 'Make the whole top yellow with one algorithm.',
+            lookFor: c.recognition,
+            why: 'The algorithm flips the top edges and twists the top corners at the same time, without breaking the two layers below.',
+          },
+        })
+      ),
+    check: { prefer: ['U', 'F'] },
+  },
+  {
+    id: 'pll',
+    name: 'Top layer in one look',
+    top: LAST,
+    isComplete: pllEdgesDone,
+    progress: noProgress,
+    plan: (view) =>
+      planLastLayer(view, PLL_CASES, (after) => lastLayerTurnsUntil(after, isCubeSolved) >= 0, (c) => ({
+        highlightPieces: [...lastLayerCornerRefs(), ...lastLayerEdgeRefs()],
+        facts: {
+          goal: 'Put every top piece in the right order with one algorithm.',
+          lookFor: c.recognition,
+          why: 'The algorithm moves the top corners and the top edges to their places together, and the top stays yellow.',
+        },
+      })),
     check: { prefer: ['F', 'R'] },
   },
 ];
@@ -399,5 +455,12 @@ const STAGES: StageDefinition[] = [
 export const CFOP_METHOD: MethodDefinition = {
   id: 'cfop',
   name: 'CFOP (2-look last layer)',
-  stages: STAGES,
+  stages: [CROSS_STAGE, F2L_STAGE, ...TWO_LOOK_STAGES, AUF_STAGE],
+};
+
+/** CFOP with the full last layer: OLL in one step (57 cases), PLL in one step (21 cases). */
+export const CFOP_FULL_METHOD: MethodDefinition = {
+  id: 'cfop',
+  name: 'CFOP (full last layer)',
+  stages: [CROSS_STAGE, F2L_STAGE, ...FULL_STAGES, AUF_STAGE],
 };
