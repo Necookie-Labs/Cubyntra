@@ -325,6 +325,10 @@ h3 {
   scroll-behavior: auto !important;
 }
 
+:root[data-motion="reduce"] .vx-block:hover:not(:disabled):not([data-variant="ghost"]) {
+  transform: none;
+}
+
 /*
  * Tap targets. On phones (below the lg breakpoint, or any coarse pointer) every block button
  * or link, and every control marked `.vx-hit`, answers to at least 44x44 px: an invisible
