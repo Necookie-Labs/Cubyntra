@@ -136,3 +136,42 @@ export function faceRotationMap(axis: Axis, quarters: number): Record<Face, Face
   for (const face of FACES) map[face] = faceFromNormal(rotateVec(FACE_NORMAL[face], axis, quarters));
   return map;
 }
+
+/** One of the 24 ways to hold the cube, reached from the current grip by `rotation`. */
+export interface Orientation {
+  /** Whole-cube rotation tokens (x, y, z with ' or 2), applied left to right. */
+  rotation: readonly string[];
+  /** Where the content of each face position ends up after the rotation. */
+  faceMap: Readonly<Record<Face, Face>>;
+}
+
+const ROTATION_AXIS_TOKEN = /^([xyz])(['2]?)$/;
+
+/** Face map of a sequence of whole-cube rotation tokens. */
+export function rotationFaceMap(tokens: readonly string[]): Record<Face, Face> {
+  let map = Object.fromEntries(FACES.map((f) => [f, f])) as Record<Face, Face>;
+  for (const token of tokens) {
+    const m = ROTATION_AXIS_TOKEN.exec(token);
+    if (!m) throw new Error(`Not a whole-cube rotation: "${token}"`);
+    const turns = m[2] === "'" ? 1 : m[2] === '2' ? 2 : -1; // x/y/z turn clockwise about R/U/F
+    const step = faceRotationMap(m[1] as Axis, turns);
+    const prev = map;
+    map = Object.fromEntries(FACES.map((f) => [f, step[prev[f]]])) as Record<Face, Face>;
+  }
+  return map;
+}
+
+/**
+ * All 24 orientations, shortest rotation first: first bring a face to the top (nothing, x, x',
+ * x2, z, z'), then turn about the vertical axis (nothing, y, y', y2).
+ */
+export const ORIENTATIONS: readonly Orientation[] = (() => {
+  const list: Orientation[] = [];
+  for (const tip of ['', 'x', "x'", 'x2', 'z', "z'"]) {
+    for (const turn of ['', 'y', "y'", 'y2']) {
+      const rotation = [tip, turn].filter(Boolean);
+      list.push({ rotation, faceMap: rotationFaceMap(rotation) });
+    }
+  }
+  return list.sort((a, b) => a.rotation.length - b.rotation.length);
+})();

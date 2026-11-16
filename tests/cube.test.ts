@@ -116,18 +116,21 @@ describe('Cube Domain & Mathematical Invariants', () => {
 
   it('parses moves and handles invalid notations gracefully', () => {
     expect(parseMove('R')).toEqual({
+      kind: 'face',
       face: 'R',
       quarterTurns: 1,
       notation: 'R',
       description: 'R 90° Clockwise',
     });
     expect(parseMove("F'")).toEqual({
+      kind: 'face',
       face: 'F',
       quarterTurns: -1,
       notation: "F'",
       description: 'F 90° Counter-Clockwise',
     });
     expect(parseMove('D2')).toEqual({
+      kind: 'face',
       face: 'D',
       quarterTurns: 2,
       notation: 'D2',
@@ -139,12 +142,17 @@ describe('Cube Domain & Mathematical Invariants', () => {
     expect(() => parseMove('')).toThrow();
   });
 
-  it('rejects lower-case and unsupported move tokens', () => {
-    // Lower case means a wide move in standard notation; it must not be read as a face turn.
-    for (const token of ['r', "u'", 'f2', 'd', 'l', 'b', 'Rw', 'M', 'x', "y'", 'z2', "R2'", "R'2", '2R']) {
+  it('reads lower case and Rw as wide moves, and rejects unsupported tokens', () => {
+    expect(parseMove('r')).toMatchObject({ kind: 'wide', face: 'R', quarterTurns: 1, notation: 'r' });
+    expect(parseMove("Uw'")).toMatchObject({ kind: 'wide', face: 'U', quarterTurns: -1, notation: "u'" });
+    expect(parseMove('M2')).toMatchObject({ kind: 'slice', slice: 'M', quarterTurns: 2 });
+    expect(parseMove("y'")).toMatchObject({ kind: 'rotation', axis: 'y', quarterTurns: -1 });
+    expect(parseAlgorithm("R U r' U'").map((m) => m.kind)).toEqual(['face', 'face', 'wide', 'face']);
+
+    for (const token of ['X', 'm', 'Mw', 'xw', 'rw', 'W', "R2'", "R'2", '2R', 'R w', 'Rww']) {
       expect(() => parseMove(token), token).toThrow();
     }
-    expect(() => parseAlgorithm("R U r' U'")).toThrow(/Invalid face identifier/);
+    expect(() => parseAlgorithm('R U Q')).toThrow(/Invalid face identifier/);
   });
 });
 

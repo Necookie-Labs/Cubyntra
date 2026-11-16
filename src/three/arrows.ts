@@ -5,6 +5,7 @@
 
 import * as THREE from 'three';
 import { CubeMove, Face } from '../cube/types';
+import { moveReferenceFace } from '../cube/transforms';
 
 export class MoveArrow {
   public group: THREE.Group;
@@ -29,7 +30,8 @@ export class MoveArrow {
     this.clear();
     if (!move) return;
 
-    const { face, quarterTurns } = move;
+    const { quarterTurns } = move;
+    const face = moveReferenceFace(move);
     // Radius of circular arc
     const radius = 1.15;
     const startAngle = 0.2;

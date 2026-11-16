@@ -15,6 +15,8 @@
 
 import * as THREE from 'three';
 import { CubeMove, CubeState } from '../cube/types';
+import { moveLayers } from '../cube/transforms';
+import type { Layer } from '../cube/geometry';
 import { CubieMesh } from './cubie';
 import { MoveArrow } from './arrows';
 
@@ -415,18 +417,14 @@ export class CubeEngine {
     const next = this.moveQueue.shift();
     if (!next) return;
 
-    const { face, quarterTurns } = next.move;
-    const cubies = this.cubies.filter((c) => {
-      const pos = c.group.position;
-      switch (face) {
-        case 'U': return Math.round(pos.y) === 1;
-        case 'D': return Math.round(pos.y) === -1;
-        case 'R': return Math.round(pos.x) === 1;
-        case 'L': return Math.round(pos.x) === -1;
-        case 'F': return Math.round(pos.z) === 1;
-        case 'B': return Math.round(pos.z) === -1;
-      }
-    });
+    // Face turns, wide turns, slices and whole-cube rotations all reduce to "these layers along
+    // this axis, by this many quarter turns" (see moveLayers in src/cube/transforms).
+    const { quarterTurns } = next.move;
+    const spec = moveLayers(next.move);
+    const component = spec.axis === 'x' ? 0 : spec.axis === 'y' ? 1 : 2;
+    const cubies = this.cubies.filter((c) =>
+      spec.layers.includes(Math.round(c.group.position.getComponent(component)) as Layer)
+    );
 
     // Pivot shares the cube group's frame, so an identity pivot makes attach() lossless.
     this.pivotGroup.quaternion.identity();
@@ -436,25 +434,13 @@ export class CubeEngine {
       this.pivotGroup.attach(cubie.group);
     }
 
-    // Clockwise as seen looking at the face: negative about +axis faces, positive about -axis faces.
-    const axis = new THREE.Vector3();
-    let angleSign = 1;
-    switch (face) {
-      case 'U': axis.set(0, 1, 0); angleSign = -1; break;
-      case 'D': axis.set(0, 1, 0); angleSign = 1; break;
-      case 'R': axis.set(1, 0, 0); angleSign = -1; break;
-      case 'L': axis.set(1, 0, 0); angleSign = 1; break;
-      case 'F': axis.set(0, 0, 1); angleSign = -1; break;
-      case 'B': axis.set(0, 0, 1); angleSign = 1; break;
-    }
-
-    let turnAngle = Math.PI / 2;
-    if (quarterTurns === -1) turnAngle = -(Math.PI / 2);
-    if (quarterTurns === 2) turnAngle = Math.PI;
+    // Positive quarters turn counter-clockwise about +axis (right-hand rule).
+    const axis = AXES[component].clone();
+    const totalAngle = spec.quarters * (Math.PI / 2);
 
     this.activeTween = {
       axis,
-      totalAngle: turnAngle * angleSign,
+      totalAngle,
       elapsedMs: 0,
       // Half turns travel twice as far; give them proportionally more time.
       durationMs: quarterTurns === 2 ? next.durationMs * 1.5 : next.durationMs,

@@ -3,8 +3,20 @@
  * Necookie Labs (c) 2026
  */
 
-import { CubeColor, Face, FaceStickers, CubeMove, CubeState, QuarterTurns } from './types';
-import { CANONICAL_CENTER_COLORS, FACES } from './constants';
+import {
+  CubeColor,
+  Face,
+  FaceStickers,
+  CubeMove,
+  CubeState,
+  Move,
+  MoveKind,
+  QuarterTurns,
+  RotationAxis,
+  Slice,
+} from './types';
+import { CANONICAL_CENTER_COLORS, FACES, OPPOSITE_FACES } from './constants';
+import { Axis, Layer, ORIENTATIONS, faceAxis, layerTurnPermutation } from './geometry';
 
 /**
  * Creates an independent deep clone of a CubeState
@@ -124,35 +136,168 @@ function applyClockwiseQuarterTurn(state: CubeState, face: Face): CubeState {
   return next;
 }
 
+/** The face each slice and rotation follows: its clockwise is their clockwise. */
+export const SLICE_FOLLOWS: Record<Slice, Face> = { M: 'L', E: 'D', S: 'F' };
+export const ROTATION_FOLLOWS: Record<RotationAxis, Face> = { x: 'R', y: 'U', z: 'F' };
+
+/** Layer depths along the reference face's normal: 1 = that face, 0 = middle, -1 = opposite. */
+const DEPTHS: Record<MoveKind, readonly Layer[]> = {
+  face: [1],
+  wide: [1, 0],
+  slice: [0],
+  rotation: [1, 0, -1],
+};
+
+/** The face whose clockwise turn (seen from outside it) defines this move's direction. */
+export function moveReferenceFace(move: Move): Face {
+  switch (move.kind) {
+    case 'face':
+    case 'wide':
+      return move.face;
+    case 'slice':
+      return SLICE_FOLLOWS[move.slice];
+    case 'rotation':
+      return ROTATION_FOLLOWS[move.axis];
+  }
+}
+
+/** The cubie layers a move turns, as coordinates along an axis, and by how much. */
+export interface MoveLayers {
+  axis: Axis;
+  layers: Layer[];
+  /** Signed quarter turns about +axis, counter-clockwise by the right-hand rule (±1 or ±2). */
+  quarters: number;
+}
+
+export function moveLayers(move: Move): MoveLayers {
+  const { axis, sign } = faceAxis(moveReferenceFace(move));
+  return {
+    axis,
+    layers: DEPTHS[move.kind].map((d) => (d * sign + 0) as Layer),
+    // Clockwise seen from outside a face is a negative turn about its outward normal.
+    quarters: -sign * move.quarterTurns,
+  };
+}
+
+function moveSymbol(move: Move): string {
+  switch (move.kind) {
+    case 'face': return move.face;
+    case 'wide': return move.face.toLowerCase();
+    case 'slice': return move.slice;
+    case 'rotation': return move.axis;
+  }
+}
+
+/** Canonical notation: `R`, `r'` (wide), `M2`, `y'`. Wide moves use the lower-case form. */
+export function formatMove(move: Move): string {
+  const suffix = move.quarterTurns === -1 ? "'" : move.quarterTurns === 2 ? '2' : '';
+  return `${moveSymbol(move)}${suffix}`;
+}
+
+/** Formats a move list as space-separated notation. */
+export function formatAlgorithm(moves: readonly Move[]): string {
+  return moves.map(formatMove).join(' ');
+}
+
+function describeTurn(symbol: string, quarterTurns: QuarterTurns): string {
+  if (quarterTurns === -1) return `${symbol} 90° Counter-Clockwise`;
+  if (quarterTurns === 2) return `${symbol} 180° Half Turn`;
+  return `${symbol} 90° Clockwise`;
+}
+
+/** What a move turns, without its amount. */
+export type MoveTarget =
+  | { kind: 'face' | 'wide'; face: Face }
+  | { kind: 'slice'; slice: Slice }
+  | { kind: 'rotation'; axis: RotationAxis };
+
+/** Builds a fully populated move (canonical notation and description included). */
+export function createMove(target: MoveTarget, quarterTurns: QuarterTurns): Move {
+  const move = { ...target, quarterTurns, notation: '', description: '' } as Move;
+  move.notation = formatMove(move);
+  move.description = describeTurn(moveSymbol(move), quarterTurns);
+  return move;
+}
+
+function flipTurns(q: QuarterTurns): QuarterTurns {
+  return q === 2 ? 2 : q === 1 ? -1 : 1;
+}
+
 /**
- * Applies a single CubeMove to a CubeState and returns the resulting state.
+ * The move of a given kind that turns the layers next to `face` clockwise as seen from `face`.
+ * Slices and rotations follow fixed faces (M→L, E→D, S→F, x→R, y→U, z→F); asking for the
+ * opposite face yields the inverse direction, e.g. (slice, R, 1) is M'.
+ */
+export function moveFromReference(kind: MoveKind, face: Face, quarterTurns: QuarterTurns): Move {
+  if (kind === 'face' || kind === 'wide') return createMove({ kind, face }, quarterTurns);
+  const follows: Record<string, Face> = kind === 'slice' ? SLICE_FOLLOWS : ROTATION_FOLLOWS;
+  for (const [id, followed] of Object.entries(follows)) {
+    const target: MoveTarget =
+      kind === 'slice' ? { kind, slice: id as Slice } : { kind, axis: id as RotationAxis };
+    if (followed === face) return createMove(target, quarterTurns);
+    if (OPPOSITE_FACES[followed] === face) return createMove(target, flipTurns(quarterTurns));
+  }
+  throw new Error(`No ${kind} move follows face ${face}`);
+}
+
+const permutationCache = new Map<string, number[]>();
+
+/** Flat-index permutation for one clockwise quarter of a move's layers. */
+function quarterPermutation(move: Move): number[] {
+  const key = moveSymbol(move);
+  let perm = permutationCache.get(key);
+  if (!perm) {
+    const { axis, layers, quarters } = moveLayers({ ...move, quarterTurns: 1 });
+    perm = layerTurnPermutation(axis, layers, quarters);
+    permutationCache.set(key, perm);
+  }
+  return perm;
+}
+
+function applyPermutation(state: CubeState, perm: number[], times: number): CubeState {
+  let flat = FACES.flatMap((f) => state[f]);
+  for (let t = 0; t < times; t++) {
+    const prev = flat;
+    flat = perm.map((src) => prev[src]);
+  }
+  const next = {} as CubeState;
+  FACES.forEach((f, i) => {
+    next[f] = flat.slice(i * 9, i * 9 + 9) as FaceStickers;
+  });
+  return next;
+}
+
+/**
+ * Applies a single move to a CubeState and returns the resulting state. Outer face turns use the
+ * hand-written permutations above; wide moves, slices and rotations are derived from sticker
+ * geometry (`./geometry`), which is tested to agree with the hand-written turns.
  */
 export function applyMove(state: CubeState, move: CubeMove): CubeState {
-  if (move.quarterTurns === 1) {
-    return applyClockwiseQuarterTurn(state, move.face);
-  } else if (move.quarterTurns === 2) {
-    const intermediate = applyClockwiseQuarterTurn(state, move.face);
-    return applyClockwiseQuarterTurn(intermediate, move.face);
-  } else if (move.quarterTurns === -1) {
-    // 3 clockwise quarter turns equal 1 counter-clockwise turn
-    const s1 = applyClockwiseQuarterTurn(state, move.face);
-    const s2 = applyClockwiseQuarterTurn(s1, move.face);
-    return applyClockwiseQuarterTurn(s2, move.face);
+  const clockwiseQuarters = move.quarterTurns === 1 ? 1 : move.quarterTurns === 2 ? 2 : 3;
+  if (move.kind === 'face') {
+    let next = cloneCubeState(state);
+    for (let i = 0; i < clockwiseQuarters; i++) next = applyClockwiseQuarterTurn(next, move.face);
+    return next;
   }
-  return cloneCubeState(state);
+  return applyPermutation(state, quarterPermutation(move), clockwiseQuarters);
 }
 
 /**
  * Applies a sequence of moves to a CubeState.
  */
-export function applyMoves(state: CubeState, moves: CubeMove[]): CubeState {
+export function applyMoves(state: CubeState, moves: readonly CubeMove[]): CubeState {
   return moves.reduce((curr, move) => applyMove(curr, move), state);
 }
 
+const MOVE_TOKEN = /^(?:([URFDLB])(w?)|([urfdlb])|([MES])|([xyz]))(.*)$/;
+
 /**
- * Converts standard notation string (e.g. "R", "U'", "F2") to a CubeMove object.
- * Only the six outer face turns are accepted, in upper case. Lower-case letters mean wide moves
- * in standard notation, so they are rejected rather than silently read as face turns.
+ * Converts standard notation to a move. Accepted, each with an optional `'` or `2`:
+ * - face turns `U R F D L B`
+ * - wide turns `u r f d l b` or `Uw Rw Fw Dw Lw Bw` (face plus the adjacent middle slice)
+ * - slices `M` (follows L), `E` (follows D), `S` (follows F)
+ * - whole-cube rotations `x` (follows R), `y` (follows U), `z` (follows F)
+ * The returned `notation` is canonical, so `Rw'` comes back as `r'`.
  */
 export function parseMove(notation: string): CubeMove {
   const clean = notation.trim();
@@ -160,31 +305,27 @@ export function parseMove(notation: string): CubeMove {
     throw new Error('Cannot parse empty move notation');
   }
 
-  const faceChar = clean[0] as Face;
-  if (!FACES.includes(faceChar)) {
-    throw new Error(`Invalid face identifier in move: "${clean}" (expected one of ${FACES.join(' ')})`);
+  const m = MOVE_TOKEN.exec(clean);
+  if (!m) {
+    throw new Error(
+      `Invalid face identifier in move: "${clean}" (expected U R F D L B, u r f d l b, Uw..Bw, M E S or x y z)`
+    );
   }
 
-  const modifier = clean.slice(1);
-  let quarterTurns: QuarterTurns = 1;
-  let description = `${faceChar} 90° Clockwise`;
+  const modifier = m[6];
+  let quarterTurns: QuarterTurns;
+  if (modifier === '') quarterTurns = 1;
+  else if (modifier === "'") quarterTurns = -1;
+  else if (modifier === '2') quarterTurns = 2;
+  else throw new Error(`Invalid modifier in move: "${clean}"`);
 
-  if (modifier === "'") {
-    quarterTurns = -1;
-    description = `${faceChar} 90° Counter-Clockwise`;
-  } else if (modifier === '2') {
-    quarterTurns = 2;
-    description = `${faceChar} 180° Half Turn`;
-  } else if (modifier !== '') {
-    throw new Error(`Invalid modifier in move: "${clean}"`);
-  }
+  let target: MoveTarget;
+  if (m[1]) target = { kind: m[2] ? 'wide' : 'face', face: m[1] as Face };
+  else if (m[3]) target = { kind: 'wide', face: m[3].toUpperCase() as Face };
+  else if (m[4]) target = { kind: 'slice', slice: m[4] as Slice };
+  else target = { kind: 'rotation', axis: m[5] as RotationAxis };
 
-  return {
-    face: faceChar,
-    quarterTurns,
-    notation: clean,
-    description,
-  };
+  return createMove(target, quarterTurns);
 }
 
 /**
@@ -195,53 +336,47 @@ export function parseAlgorithm(alg: string): CubeMove[] {
   return tokens.map(parseMove);
 }
 
+function moveTarget(move: Move): MoveTarget {
+  switch (move.kind) {
+    case 'face':
+    case 'wide':
+      return { kind: move.kind, face: move.face };
+    case 'slice':
+      return { kind: 'slice', slice: move.slice };
+    case 'rotation':
+      return { kind: 'rotation', axis: move.axis };
+  }
+}
+
 /**
- * Inverts a single CubeMove (e.g. R -> R', R' -> R, R2 -> R2).
+ * Inverts a single move (e.g. R -> R', r' -> r, M2 -> M2, y -> y').
  */
 export function invertMove(move: CubeMove): CubeMove {
-  let quarterTurns: QuarterTurns;
-  let notationSuffix: string;
-
-  if (move.quarterTurns === 1) {
-    quarterTurns = -1;
-    notationSuffix = "'";
-  } else if (move.quarterTurns === -1) {
-    quarterTurns = 1;
-    notationSuffix = '';
-  } else {
-    quarterTurns = 2;
-    notationSuffix = '2';
-  }
-
-  return {
-    face: move.face,
-    quarterTurns,
-    notation: `${move.face}${notationSuffix}`,
-    description: `${move.face} inverted`,
-  };
+  return createMove(moveTarget(move), flipTurns(move.quarterTurns));
 }
 
 /**
  * Inverts an entire algorithm by reversing the sequence and inverting each move.
  */
-export function invertAlgorithm(moves: CubeMove[]): CubeMove[] {
+export function invertAlgorithm(moves: readonly CubeMove[]): CubeMove[] {
   return [...moves].reverse().map(invertMove);
 }
 
 /**
- * Verifies if all 6 faces of the cube are monochrome (solved state).
+ * True when every face is a single color and the centers sit as on a real cube held in any of
+ * its 24 orientations. A solved cube stays solved after whole-cube rotations; a mirrored or
+ * otherwise impossible center layout does not count.
  */
 export function isCubeSolved(state: CubeState): boolean {
   for (const face of FACES) {
     const center = state[face][4];
-    if (center !== CANONICAL_CENTER_COLORS[face]) return false;
     for (let i = 0; i < 9; i++) {
-      if (state[face][i] !== center) {
-        return false;
-      }
+      if (state[face][i] !== center) return false;
     }
   }
-  return true;
+  return ORIENTATIONS.some((o) =>
+    FACES.every((f) => CANONICAL_CENTER_COLORS[o.faceMap[f]] === state[f][4])
+  );
 }
 
 /**
