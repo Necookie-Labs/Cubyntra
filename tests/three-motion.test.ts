@@ -413,6 +413,48 @@ describe('CubeEngine playback', () => {
   });
 });
 
+describe('CubeEngine spotlight', () => {
+  const cubiesOf = (engine: Engine) => (engine as unknown as { cubies: CubieMesh[] }).cubies;
+  const at = (c: CubieMesh) => [c.group.position.x, c.group.position.y, c.group.position.z].map(Math.round).join(',');
+
+  it('fades every cubie except the listed positions, and clears', () => {
+    const engine = makeEngine();
+    engine.setSpotlight([{ position: [1, 1, 1] }, { position: [1, 0, 1] }]);
+    const lit = cubiesOf(engine).filter((c) => !c.isFaded()).map(at);
+    expect(lit.sort()).toEqual(['1,0,1', '1,1,1']);
+    engine.setSpotlight(null);
+    expect(cubiesOf(engine).every((c) => !c.isFaded())).toBe(true);
+    engine.dispose();
+  });
+
+  it('re-applies to positions after a turn moves pieces', async () => {
+    const engine = makeEngine();
+    engine.setSpotlight([{ position: [1, 1, 1] }]);
+    const [move] = parseAlgorithm('R');
+    void engine.animateMove(move, applyMoves(createSolvedCubeState(), [move]));
+    await runUntilIdle(engine);
+    const lit = cubiesOf(engine).filter((c) => !c.isFaded());
+    expect(lit.map(at)).toEqual(['1,1,1']);
+    // A different physical cubie now sits at UFR: the one that was at DFR.
+    expect(lit[0].initialPos.toArray()).toEqual([1, -1, 1]);
+    engine.dispose();
+  });
+
+  it('outlines a slot in the theme focus color', () => {
+    const engine = makeEngine();
+    const outline = (engine as unknown as { slotOutline: { group: THREE.Group } }).slotOutline.group;
+    engine.setSlotOutline([1, -1, 1]);
+    expect(outline.visible).toBe(true);
+    expect(outline.position.toArray()).toEqual([1, -1, 1]);
+    engine.setTheme('dark');
+    const material = (outline.children[0] as THREE.Mesh).material as THREE.MeshBasicMaterial;
+    expect(`#${material.color.getHexString()}`).toBe(TWIN_THEME_HEX.dark.focus.toLowerCase());
+    engine.setSlotOutline(null);
+    expect(outline.visible).toBe(false);
+    engine.dispose();
+  });
+});
+
 describe('CubeEngine resources', () => {
   it('disposes the shared voxel geometries and materials with the engine', () => {
     const engine = makeEngine();

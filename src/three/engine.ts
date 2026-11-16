@@ -19,6 +19,7 @@ import type { Layer } from '../cube/geometry';
 import { CubieMesh, VoxelKit } from './cubie';
 import { MoveArrow } from './arrows';
 import { PlaybackController } from './playback';
+import { isSpotlit, SlotOutline, spotlightKeys, type PiecePosition, type SpotlightPiece } from './spotlight';
 import { TWIN_THEME_HEX, type ThemeName } from '../lib/tokens';
 
 interface QueuedMove {
@@ -111,6 +112,9 @@ export class CubeEngine {
   // Geometries and materials shared by all 27 cubies (disposed with the engine).
   private kit: VoxelKit;
   private theme: ThemeName = 'light';
+  // Teaching aids: lit positions (null = all lit) and the target-slot outline.
+  private spotlight: ReadonlySet<string> | null = null;
+  private slotOutline: SlotOutline;
 
   private timer = new THREE.Timer();
   private elapsedS = 0;
@@ -181,9 +185,11 @@ export class CubeEngine {
     this.kit = new VoxelKit();
     this.buildCubies();
 
-    // 6. Directional Move Arrow
+    // 6. Directional Move Arrow and target-slot outline
     this.moveArrow = new MoveArrow();
     this.rootCubeGroup.add(this.moveArrow.group);
+    this.slotOutline = new SlotOutline(TWIN_THEME_HEX[this.theme].focus);
+    this.rootCubeGroup.add(this.slotOutline.group);
 
     // 7. Algorithm playback, driving this engine's turn queue
     this.playback = new PlaybackController(this);
@@ -301,6 +307,29 @@ export class CubeEngine {
   public setTheme(theme: ThemeName): void {
     this.theme = theme;
     this.moveArrow.setColor(TWIN_THEME_HEX[theme].ink);
+    this.slotOutline.setColor(TWIN_THEME_HEX[theme].focus);
+  }
+
+  /**
+   * Keeps the cubies at `pieces` at full color and fades every other cubie to 35% opacity (flat,
+   * no glow). Positions are in the twin's logical frame (x: L -1 .. R 1, y: D -1 .. U 1,
+   * z: B -1 .. F 1) and are re-applied after every turn. Null turns the spotlight off.
+   */
+  public setSpotlight(pieces: readonly SpotlightPiece[] | null): void {
+    this.spotlight = spotlightKeys(pieces);
+    this.applySpotlight();
+  }
+
+  /** Draws a flat outline box around one cubie position (e.g. the target F2L slot), or hides it. */
+  public setSlotOutline(position: PiecePosition | null): void {
+    this.slotOutline.setPosition(position);
+  }
+
+  private applySpotlight(): void {
+    for (const cubie of this.cubies) {
+      const p = cubie.group.position;
+      cubie.setFaded(!isSpotlit([Math.round(p.x), Math.round(p.y), Math.round(p.z)], this.spotlight));
+    }
   }
 
   /**
@@ -391,6 +420,8 @@ export class CubeEngine {
 
     this.pivotGroup.quaternion.identity();
     this.activeTween = null;
+    // Cubies changed position: the spotlight marks positions, so re-evaluate it.
+    if (this.spotlight) this.applySpotlight();
 
     // Resynchronize exact sticker colors with the logical state (zero drift).
     this.syncWithCubeState(tween.targetState);
@@ -572,6 +603,7 @@ export class CubeEngine {
     window.removeEventListener('resize', this.onWindowResize);
 
     this.moveArrow.dispose();
+    this.slotOutline.dispose();
     this.cubies.forEach((c) => c.dispose());
     this.cubies = [];
     this.kit.dispose();
