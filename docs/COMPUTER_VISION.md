@@ -272,3 +272,51 @@ On synthetic photos of a 14-move scramble with different lighting per face, the 
 
 ### 11.5 Human Review
 The desktop always shows the resolved net before solving. Flagged tiles are ringed. Each tile can be compared with its crop from the user's own photo (rotation-aware) and corrected. Solving is offered only for a valid cube. This last step is what makes the result verifiably the user's cube rather than a statistically likely one.
+
+---
+
+## 12. Student Palette & Checkpoint Faces ([ADR-013](ADR/013-checkpoint-verification.md))
+
+A checkpoint shows one or two faces, so it cannot calibrate on six centers or use the
+nine-per-color constraint of §11.4. It classifies against what the full scan learned.
+
+### 12.1 Palette (`palette.ts`)
+`buildStudentPalette(samplesByFace, resolved)` groups the 54 scan samples by their resolved color
+(turning the samples of any photo that `resolveCubeColors` turned). Per color it stores:
+
+| Field | Meaning |
+|---|---|
+| `lab`, `rgb` | mean measured color; stickers more than 30 $\Delta E$ from that color's center tile are left out |
+| `spread` | standard deviation per CIELAB axis, floored at $L^*$ 6, $a^*$ 4, $b^*$ 4 |
+| `count` | stickers used |
+
+The palette is plain data (`serializePalette`, `parsePalette`; `version: 1`) and is stored with
+the student's profile. No pixels are stored.
+
+### 12.2 Classifying a face (`classifyFaceWithPalette`)
+1. **Lighting correction.** For the uncorrected photo and for each of the six cube colors $c$,
+   start from per-channel gains that map the observed center onto $c$'s palette RGB, then re-fit
+   the gains twice by least squares over every tile already within 6 spreads of a palette color.
+   Gains are clamped to $[0.5, 2]$.
+2. **Choose.** Cost of a correction $= \sum_{t 
+e 	ext{center}} \min(d_t, 6) + 6\,ar g^2 + 40 \sum_k (g_k - ar g)^2$, where $d_t$ is tile $t$'s distance to its nearest palette color, $g_k$ are the log-gains and $ar g$ their mean. A brightness change is cheap and a change in the color of the light is expensive.
+3. **Read.** Distance to a palette color is $d = \sqrt{\sum_{k \in \{L,a,b\}} ((x_k - \mu_k)/\sigma_k)^2}$. Each tile takes the nearest color. Confidence $= 	ext{fit} 	imes 	ext{margin}$, with fit $= 1$ for $d \le 4$ fading linearly to $0$ at $d = 10$, and margin $= 1 - d_1/d_2$.
+4. **Center.** A corrected center sits on its color by construction, so its confidence comes from how much worse the face fits under any other center color, or from the uncorrected reading when that agrees.
+
+`classifyFace(rgbs, palette?)` uses the static classifier of §5 when no palette is stored;
+readings it rejects as non-cube get confidence 0.
+
+### 12.3 Reading a checkpoint photo (`checkpointCapture.ts`)
+`readFaceFromContext(ctx, width, height, palette?)` reuses `sampleGridFromContext` and
+`measureGlare`. A tile with more than 20% clipped pixels gets confidence 0 and is left out of the
+lighting fit; that covers reflections and white tiles in an overexposed photo alike. The result
+(`color` and `confidence` per tile) is what `verifyCheckpoint` in `src/tutor/checkpoint.ts`
+consumes; no camera code was added.
+
+### 12.4 Measured
+On synthetic photos (`tests/vision-palette.test.ts`, `tests/checkpoint-synthetic.test.ts`): two
+sets of sticker plastics, checkpoint brightness 0.72–1.22× the scan's for classification alone
+and 0.70–1.08× for full checkpoints, color temperature ±12%, noise ±4–10 levels. All 720
+classified stickers are read correctly with confidence ≥ 0.5, and 311 of 311 correctly done steps
+verify as `match`. Real-camera accuracy has not been measured. Details:
+`docs/tutor/CHECKPOINTS.md`.
