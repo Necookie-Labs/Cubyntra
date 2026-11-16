@@ -9,7 +9,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as THREE from 'three';
 import { CubeColor, CubeMove, CubeState, Face } from '../src/cube/types';
 import { CANONICAL_CENTER_COLORS, createSolvedCubeState } from '../src/cube/constants';
-import { applyMoves, parseAlgorithm } from '../src/cube/transforms';
+import { applyMoves, invertAlgorithm, parseAlgorithm } from '../src/cube/transforms';
 import { SPEEDCUBE_COLORS, type CubieMesh } from '../src/three/cubie';
 
 vi.mock('three', async (importOriginal) => {
@@ -244,6 +244,47 @@ describe('CubeEngine layer turns', () => {
       expect(readStateFromGeometry(engine), notation).toEqual(expected);
       engine.dispose();
     }
+  });
+
+  it('turns wide layers, slices and the whole cube the way the logical model does', async () => {
+    const tokens = ['u', 'r', 'f', 'd', 'l', 'b', 'Rw', 'M', 'E', 'S', 'x', 'y', 'z']
+      .flatMap((s) => [s, `${s}'`, `${s}2`]);
+    for (const notation of tokens) {
+      const engine = makeEngine();
+      const [move] = parseAlgorithm(notation);
+      const expected = applyMoves(createSolvedCubeState(), [move]);
+      void engine.animateMove(move, expected);
+      await runUntilIdle(engine);
+      expect(readStateFromGeometry(engine), notation).toEqual(expected);
+      expect(readStateFromMaterials(engine), notation).toEqual(expected);
+      expect(allTransformsExact(engine), notation).toBe(true);
+      engine.dispose();
+    }
+  });
+
+  it('plays a queued mix of face, wide, slice and rotation moves with exact snapping', async () => {
+    const engine = makeEngine();
+    const moves = parseAlgorithm("R u' M2 x F E S' y2 r2 B' z d M' l S2 x' D Uw' E' z2 b f'");
+    let state = createSolvedCubeState();
+    for (const move of moves) {
+      state = applyMoves(state, [move]);
+      void engine.animateMove(move, state, 90);
+    }
+    await runUntilIdle(engine, 1000 / 144);
+
+    expect(readStateFromGeometry(engine)).toEqual(state);
+    expect(readStateFromMaterials(engine)).toEqual(state);
+    expect(allTransformsExact(engine)).toBe(true);
+
+    // And back again: the inverse sequence returns every cubie home.
+    for (const move of invertAlgorithm(moves)) {
+      state = applyMoves(state, [move]);
+      void engine.animateMove(move, state, 90);
+    }
+    await runUntilIdle(engine);
+    expect(readStateFromGeometry(engine)).toEqual(createSolvedCubeState());
+    expect(allTransformsExact(engine)).toBe(true);
+    engine.dispose();
   });
 
   it('plays a rapidly queued scramble without dropping a move, at 144 Hz', async () => {

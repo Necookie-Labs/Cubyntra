@@ -7,7 +7,7 @@
  * - Studio environment reflection mapping via PMREMGenerator
  * - Soft contact radial shadow projection
  * - Subtle organic floating idle animation
- * - Drift-free layer rotations with integer matrix snapping
+ * - Drift-free face, wide, slice and whole-cube turns with integer matrix snapping
  * - Dynamic 3D move arrows
  * - Camera controls & reset
  * - Complete memory/geometry disposal
