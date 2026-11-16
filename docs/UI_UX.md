@@ -73,7 +73,8 @@ All three are self-hosted through `next/font`.
 Quick steps rather than smooth fades: `vx-place` (a block drops in with a small overshoot),
 `vx-pop` (a block lands), `vx-flash` (camera shutter) and `vx-loader` (three blocks light up in
 turn while waiting). Hover and press transitions use `steps()` timing and last 80 ms. Under
-`prefers-reduced-motion` every animation and transition is cut to 0.01 ms.
+`prefers-reduced-motion`, or the student's Reduce motion setting, every animation and transition
+is cut to 0.01 ms and blocks no longer lift on hover (see §5.2).
 
 ### 2.6 Components (`src/components/ui/`)
 | Component | Notes |
@@ -84,7 +85,7 @@ turn while waiting). Hover and press transitions use `steps()` timing and last 8
 | `Chip` | `neutral`, `leaf`, `warn`, `danger`, `solid`; ink text on a tint for AA contrast |
 | `ProgressBlocks` | a row of filled / current / empty blocks, announced as a progressbar |
 | `Dialog` | `role="dialog"`, `aria-modal`, labelled title; focus moves in, Tab is trapped, Escape and the flat scrim close it, focus returns to the opener |
-| `Toast` | a live region (`status`, or `alert` for errors) that dismisses itself |
+| `Toast` | a polite live region (`status`, or `alert` for errors) that dismisses itself |
 
 ---
 
@@ -264,15 +265,78 @@ navigation over the viewfinder.
 
 - **Phone first.** Layouts are designed at 360–430px portrait first; the shell switches to the
   side nav at 1024px.
-- **Accessibility**:
-  - Every control has a visible label or an `aria-label`; icon-only buttons use `IconButton`.
-  - Every text pair meets WCAG AA (4.5:1); the lowest is muted text on the danger tint at 4.56:1. Ratios per pair are in ADR-011.
-  - Sheets are `Dialog`s: focus moves in, Tab is trapped, Escape closes, focus returns.
-  - Live regions: coach text (polite), checkpoint instructions and results (status), mismatch (alert).
-  - **Color-blind letters** (Settings): W Y R O B G on every sticker of the twin (voxel pixel
-    glyphs, `setStickerLetters` on the engine) and in every 2D grid (review, checkpoint, mini-cube).
-  - **Reduce motion** (Settings) sets `<html data-motion="reduce">`, which cuts animations like
-    `prefers-reduced-motion` does.
+
+### 5.1 What is guaranteed (WCAG 2.2 AA)
+
+- **Names.** Every control has a visible label or an accessible name; icon-only buttons are
+  `IconButton`s, whose `label` is required (a blank one throws). Every input has a `<label>`.
+  Sticker tiles, case tiles and move chips are named in words ("row 1 column 3: red, needs a
+  look", "Sune: drilling", "Turn the right side up").
+- **Structure.** `<html lang="en">`; every screen has exactly one `<h1>` (visually hidden on the
+  scan, phone camera and solve waiting screens) and one `<main id="content">`; the navigation is
+  `<nav aria-label="Main">` with `aria-current="page"`, the phone top bar is a `<header>`.
+- **Keyboard.** "Skip to content" is the first Tab stop. Tab order follows the page; focus is
+  always visible as the 2px `--vx-focus` ring (one `:focus-visible` rule, never removed on a
+  control). Radio groups (`SegmentedControl`) move with the arrow keys. Nothing traps focus
+  except open modals, which release it on close. The timer works without a pointer: Space
+  anywhere (except on another control) or Enter on the focused pad; Escape cancels. The scan
+  review recolors the selected tile with 1–6.
+- **Modals.** Sheets and dialogs are `Dialog` (`role="dialog"`, `aria-modal`, labelled and
+  described; focus moves in, Tab is trapped, Escape and the scrim close it, focus returns to the
+  opener). The phone's full-screen first-run coach (`CaptureCoach`) follows the same rules, with
+  Escape as Skip.
+- **Announcements.** Polite live regions carry the coach's replies and its "thinking" state,
+  checkpoint instructions and results, the trainer's mismatch and session count, move names in
+  words, the timer's inspection count and toasts. Error toasts and load failures use `alert`.
+  Results are announced without the action buttons that follow them.
+- **Color is never the only signal.** States also have a word, an icon or a shape: chips carry
+  text, review validity an icon block, progress blocks an outline and an announced count, trainer
+  case tiles a fill level (empty, half, full, full with a base), the timer pad a caption, the
+  per-color tile counts a letter.
+- **Color-blind letters** (Settings): W Y R O B G on every sticker of the twin (voxel pixel
+  glyphs, `setStickerLetters` on the engine), in every 2D grid (`StickerGrid`, the mini-cube, the
+  scan review and its swatches, the trainer's checkpoint sheet), in the live camera grid and on
+  the phone-scan thumbnails. Letters use the core color, or sticker white on red and blue.
+- **Contrast.** Every text pair reaches 4.5:1 and every control outline and focus-ring pair 3:1,
+  in both themes, including each sticker letter on its sticker. Ratios are in ADR-011.
+- **Tap targets.** Below 1024px (or with a coarse pointer) every block button and link, and every
+  control marked `.vx-hit`, has a hit area of at least 44×44 px: an invisible `::after` grows it
+  without growing the block. Controls that sit edge to edge (correctable sticker tiles, trainer
+  case tiles) are 44px themselves on phones.
+
+### 5.2 Motion
+
+`prefers-reduced-motion` and the student's **Reduce motion** setting (`<html data-motion="reduce">`)
+do the same: every CSS animation and transition is cut to 0.01 ms, blocks stop lifting on hover,
+and the twin (`CubeEngine.setReducedMotion`, applied by `CubeVisualizer` whenever either setting
+changes) drops its idle bob, regrips instantly and plays each quarter turn in at most 80 ms.
+
+### 5.3 How it is tested
+
+| Test | Checks |
+|---|---|
+| `tests/a11y-pages.test.tsx` | Renders every screen in the shell (home, scan and review with letters, solve with the checkpoint sheet open, trainer, timer, progress, pair, settings in both themes, phone camera, 404) and runs `axe-core`: no serious or critical violations, one h1, one main, `lang` set, no tap target under 44px. About 2 s. |
+| `tests/a11y-contrast.test.ts` | Computes WCAG ratios from the `globals.css` token block, both themes: text 4.5:1, outlines and focus ring 3:1, every sticker letter 4.5:1. |
+| `tests/a11y-tap-targets.test.tsx` | The 44px hit-area rule in `globals.css`, and every small kit control passing it. |
+| `tests/a11y-motion.test.ts` | Both reduced-motion paths cut animations and the hover lift. |
+| `tests/three-motion.test.ts`, `tests/cube-visualizer.test.tsx` | Turns are capped under reduced motion; the twin follows both settings live. |
+| `tests/ui-dialog.test.tsx`, `tests/companion-capture-coach.test.tsx` | Focus in, Tab trapped, Escape, focus returned. |
+| `tests/app-timer.test.tsx` | A whole timed solve from the keyboard. |
+
+jsdom has no layout, so contrast is computed from the tokens and tap targets are checked from
+class names rather than measured.
+
+### 5.4 Known limits
+
+- The scan review's unfolded net uses 24px tiles on phones (four faces side by side do not fit
+  at 44px). They meet the WCAG 2.2 AA minimum (24px), and the "tiles need a look" button and the
+  keyboard reach every tile.
+- The phone camera overlays (reticle, live dots, face list) show colors without letters; the
+  step card names the face in words.
+- The 3D twin is a picture for screen readers: the step is told by the stage header, the coach
+  notes and the named move chips.
+- Contrast is AA by token pair; the twin's lit faces are shaded per direction, so on-screen
+  sticker colors vary slightly from the tokens.
 
 ---
 
