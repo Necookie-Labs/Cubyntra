@@ -103,6 +103,7 @@ stateDiagram-v2
     mismatch --> step: replayStep / continueFromDiagnosis (corrective step)
     mismatch --> checking: showNextFace
     mismatch --> loading: replanFromRescan
+    mismatch --> celebrate: confirmByHand (It actually matches)
     error --> loading: Try again
     solved --> loading: startSolve (a new cube)
 ```
