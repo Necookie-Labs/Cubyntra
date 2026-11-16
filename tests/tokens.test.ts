@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { STICKER_CORE_HEX, STICKER_HEX, TWIN_THEME_HEX } from '../src/lib/tokens';
+import {
+  APP_CHROME_HEX,
+  LEAF_EDGE_HEX,
+  LEAF_HEX,
+  STICKER_CORE_HEX,
+  STICKER_HEX,
+  TWIN_THEME_HEX,
+} from '../src/lib/tokens';
 
 const css = readFileSync(join(__dirname, '..', 'src', 'app', 'globals.css'), 'utf8');
 
@@ -31,5 +38,14 @@ describe('src/lib/tokens mirrors globals.css', () => {
       expect(TWIN_THEME_HEX[theme].ink, theme).toBe(values['--vx-ink']);
       expect(TWIN_THEME_HEX[theme].focus, theme).toBe(values['--vx-focus']);
     }
+  });
+
+  it('app chrome colors match the ground, ink and leaf tokens', () => {
+    for (const [theme, values] of [['light', light], ['dark', dark]] as const) {
+      expect(APP_CHROME_HEX[theme].ground, theme).toBe(values['--vx-ground']);
+      expect(APP_CHROME_HEX[theme].ink, theme).toBe(values['--vx-ink']);
+    }
+    expect(LEAF_HEX).toBe(light['--vx-leaf']);
+    expect(LEAF_EDGE_HEX).toBe(light['--vx-leaf-edge']);
   });
 });

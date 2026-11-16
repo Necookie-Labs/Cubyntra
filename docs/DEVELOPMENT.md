@@ -148,3 +148,59 @@ the situation list only).
   suffix, backticks, brackets, or after do/then/turn/try), so ordinary prose such as "plan B" or
   "the F face" is not mistaken for notation. Add cases to `tests/coach-guard.test.ts` when you
   change it: it has tables both ways.
+
+---
+
+## 6. App Shell, Profile and PWA (Phase 7)
+
+### 6.1 Screens
+`npm run dev`, then open `https://localhost:3000`. The screens are `/` (home), `/scan`, `/solve`,
+`/settings`, `/trainer`, `/timer`, `/progress` and `/pair` (see `docs/UI_UX.md` §3). With no
+cube to hand, use **Try a demo cube** on the home screen or the scanner's demo button.
+
+### 6.2 The student profile
+The profile lives in `data/student.json` (git-ignored) and is read and written through
+`GET`/`PUT /api/student` with the `x-cubyntra-token` header (§5.3). Writes are atomic and capped at
+32 KB; a file that fails validation is moved to `data/student.json.bad` and a fresh profile is
+used. Delete `data/student.json` to start over as a new student.
+
+**Where each device gets the token** (`src/app-shell/appToken.ts`): the laptop's browser from
+`GET /api/auth/token`; a paired phone from its pairing, which Phase 8 keeps in sessionStorage
+(`cubyntra.pairing`, from the QR fragment or the typed-code reply; ADR-015). That is the only
+place a phone holds it, so it ends with the tab. Without a token (an unpaired phone) the app still
+works for the visit and Settings says changes are not saved.
+
+### 6.3 Installing on a phone
+- **Android (Chrome).** Open the laptop's `https://<laptop-ip>:3000` on the phone, then
+  Settings → Install (or the browser menu → Install app). Chrome only offers installation on a
+  page it trusts: with the self-signed dev certificate it may only offer "Add to Home screen"
+  (a shortcut) until the certificate is trusted (§6.4).
+- **iPhone (Safari).** Share → Add to Home Screen. Settings shows this hint on iOS Safari.
+- The manifest (`src/app/manifest.ts`, served at `/manifest.webmanifest`) asks for standalone,
+  portrait display. Icons are in `public/icons/`; regenerate them with
+  `npx tsx scripts/generate-icons.ts` after changing the icon or the color tokens
+  (`tests/pwa-manifest.test.ts` fails if the committed PNGs are out of date).
+
+### 6.4 Trusting the dev certificate on a phone (optional)
+Camera access works after tapping through the certificate warning. Installing as a real app and
+any future service worker need a certificate the phone trusts:
+1. Copy `.certs/dev-cert.pem` (created by `npm run dev`) to the phone.
+2. **Android:** Settings → Security → Encryption & credentials → Install a certificate → CA
+   certificate. **iPhone:** open the file, install the profile in Settings → General → VPN &
+   Device Management, then turn it on under Settings → General → About → Certificate Trust
+   Settings.
+3. Reload the page; the warning should be gone. Remove the certificate from the phone when you
+   no longer need it. The certificate is regenerated when the laptop's network addresses change.
+
+### 6.5 Screen wake lock
+While a solve is open, `/solve` holds a Screen Wake Lock (`src/app-shell/wakeLock.ts`) so the
+phone does not dim between turns; it is taken again when the page becomes visible. Browsers
+without the API (and pages not served over HTTPS) simply skip it.
+
+### 6.6 Service worker (not done)
+Offline caching with a service worker is a stretch goal and is **not** implemented: browsers only
+register service workers on trusted HTTPS origins (or `localhost`), so on a phone it would need
+the trusted certificate from §6.4, and a caching worker easily serves stale bundles during
+`next dev`. If it is added later, register it only in production builds and keep `/api/*`
+network-only.
+

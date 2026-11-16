@@ -314,3 +314,18 @@ h3 {
     transform: none;
   }
 }
+
+/* The student's own "reduce motion" setting (Settings), applied whatever the OS says. */
+:root[data-motion="reduce"] *,
+:root[data-motion="reduce"] *::before,
+:root[data-motion="reduce"] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+
+/* Room for the phone tab bar and the home indicator on notched phones. */
+.vx-safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}

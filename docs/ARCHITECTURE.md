@@ -74,9 +74,15 @@ src/
 ├── cube/          (Pure Domain Models - Zero DOM or Three.js dependencies)
 ├── vision/        (Computer Vision - MediaDevices, Canvas, Color Spaces)
 ├── solver/        (Algorithmic Solver - Kociemba Two-Phase, HTM)
+├── tutor/         (Deterministic tutor engine: methods, step plans, checkpoint checks)
+├── twin/          (Step plans mapped onto the 3D twin)
 ├── three/         (3D Graphics Engine - Three.js WebGL, 27 Cubies, Snapping)
-├── stores/        (Zustand State Coordinator - UI, Flow, Telemetry)
-└── components/    (Modular React Presentation - Viewfinder, Controls, Background)
+├── coach/         (Claude coach: facts, templates, guardrail, spend; useCoach hook)
+├── app-shell/     (App shell glue: navigation map, app token, checkpoint adapter, wake lock, install)
+├── lib/           (Tokens, theme, local data dir, app secret, student profile schema and file)
+├── stores/        (Zustand: useCubyntraStore for the scan, useTutorStore for the guided solve)
+├── components/    (React presentation: ui/, shell/, home/, scan/, solve/, settings/, twin/ ...)
+└── app/           (Next.js routes: (app)/ shell screens, companion/, api/, manifest.ts)
 ```
 
 ### Dependency Direction Rules:
@@ -86,7 +92,11 @@ src/
 - `src/tutor/` depends only on `src/cube/`. It plans every step of a guided solve and never imports the DOM, Three.js, React, the solver or the network (ADR-012).
 - `src/twin/` maps step plans onto the 3D twin (positions, slots, playback-driven aids). It depends on `src/cube/`, `src/tutor/` types and the engine's teaching API as a type; it has no DOM, React or Three.js imports.
 - `src/three/` depends on `src/cube/` for `CubeState` and `CubeMove` contracts. It receives states and animates them.
-- `src/stores/` orchestrates `cube`, `vision`, `solver`, and `three`.
+- `src/stores/` orchestrates `cube`, `vision`, `solver`, and `three`. `useCubyntraStore` owns the
+  scan; `useTutorStore` owns the guided solve (plan, checkpoint outcome, attempts) and the student
+  profile, and reads the scan store only through its public state and actions.
+- `src/app-shell/` holds the shell's non-visual pieces. `checkpointAdapter.ts` is the only place
+  the app calls checkpoint verification, mistake diagnosis and recovery (see §8).
 - `src/components/` connects UI events to `src/stores/`.
 
 ---
@@ -150,3 +160,31 @@ flowchart LR
 ```
 
 *The hardware pipeline is FUTURE / OUT OF SCOPE FOR V1.*
+
+---
+
+## 8. App Shell (Phase 7)
+
+- **Routes.** `src/app/(app)/` holds the tutor screens (`/`, `/scan`, `/solve`, `/trainer`,
+  `/timer`, `/progress`, `/pair`, `/settings`) under one layout, `AppShell`. Each `page.tsx` is a
+  server component that sets the title and renders one client view from `src/components/`.
+  `/companion` stays outside the group. `app/manifest.ts` serves `/manifest.webmanifest`;
+  `app/appMetadata.ts` holds the document metadata and viewport (theme colors, Apple web-app).
+- **Session bootstrap.** `useStudentSession` (run by the shell) fetches the app token
+  (`/api/auth/token` on the laptop; on a paired phone the token from its sessionStorage pairing,
+  `cubyntra.pairing`, ADR-015), loads the profile from
+  `/api/student`, starts catching the install prompt and applies the reduce-motion setting.
+- **Student profile.** `src/lib/studentProfile.ts` (schema, validation, defaults; no Node or DOM)
+  and `src/lib/studentFile.ts` (server: atomic read/write of `data/student.json`).
+  `useTutorStore` saves the whole profile through `PUT /api/student` after every change; without
+  a token everything works for the visit and is marked unsaved.
+- **Checkpoint adapter.** `src/app-shell/checkpointAdapter.ts` is the only caller of
+  `verifyCheckpoint`, `diagnoseMistake`, `decideRecovery` and `replanFromScan` (ADR-013). A
+  confident diagnosis resumes with a corrective step or a fresh plan; otherwise the student shows
+  one more face or rescans, and a mid-solve rescan re-plans with the same method and grip.
+- **Pairing.** `AppShell` holds the one `CompanionSyncProvider`, so a pairing made on `/pair`
+  survives navigation. `/companion` (the phone) sits in the shell without navigation. On
+  `/solve`, `useTutorSync` mirrors the step, grip and twin playback to the phone and applies the
+  phone's playback commands, grip and checkpoint verdicts (ADR-015: states only).
+- **Planning.** Steps are planned in the worker (`tutor.plan`); if the worker itself fails the
+  store plans once on the main thread; a `TutorPlanError` becomes the "scan again" error state.

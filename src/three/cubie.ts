@@ -26,6 +26,58 @@ export const FADED_OPACITY = 0.35;
 
 const COLORS: readonly CubeColor[] = ['white', 'yellow', 'red', 'orange', 'blue', 'green'];
 
+/** The letter drawn on a sticker when color-blind letters are on. */
+export const STICKER_LETTER: Readonly<Record<CubeColor, string>> = {
+  white: 'W',
+  yellow: 'Y',
+  red: 'R',
+  orange: 'O',
+  blue: 'B',
+  green: 'G',
+};
+
+/**
+ * 5x5 pixel glyphs for the sticker letters, top row first. Drawn as flat voxel pixels (no
+ * canvas, no font), so they match the twin's style and work wherever Three.js does.
+ */
+export const LETTER_GLYPHS: Readonly<Record<CubeColor, readonly string[]>> = {
+  white: ['10001', '10001', '10101', '11011', '10001'],
+  yellow: ['10001', '01010', '00100', '00100', '00100'],
+  red: ['11110', '10001', '11110', '10100', '10010'],
+  orange: ['01110', '10001', '10001', '10001', '01110'],
+  blue: ['11110', '10001', '11110', '10001', '11110'],
+  green: ['01111', '10000', '10011', '10001', '01111'],
+};
+
+/** Width of a letter glyph on its tile, as a share of the tile. */
+const LETTER_SPAN = 0.5;
+
+/**
+ * A flat geometry with one square per lit glyph pixel, in the tile's plane (x right, y up),
+ * centred on the tile and lifted just above its outer face.
+ */
+export function letterGeometry(color: CubeColor): THREE.BufferGeometry {
+  const rows = LETTER_GLYPHS[color];
+  const pixel = (TILE_SIZE * LETTER_SPAN) / rows.length;
+  const half = (pixel * rows.length) / 2;
+  const z = TILE_DEPTH / 2 + 0.002;
+  const positions: number[] = [];
+  rows.forEach((row, r) => {
+    [...row].forEach((on, c) => {
+      if (on !== '1') return;
+      const x0 = -half + c * pixel;
+      const y1 = half - r * pixel;
+      const x1 = x0 + pixel;
+      const y0 = y1 - pixel;
+      positions.push(x0, y0, z, x1, y0, z, x1, y1, z, x0, y0, z, x1, y1, z, x0, y1, z);
+    });
+  });
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
 export interface VoxelKitOptions {
   /** Opacity used by `sticker(color, true)` and `bodyMaterial(true)`. */
   fadedOpacity?: number;
@@ -54,6 +106,9 @@ export class VoxelKit {
   private readonly bodyFaded: THREE.MeshLambertMaterial;
   private readonly stickers = new Map<CubeColor, THREE.MeshLambertMaterial>();
   private readonly stickersFaded = new Map<CubeColor, THREE.MeshLambertMaterial>();
+  // Color-blind letters are built on first use, so a twin without them carries nothing extra.
+  private readonly letters = new Map<CubeColor, THREE.BufferGeometry>();
+  private letterMaterials: { plain: THREE.MeshLambertMaterial; faded: THREE.MeshLambertMaterial } | null = null;
   private disposed = false;
 
   constructor(options: VoxelKitOptions = {}) {
@@ -76,9 +131,29 @@ export class VoxelKit {
     return (faded ? this.stickersFaded : this.stickers).get(color)!;
   }
 
+  /** The shared glyph geometry for a sticker letter. */
+  public letter(color: CubeColor): THREE.BufferGeometry {
+    let geometry = this.letters.get(color);
+    if (!geometry) {
+      geometry = letterGeometry(color);
+      this.letters.set(color, geometry);
+    }
+    return geometry;
+  }
+
+  /** Letters are drawn in the core color, like a printed mark on the sticker. */
+  public letterMaterial(faded = false): THREE.MeshLambertMaterial {
+    this.letterMaterials ??= {
+      plain: flatMaterial(STICKER_CORE_HEX, null),
+      faded: flatMaterial(STICKER_CORE_HEX, this.fadedOpacity),
+    };
+    return faded ? this.letterMaterials.faded : this.letterMaterials.plain;
+  }
+
   /** Every material, for disposal and for re-upload after a lost WebGL context. */
   public materials(): THREE.Material[] {
-    return [this.body, this.bodyFaded, ...this.stickers.values(), ...this.stickersFaded.values()];
+    const letters = this.letterMaterials ? [this.letterMaterials.plain, this.letterMaterials.faded] : [];
+    return [this.body, this.bodyFaded, ...this.stickers.values(), ...this.stickersFaded.values(), ...letters];
   }
 
   /** Marks every material for recompilation (used after the WebGL context is restored). */
@@ -91,6 +166,7 @@ export class VoxelKit {
     this.disposed = true;
     this.bodyGeometry.dispose();
     this.tileGeometry.dispose();
+    for (const g of this.letters.values()) g.dispose();
     for (const m of this.materials()) m.dispose();
   }
 }
@@ -119,6 +195,7 @@ export class CubieMesh {
   private readonly body: THREE.Mesh;
   private stickerMeshes: Partial<Record<Face, THREE.Mesh>> = {};
   private stickerColors: Partial<Record<Face, CubeColor>> = {};
+  private letterMeshes: Partial<Record<Face, THREE.Mesh>> = {};
   private faded = false;
 
   constructor(config: CubieMeshConfig, kit: VoxelKit) {
@@ -180,6 +257,32 @@ export class CubieMesh {
     if (!mesh) return;
     this.stickerColors[face] = color;
     mesh.material = this.kit.sticker(color, this.faded);
+    const letter = this.letterMeshes[face];
+    if (letter) letter.geometry = this.kit.letter(color);
+  }
+
+  /**
+   * Shows or hides a letter (W Y R O B G) on every tile, for students who cannot tell some
+   * sticker colors apart. The letter is a child of its tile, so it turns with the cubie.
+   */
+  public setLettersVisible(visible: boolean): void {
+    for (const face of Object.keys(this.stickerMeshes) as Face[]) {
+      const existing = this.letterMeshes[face];
+      if (visible && !existing) {
+        const letter = new THREE.Mesh(this.kit.letter(this.stickerColors[face]!), this.kit.letterMaterial(this.faded));
+        letter.name = 'sticker-letter';
+        this.stickerMeshes[face]!.add(letter);
+        this.letterMeshes[face] = letter;
+      } else if (!visible && existing) {
+        existing.removeFromParent();
+        delete this.letterMeshes[face];
+      }
+    }
+  }
+
+  /** The letter on the tile built on `face`, or null when letters are off (for tests). */
+  public letterOn(face: Face): THREE.Mesh | null {
+    return this.letterMeshes[face] ?? null;
   }
 
   /** Fades the whole cubie (body and tiles) to the kit's faded opacity, or restores it. */
@@ -189,6 +292,8 @@ export class CubieMesh {
     this.body.material = this.kit.bodyMaterial(faded);
     for (const face of Object.keys(this.stickerMeshes) as Face[]) {
       this.stickerMeshes[face]!.material = this.kit.sticker(this.stickerColors[face]!, faded);
+      const letter = this.letterMeshes[face];
+      if (letter) letter.material = this.kit.letterMaterial(faded);
     }
   }
 

@@ -86,27 +86,96 @@ turn while waiting). Hover and press transitions use `steps()` timing and last 8
 
 ---
 
-## 3. Core User Experience Flow
+## 3. Screens and Navigation (Phase 7)
+
+The tutor is one app shell (`src/components/shell/AppShell.tsx`) around eight screens, in the
+`src/app/(app)/` route group. The phone companion (`/companion`) stays outside the group with its
+own full-screen camera layout.
+
+### 3.1 Navigation map
 
 ```
-[ Welcome / Idle State ]
-          │
-          ▼
-[ Camera Initialization ] ─── (Denied) ───► [ Manual Input / Scramble Mode ]
-          │ (Granted)
-          ▼
-[ Guided 6-Face Scan ] ◄────────────────┐
-  (U -> R -> F -> D -> L -> B)          │ (Rescan)
-          │                             │
-          ▼                             │
-[ State Validation Engine ] ── (Invalid) ─┘ (Error Modal Recovery)
-          │ (Valid)
-          ▼
-[ Sub-Second Kociemba Solve ]
-          │
-          ▼
-[ Interactive 3D Playback & Step-by-Step Guidance ]
+                 ┌──────────── phone tab bar / desktop side nav ────────────┐
+   Learn         │ Home (/)        Scan (/scan)        Solve (/solve)       │
+   Practice      │ Trainer (/trainer)*  Timer (/timer)*  Progress (/progress)│
+   This device   │ Pair phone (/pair)**                 Settings (/settings) │
+                 └──────────────────────────────────────────────────────────┘
+   * layout shell, "Coming soon" (Phase 9)   ** QR code and typed code (Phase 8 state-only sync)
+
+   Home ──Scan my cube──► Scan ──confirm review──► Solve ──solved──► Home / Scan
+     │  ──Try a demo cube──────────────────────────►  │
+     └──Continue (saved solve)────────────────────────┘
+   Solve ──mismatch──► Rescan the cube ──► Scan ──► Solve (same method, fresh plan)
 ```
+
+- **Phone (< 1024px).** A 56px top bar (logo, theme switch) and a fixed bottom tab bar with
+  five tabs: Home, Scan, Solve, Progress, Settings. The active tab has a 4px leaf-edge bar on top
+  and its icon in a leaf-soft block. Trainer, Timer and Pair are reached from Home's "More".
+- **Desktop (>= 1024px).** A 240px side nav with all eight screens in three groups (Learn,
+  Practice, This device). The active item is a leaf-soft row with a 4px leaf-edge bar on its left.
+- **Accessibility.** "Skip to content" is the first Tab stop and jumps to `<main id="content">`.
+  Both navs are `<nav aria-label="Main">` (only one is displayed at a time); the current link has
+  `aria-current="page"`. Every page has exactly one `<h1>`.
+- **Page scaffolding** (`src/components/shell/Page.tsx`): optional small label, one pixel-font
+  heading, at most one line of plain text; sections have a small heading. Widths: `md` 672px,
+  `lg` 896px, `xl` 1152px; gutters 16px (phone), 24px, 32px.
+
+### 3.2 Home (`/`)
+- **Continue** card when a solve is saved: method, step number, the stage being worked on and a
+  `ProgressBlocks` row of stages (from `tutor.progress` in the worker); Continue, or Discard.
+- **Method**: two radio cards, Beginner's and CFOP, each with one honest line on what it is and
+  who it suits, and its stage count. The choice is the profile's default method.
+- **Scan my cube** (primary) and **Try a demo cube** when nothing is in progress.
+- **Progress** glance (steps done, checks passed, solves) and **More** (Trainer, Timer, Pair).
+
+### 3.3 Scan (`/scan`)
+The six-face webcam scan (`CameraScanner`) and the review (`ScanReview`, letters on tiles when
+the color-blind option is on). On confirm the student palette is built from the raw samples
+(`buildStudentPalette`), saved to the profile and a guided solve starts on `/solve`. Errors: the
+camera panel explains how to allow the camera ("Camera not working?"); an unreadable cube shows
+lighting and glare tips with Scan again and Use a demo cube.
+
+### 3.4 Solve (`/solve`)
+- **Phone portrait, top to bottom:** stage header (method, "Stage n of N", `ProgressBlocks`,
+  step number, stage and case name) → `TeachingTwin` (move chips, playback, "After" preview) →
+  coach panel → sticky **I did it** above the tab bar.
+- **Desktop:** the twin large on the left (sticky); header, coach and I did it on the right.
+- **Coach panel:** the step's own notes (goal, what to look for) always show and need no
+  network. Three hint buttons ask the coach: 1 What to look for, 2 Why it works, 3 Show the moves.
+  The reply streams into a polite live region. "Templates" or "Cap reached" chips and the
+  route's notice show when the coach answers from templates.
+- **Checkpoint sheet** (a `Dialog`): a flat mini-cube (unfolded, centers only, in the student's
+  grip) outlines the face to show; the instruction names the grip and the face. "Check this face"
+  reads the reticle square with the student's palette. Outcomes, announced in a live region:
+  - *uncertain* → "Show me … again" (unclear tiles marked; tap a tile to correct it);
+  - *wrong face* → which face to show instead;
+  - *match* → a leaf block drops onto the row ("Block placed"), next step after 1.8 s or on
+    "Next step";
+  - *mismatch* → the sheet closes; the solve screen shows **Not quite yet** with the most likely
+    mistake in words, the read faces with wrong tiles marked (tap to correct, then "Check with my
+    fixes"), the coach's explanation (the diagnosis is passed to `useCoach`), and Replay the
+    step / Fix it from here (when the diagnosis is confident) / Rescan the cube / It actually
+    matches.
+  - No camera (blocked or failed): how to allow it, Try again, or "It matches" (check by eye).
+- **Other states:** loading ("Planning the next step"), no solve in progress (Scan / Demo cube),
+  planning failed (Try again / Scan again), solved (Solve another / Home).
+- The screen stays awake while a solve is open (Screen Wake Lock, re-taken when the page is
+  visible again).
+
+### 3.5 Settings (`/settings`)
+Name; method to start with; Moves in words; Letters on stickers (with a preview grid); Theme
+(Light / Dark / System); Reduce motion; Coach (Live, Templates only or Monthly cap reached, with
+"$x of $10.00" spent this month, or Offline: "the built-in notes still work"); Install (Android
+install button, iOS "Share → Add to Home Screen" hint, or "Installed").
+
+### 3.6 Trainer, Timer, Progress, Pair
+Trainer, Timer and Progress have their real layout with a plain "Coming soon" chip and disabled
+controls; Progress already shows the profile's real counts. **Pair** shows the QR code, the
+six-character typed code with its expiry, a status chip (waiting, phone connected, ended), the
+laptop address choice and Unpair. The pairing lives in the shell, so it survives navigation; once
+the phone is connected `/scan` offers "Scan with the phone" and `/solve` mirrors the step, grip
+and playback on the phone. `/companion` (the phone) is inside the shell but full screen, with no
+navigation over the viewfinder.
 
 ---
 
@@ -114,43 +183,36 @@ turn while waiting). Hover and press transitions use `steps()` timing and last 8
 
 ### 4.1 Guided Camera Scanner HUD (`CameraScanner.tsx`)
 - **Viewport Reticle**: a square 3x3 grid inside a 4px frame with pixel corner blocks, centered over the live video stream.
-- **Stability Indicator**: A circular progress ring around each sticker cell filling up over 10 consecutive stable frames.
-- **Color Confidence Bar**: Real-time readout of CIELAB distance matching confidence.
-- **Face Progress Tracker**: 6 segmented indicators at the top showing completed vs remaining faces.
-- **Orientation Guide Widget**: Mini 3D preview cue showing how to rotate the physical cube to reach the next required face.
+- **Stability Indicator**: a block bar fills as consecutive frames agree.
+- **Face Progress Tracker**: `ProgressBlocks` for the six faces, and six thumbnails to rescan any face.
 
-### 4.2 Mathematical Error Recovery Modal (`ErrorRecoveryModal.tsx`)
-- Triggered automatically if state validation detects parity or count anomalies.
-- Presents an unfolded 2D cube net view (`U`, `L`, `F`, `R`, `B`, `D`).
-- Highlights problematic pieces with pulsing red outlines.
-- Provides an intuitive color palette selector to manually override misclassified stickers.
-
-### 4.3 Solve Playback Controls (`SolveControls.tsx`)
-- **Move Tape**: Horizontal scrolling carousel of move tokens (e.g. `[U] [R2] [F'] [D]`). Moves are square blocks: the current one is a raised leaf block, done moves sink into wells.
-- **Playback Controls**:
-  - Play / Pause (toggleable with `Spacebar`).
-  - Step Forward / Step Backward (`Right Arrow` / `Left Arrow`).
-  - Speed Adjustment: $0.5\times$, $1\times$, $2\times$, $4\times$.
-  - Reset to initial scramble (`R`).
-- **Progress Gauge**: Real-time percentage indicator and step counter ($K / N$).
-
-### 4.4 Real-Time Computer Vision Debugger (`CVDebugger.tsx`)
-- Collapsible diagnostics drawer for advanced users and developers.
-- Displays live RGB, HSV, CIELAB color values for all 9 grid points.
-- Frame rate monitor (FPS) and frame drop detection.
+### 4.2 Shell components
+| Component | Notes |
+|---|---|
+| `AppShell` | skip link, side nav (lg), top bar and tab bar (phone), profile bootstrap |
+| `PageContainer`, `PageHeader`, `PageSection`, `Busy` | page scaffolding and the three-block busy indicator |
+| `BlockLink` | a `next/link` that looks like a `BlockButton` |
+| `Switch` | `role="switch"`, labelled and described |
+| `SegmentedControl` | a radiogroup of blocks; arrow keys move the choice, one Tab stop |
+| `StickerGrid` | one face as a 3x3; optional letters, marked tiles and tap-to-correct |
+| `MiniCube` | flat unfolded cube, centers only, the face to show outlined |
+| `BlockPlaced` | the "block placed" moment after a passed check |
 
 ---
 
 ## 5. Responsive Design & Accessibility
 
-- **Desktop (>= 1024px)**: Dual-pane split view with video HUD/controls on the left and the 3D twin visualizer on the right.
-- **Mobile (< 1024px)**: Vertically stacked layout with sticky playback controls at the bottom viewport boundary.
+- **Phone first.** Layouts are designed at 360–430px portrait first; the shell switches to the
+  side nav at 1024px.
 - **Accessibility**:
-  - All interactive buttons include descriptive `aria-label` attributes.
+  - Every control has a visible label or an `aria-label`; icon-only buttons use `IconButton`.
   - Every text pair meets WCAG AA (4.5:1); the lowest is muted text on the danger tint at 4.56:1. Ratios per pair are in ADR-011.
-  - Icon-only buttons use `IconButton`, whose `label` prop is required.
-  - Dialogs trap focus, close on Escape and return focus to the opener.
-  - Keyboard navigation fully supported across all critical playback actions.
+  - Sheets are `Dialog`s: focus moves in, Tab is trapped, Escape closes, focus returns.
+  - Live regions: coach text (polite), checkpoint instructions and results (status), mismatch (alert).
+  - **Color-blind letters** (Settings): W Y R O B G on every sticker of the twin (voxel pixel
+    glyphs, `setStickerLetters` on the engine) and in every 2D grid (review, checkpoint, mini-cube).
+  - **Reduce motion** (Settings) sets `<html data-motion="reduce">`, which cuts animations like
+    `prefers-reduced-motion` does.
 
 ---
 
@@ -202,7 +264,7 @@ Entrances are short stepped animations (`vx-place`, `vx-pop`, `vx-flash`; see §
 
 ## 7. Themes: Light, Dark, System
 
-- **Switch.** The header's Sun/Moon/Monitor button cycles Light → Dark → System. System follows the OS setting, including live changes. The choice is stored per device (`localStorage["cubyntra.theme"]`) and synced across tabs.
+- **Switch.** The theme button (top bar on phones, foot of the side nav on desktop) cycles Light → Dark → System; Settings has the same choice as a segmented control. System follows the OS setting, including live changes. The choice is stored per device (`localStorage["cubyntra.theme"]`) and synced across tabs.
 - **No flash.** A script in `<head>` (`THEME_BOOT_SCRIPT` in `src/lib/theme.ts`) sets `<html data-theme>` before first paint.
 - **How colors switch.** The voxel tokens are defined on `:root` (light) and redefined under `:root[data-theme="dark"]`; Tailwind classes such as `bg-panel` resolve to those variables, so components carry no theme-specific classes.
 - **Fixed colors.** Sticker tokens, `text-on-leaf`, `text-on-danger` and the QR paper are the same in both themes, so the logo (`CubeGlyph`) and QR code never change.
@@ -212,14 +274,17 @@ Entrances are short stepped animations (`vx-place`, `vx-pop`, `vx-flash`; see §
 
 ## 8. Navigation & Recovery
 
-Every screen has a labeled way forward, and the logo always returns to the start screen.
+Every screen has a labeled way forward; the logo and the Home tab always return home.
 
 | Screen | Exits |
 |---|---|
-| Webcam scan | Back; on camera error: Try again, Use demo cube, Back |
-| Phone scan progress | Show QR, Use webcam, Cancel; New QR code when the pairing ended |
+| Home | Continue / Discard (saved solve), Scan my cube, Try a demo cube, Progress, More |
+| Scan | Back (home); on camera error: Try again, Use demo cube; unreadable cube: Scan again, Use a demo cube |
+| Review | Rescan a face, Start over, Confirm & solve (→ Solve) |
+| Solve | I did it (checkpoint sheet), hints, playback; Rescan the cube after a mismatch |
+| Checkpoint sheet | Check this face / Check again, It matches, Close (back to the step) |
+| Mismatch | Replay the step, Fix it from here, Rescan the cube, It actually matches |
+| Planning failed | Try again, Scan again |
+| Solved | Solve another, Home |
 | Pairing dialog | Close, Switch to webcam; Try again if the pairing could not be created |
-| Review | Rescan a face, Start over, Confirm & solve |
-| Solution | Reset to scramble, Scan another cube |
-| Error panel | Back to review (when a scan exists), Rescan a named face, Start over, Try the demo cube |
 | Crash / 404 | Try again, Back to home |

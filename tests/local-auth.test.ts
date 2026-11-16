@@ -56,6 +56,9 @@ describe('isLoopbackRequest', () => {
     [{ host: '127.0.0.1:3000' }],
     [{ host: '[::1]:3000' }],
     [{ host: 'localhost', origin: 'https://localhost:3000' }],
+    // What `next start` / `next dev` add to every request from the laptop's own browser.
+    [{ host: 'localhost:3000', 'x-forwarded-for': '::1', 'x-forwarded-host': 'localhost:3000' }],
+    [{ host: '127.0.0.1:3000', 'x-forwarded-for': '::ffff:127.0.0.1', 'x-forwarded-host': '127.0.0.1:3000' }],
   ])('accepts %j', (headers) => {
     expect(isLoopbackRequest(req(headers))).toBe(true);
   });
@@ -65,6 +68,9 @@ describe('isLoopbackRequest', () => {
     [{ host: 'evil.example' }],
     [{ host: 'localhost.evil.example' }],
     [{ host: 'localhost:3000', 'x-forwarded-for': '10.0.0.5' }],
+    [{ host: 'localhost:3000', 'x-forwarded-for': '127.0.0.1, 10.0.0.5' }],
+    [{ host: 'localhost:3000', 'x-forwarded-for': '::1', 'x-forwarded-host': '192.168.1.20:3000' }],
+    [{ host: 'localhost:3000', 'x-real-ip': '127.0.0.1' }],
     [{ host: 'localhost:3000', origin: 'https://evil.example' }],
     [{ host: 'localhost:3000', origin: 'null' }],
   ])('rejects %j', (headers) => {

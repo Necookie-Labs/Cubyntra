@@ -1,0 +1,8 @@
+import type { Metadata } from 'next';
+import { TrainerView } from '@/components/placeholders/Placeholders';
+
+export const metadata: Metadata = { title: 'Trainer' };
+
+export default function TrainerPage() {
+  return <TrainerView />;
+}

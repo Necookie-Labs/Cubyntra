@@ -270,7 +270,9 @@ deleteSyncSession(sessionId, secret): Promise<void>  // keepalive
 useCompanionSync()   // laptop: initSession (single-flight, cancelled on unmount), disconnect (DELETE),
                      // selectHost, send, subscribe, requestRescan, confirmScan, connections, code, …
 useMobileSession(creds, { onEnded? }) // phone: sendFace, rejectFace, controlPlayback, startOver, …
-usePlaybackSync(sync) // laptop: publishes the solution, two-way playback (src/sync/playbackSync.ts)
+useTutorSync(sync, twinPlayback) // device on /solve: publishes step, start cube, grip, twin playback and
+                     // checkpoint verdicts; applies the other device's playback, grip and verdicts
+                     // (src/sync/tutorSync.ts; wire index = moves applied - 1)
 ```
 
 Playback is last-writer-wins by the server's sequence number: each device applies playback messages
@@ -380,3 +382,46 @@ planStepInWorker(state, method, grip?, stepIndex?, options?): Promise<StepPlan |
 tutorProgressInWorker(state, method, options?): Promise<TutorProgress>
 guidedSolveInWorker(state, method, grip?, options?): Promise<GuidedSolve>
 ```
+
+## 9. Student Profile and Tutor Session (`src/lib/`, `src/stores/useTutorStore.ts`)
+
+| Route | Auth | Body | Response |
+|---|---|---|---|
+| `GET /api/student` | token | – | `StudentProfile` (the default one before anything is saved) |
+| `PUT /api/student` | token | whole `StudentProfile` (≤ 32 KB) | the saved profile; `400` invalid, `401` no token, `413` too large |
+
+```typescript
+// src/lib/studentProfile.ts (shared; no Node or DOM)
+interface StudentProfile {
+  version: 1;
+  name: string;                                   // ≤ 40 characters
+  settings: { methodDefault: MethodId; plainLanguage: boolean; stickerLetters: boolean;
+              reducedMotion: boolean; theme: 'light' | 'dark' | 'system' };
+  palette: StudentPalette | null;                 // src/vision/palette.ts
+  currentSolve: { method: MethodId; state: CubeState; grip: Grip; stepIndex: number;
+                  attempts: AttemptRecord[]; startedAt: string; updatedAt: string } | null;
+  stats: { solvesCompleted: number; stepsCompleted: number; checkpointsPassed: number; lastSolveAt: string | null };
+}
+parseStudentProfile(input: unknown): { ok: true; profile: StudentProfile } | { ok: false; error: string }
+defaultStudentProfile(): StudentProfile
+
+// src/lib/studentFile.ts (server only)
+readStudentProfile(): StudentProfile             // default when missing; damaged file -> student.json.bad
+writeStudentProfile(profile: StudentProfile): void  // atomic; throws ProfileTooLargeError
+
+// src/stores/useTutorStore.ts
+type SolvePhase = 'idle' | 'loading' | 'step' | 'checking' | 'celebrate' | 'mismatch' | 'solved' | 'error';
+startSolve(state, method); resumeSolve(): Promise<boolean>; loadPlan();
+beginCheckpoint(); submitObservation(observation); editTiles(face, edits); confirmByHand();
+advance(); replayStep(); continueFromDiagnosis(); showNextFace(); replanFromRescan(scanned);
+setGrip(grip); applyRemoteCheckpoint({ stepIndex, result, mistakes? }); abandonSolve();
+updateSettings(patch); setName(name); savePalette(palette); loadProfile();
+
+// src/app-shell/checkpointAdapter.ts (wires src/tutor/checkpoint, diagnose and recovery)
+checkCheckpoint(plan, observations): { result: CheckpointResult; diagnosis: Diagnosis | null; recovery: Recovery | null }
+  // mismatch -> diagnoseMistake(plan, observations), decideRecovery(plan, diagnosis)
+confirmCheckpointByHand(plan); checkWithEdits(plan, observations, face, edits); toCoachDiagnosis(diagnosis)
+replanAfterRescan(scanned, method, grip, stepIndex): ScanReplan   // replanFromScan
+faceToShowNext(outcome): Face | null   // needsRescan with showNext
+```
+

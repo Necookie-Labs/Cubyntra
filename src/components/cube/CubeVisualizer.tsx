@@ -21,6 +21,8 @@ export interface CubeVisualizerProps {
    * components that drive the teaching aids (e.g. the teaching twin).
    */
   onEngineChange?: (engine: CubeEngine | null) => void;
+  /** Color-blind option: a letter (W Y R O B G) on every sticker. Default false. */
+  stickerLetters?: boolean;
 }
 
 export interface CubeVisualizerRef {
@@ -40,7 +42,10 @@ function pageTheme(): 'light' | 'dark' {
 }
 
 export const CubeVisualizer = forwardRef<CubeVisualizerRef, CubeVisualizerProps>(
-  function CubeVisualizer({ state, activeMove, className = '', showControls = true, onEngineChange }, ref) {
+  function CubeVisualizer(
+    { state, activeMove, className = '', showControls = true, onEngineChange, stickerLetters = false },
+    ref
+  ) {
     const containerRef = useRef<HTMLDivElement>(null);
     const engineRef = useRef<CubeEngine | null>(null);
     const [isFullscreen, setIsFullscreen] = useState(false);
@@ -83,6 +88,12 @@ export const CubeVisualizer = forwardRef<CubeVisualizerRef, CubeVisualizerProps>
     useEffect(() => {
       engineRef.current?.requestSync(state);
     }, [state]);
+
+    // Older engines (and test doubles) may not draw letters; skip quietly then.
+    useEffect(() => {
+      const engine = engineRef.current;
+      if (engine && typeof engine.setStickerLetters === 'function') engine.setStickerLetters(stickerLetters);
+    }, [stickerLetters]);
 
     // Update move guidance arrow
     useEffect(() => {

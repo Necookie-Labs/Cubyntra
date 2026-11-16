@@ -10,7 +10,7 @@
  * the end the twin shows the plan's expected state, held in `gripAfter`.
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import type { StepPlan } from '@/tutor/types';
 import { createSolvedCubeState } from '@/cube/constants';
 import type { CubeEngine } from '@/three/engine';
@@ -30,6 +30,10 @@ export interface TeachingTwinProps {
   showGhost?: boolean;
   /** Whether the current move starts spelled out in words. Default false. */
   plainLanguage?: boolean;
+  /** Color-blind option: a letter on every sticker. Default false. */
+  stickerLetters?: boolean;
+  /** The twin's engine once mounted (null after), e.g. to sync its playback with a paired phone. */
+  onEngineChange?: (engine: CubeEngine | null) => void;
   className?: string;
 }
 
@@ -38,9 +42,18 @@ export const TeachingTwin: React.FC<TeachingTwinProps> = ({
   onStepPlayed,
   showGhost = false,
   plainLanguage = false,
+  stickerLetters = false,
+  onEngineChange,
   className,
 }) => {
   const [engine, setEngine] = useState<CubeEngine | null>(null);
+  const onEngineChangeRef = useRef(onEngineChange);
+  useEffect(() => {
+    onEngineChangeRef.current = onEngineChange;
+  });
+  useEffect(() => {
+    onEngineChangeRef.current?.(engine);
+  }, [engine]);
   // The twin is painted by playback from here on; the visualizer only needs a first state.
   const [initialState] = useState(() => plan?.startState ?? createSolvedCubeState());
   const { snapshot, ghost, setGhost } = useTeachingTwin(engine, plan, { onStepPlayed, showGhost });
@@ -49,7 +62,12 @@ export const TeachingTwin: React.FC<TeachingTwinProps> = ({
 
   return (
     <section aria-label="Teaching twin" className={cx('flex flex-col gap-3', className)}>
-      <CubeVisualizer state={initialState} onEngineChange={setEngine} className="min-h-[320px] flex-1" />
+      <CubeVisualizer
+        state={initialState}
+        onEngineChange={setEngine}
+        stickerLetters={stickerLetters}
+        className="min-h-[320px] flex-1"
+      />
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <PlaybackControls
