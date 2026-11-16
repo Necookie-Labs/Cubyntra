@@ -12,6 +12,7 @@ import React from 'react';
 import { useCubyntraStore } from '@/stores/useCubyntraStore';
 import { AlertTriangle, ArrowLeft, RefreshCw, Sparkles } from 'lucide-react';
 import { Face } from '@/cube/types';
+import { BlockButton, Panel } from '@/components/ui';
 
 const FACE_LABEL: Record<Face, string> = {
   U: 'Top',
@@ -49,71 +50,56 @@ export const ErrorRecoveryModal: React.FC<ErrorRecoveryModalProps> = ({ onStartO
       : errorMessage ?? 'An unexpected error stopped the solve. Your scan was not lost.';
 
   return (
-    <div
-      role="alert"
-      className="w-full max-w-lg mx-auto lg:mx-0 bg-rose-950/30 border border-rose-800/70 rounded-2xl p-5 shadow-2xl flex flex-col gap-4"
-    >
+    <Panel role="alert" className="vx-place w-full max-w-lg mx-auto lg:mx-0 flex flex-col gap-4">
       <div className="flex items-start gap-3">
-        <div className="p-2 rounded-lg bg-rose-900/50 border border-rose-700/70">
-          <AlertTriangle className="w-5 h-5 text-rose-300" />
+        <div aria-hidden data-variant="danger" className="vx-block flex h-10 w-10 shrink-0 items-center justify-center pb-1">
+          <AlertTriangle className="w-5 h-5" />
         </div>
         <div className="flex-1">
-          <h3 className="text-base font-bold text-white tracking-tight">{title}</h3>
-          <p className="text-sm text-rose-200/90 mt-1 leading-relaxed">{summary}</p>
+          <h3 className="text-lg leading-tight text-ink">{title}</h3>
+          <p className="text-sm text-muted mt-1 leading-relaxed">{summary}</p>
         </div>
       </div>
 
       {issues.length > 0 && (
-        <ul className="bg-neutral-950/70 rounded-lg p-3 border border-neutral-800/80 max-h-36 overflow-y-auto space-y-1.5 text-xs">
+        <ul className="bg-danger-soft border-2 border-danger p-3 max-h-36 overflow-y-auto flex flex-col gap-1 text-sm text-ink">
           {issues.map((issue, idx) => (
-            <li key={idx} className="flex items-start gap-2 text-rose-200/90">
-              <span className="text-rose-400 font-bold shrink-0" aria-hidden>
-                •
-              </span>
+            <li key={idx} className="flex items-start gap-2">
+              <span aria-hidden className="mt-1.5 h-2 w-2 shrink-0 bg-danger" />
               <span>{issue.message}</span>
             </li>
           ))}
         </ul>
       )}
 
-      <div className="flex flex-wrap items-center gap-2 pt-1">
+      <div className="flex flex-wrap items-center gap-2">
         {canReview && (
-          <button
-            type="button"
+          <BlockButton
+            variant="primary"
+            size="sm"
             onClick={() => setAppState('reviewing')}
-            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg bg-white text-neutral-950 text-xs font-bold hover:bg-neutral-200 transition-colors shadow-md"
+            icon={<ArrowLeft className="w-3.5 h-3.5" aria-hidden />}
           >
-            <ArrowLeft className="w-3.5 h-3.5" />
             Back to review
-          </button>
+          </BlockButton>
         )}
         {namedFaces.map((face) => (
-          <button
+          <BlockButton
             key={face}
-            type="button"
+            size="sm"
             onClick={() => onRescanFace(face)}
-            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-neutral-900 hover:bg-neutral-800 text-neutral-200 text-xs font-medium border border-neutral-700 transition-colors"
+            icon={<RefreshCw className="w-3.5 h-3.5" aria-hidden />}
           >
-            <RefreshCw className="w-3.5 h-3.5" />
             Rescan {FACE_LABEL[face]}
-          </button>
+          </BlockButton>
         ))}
-        <button
-          type="button"
-          onClick={onStartOver}
-          className="px-3 py-2 rounded-lg bg-neutral-900 hover:bg-neutral-800 text-neutral-300 text-xs font-medium border border-neutral-700 transition-colors"
-        >
+        <BlockButton size="sm" onClick={onStartOver}>
           Start over
-        </button>
-        <button
-          type="button"
-          onClick={onDemo}
-          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs text-neutral-400 hover:text-white hover:bg-white/5 transition-colors"
-        >
-          <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+        </BlockButton>
+        <BlockButton variant="ghost" size="sm" onClick={onDemo} icon={<Sparkles className="w-3.5 h-3.5" aria-hidden />}>
           Try the demo cube
-        </button>
+        </BlockButton>
       </div>
-    </div>
+    </Panel>
   );
 };

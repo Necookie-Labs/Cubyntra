@@ -17,6 +17,7 @@ import {
   readThemePreference,
   setThemePreference,
 } from '@/lib/theme';
+import { IconButton } from '@/components/ui';
 
 const NEXT: Record<ThemePreference, ThemePreference> = { light: 'dark', dark: 'system', system: 'light' };
 const LABEL: Record<ThemePreference, string> = { light: 'Light', dark: 'Dark', system: 'System' };
@@ -53,14 +54,13 @@ export const ThemeToggle: React.FC = () => {
   const Icon = pref === 'light' ? Sun : pref === 'dark' ? Moon : Monitor;
 
   return (
-    <button
-      type="button"
+    <IconButton
+      size="sm"
       onClick={() => setThemePreference(next)}
-      aria-label={`Theme: ${LABEL[pref]}. Switch to ${LABEL[next]}.`}
+      label={`Theme: ${LABEL[pref]}. Switch to ${LABEL[next]}.`}
       title={`Theme: ${LABEL[pref]} (click for ${LABEL[next]})`}
-      className="p-1.5 rounded-lg bg-neutral-900 text-neutral-400 hover:text-white hover:bg-neutral-800 border border-neutral-800 transition-colors"
     >
       <Icon className="w-4 h-4" />
-    </button>
+    </IconButton>
   );
 };

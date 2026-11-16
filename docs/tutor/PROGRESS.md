@@ -13,12 +13,12 @@ Checklist for `docs/tutor/GOAL.md`. Tick an item only when it is done and tested
 - [x] Phase gate passed and pushed
 
 ## Phase 1: Design system
-- [ ] Tokens (light + dark) in `globals.css`
-- [ ] Fonts (pixel headings, sans body)
-- [ ] UI components: BlockButton, Panel, Chip, ProgressBlocks, Dialog, Toast, IconButton
-- [ ] HexagonBackground and all gradients removed
-- [ ] Design-rules test (no gradient/blur/backdrop/text-shadow, tokens only)
-- [ ] ADR-011
+- [x] Tokens (light + dark) in `globals.css`
+- [x] Fonts (pixel headings, sans body)
+- [x] UI components: BlockButton, Panel, Chip, ProgressBlocks, Dialog, Toast, IconButton
+- [x] HexagonBackground and all gradients removed
+- [x] Design-rules test (no gradient/blur/backdrop/text-shadow, tokens only)
+- [x] ADR-011
 - [ ] Phase gate passed and pushed
 
 ## Phase 2: Cube engine extensions

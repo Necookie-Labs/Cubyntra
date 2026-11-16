@@ -1,15 +1,22 @@
 import type { Metadata } from 'next';
-import { Geist, Geist_Mono } from 'next/font/google';
+import { Geist_Mono, Nunito_Sans, Pixelify_Sans } from 'next/font/google';
 import './globals.css';
 import { THEME_BOOT_SCRIPT } from '@/lib/theme';
 
-const geistSans = Geist({
-  variable: '--font-geist-sans',
+// Pixel display face for headings only; body text stays in a readable sans.
+const pixel = Pixelify_Sans({
+  variable: '--font-pixel',
   subsets: ['latin'],
 });
 
-const geistMono = Geist_Mono({
-  variable: '--font-geist-mono',
+const body = Nunito_Sans({
+  variable: '--font-body',
+  subsets: ['latin'],
+});
+
+// Move notation and numbers.
+const code = Geist_Mono({
+  variable: '--font-code',
   subsets: ['latin'],
 });
 
@@ -33,12 +40,12 @@ export default function RootLayout({
       lang="en"
       data-theme="dark"
       suppressHydrationWarning
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${pixel.variable} ${body.variable} ${code.variable} h-full antialiased`}
     >
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
       </head>
-      <body className="min-h-full flex flex-col bg-page text-neutral-100 font-sans selection:bg-sky-500/30 selection:text-white">
+      <body className="min-h-full flex flex-col bg-ground text-ink font-sans">
         {children}
       </body>
     </html>

@@ -12,7 +12,7 @@
 
 import React, { useCallback, useEffect, useRef, useState, useSyncExternalStore, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { COLOR_HEX, SCAN_SEQUENCE } from '@/cube/constants';
+import { SCAN_SEQUENCE } from '@/cube/constants';
 import { CubeColor } from '@/cube/types';
 import {
   initializeCameraStream,
@@ -28,9 +28,11 @@ import { useMobileSession } from '@/sync/useMobileSession';
 import { CompanionReticle, ReticleTone } from '@/components/companion/CompanionReticle';
 import { FaceGuide } from '@/components/companion/FaceGuide';
 import { CaptureCoach, hasSeenCaptureCoach } from '@/components/companion/CaptureCoach';
+import { BlockButton, IconButton, Panel, cx, stickerColor } from '@/components/ui';
 import {
   AlertCircle,
   Camera,
+  Check,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
@@ -47,6 +49,17 @@ const PHOTO_SIZE = 512;
 const SAMPLE_INTERVAL_MS = 150;
 /** How long every check must hold before the photo takes itself. */
 const HOLD_MS = 600;
+/** Segments in the shutter's hold meter. */
+const HOLD_SEGMENTS = 4;
+
+type HintKind = 'fix' | 'progress' | 'ok' | 'error';
+
+const HINT_STYLE: Record<HintKind, string> = {
+  error: 'bg-warn text-on-leaf',
+  fix: 'bg-warn-soft text-ink',
+  progress: 'bg-panel text-ink',
+  ok: 'bg-leaf text-on-leaf',
+};
 
 /** localStorage has no change events worth following here; read it once per render. */
 const noSubscription = () => () => {};
@@ -304,7 +317,7 @@ function CompanionScannerContent() {
 
   // What the reticle and the hint line say right now, most urgent first.
   let tone: ReticleTone = 'idle';
-  let hint: { text: string; kind: 'fix' | 'progress' | 'ok' | 'error' } | null = null;
+  let hint: { text: string; kind: HintKind } | null = null;
   if (currentStatus === 'rejected') {
     tone = 'fix';
     hint = { text: session.reasons[currentStep.face] ?? 'Take this one again.', kind: 'error' };
@@ -323,52 +336,47 @@ function CompanionScannerContent() {
   }
   if (currentStatus === 'accepted') tone = 'done';
 
-  const ringCircumference = 2 * Math.PI * 38;
+  // The shutter is a square block; its hold progress is a row of four segments under it.
+  const holdSteps = Math.round(holdProgress * HOLD_SEGMENTS);
+  const shutterNeedsFix = Boolean(quality && !quality.ready && !isWaitingOnComputer);
 
   return (
-    <div className="relative w-full h-[100dvh] flex flex-col bg-black text-white overflow-hidden select-none">
+    <div className="relative w-full h-[100dvh] flex flex-col bg-ground text-ink overflow-hidden select-none">
       <canvas ref={canvasRef} className="hidden" />
 
       {/* Camera */}
       <video ref={videoRef} playsInline muted autoPlay className="absolute inset-0 z-0 w-full h-full object-cover" />
 
       {/* Shutter flash, re-keyed per photo */}
-      {captureFlash > 0 && <div key={captureFlash} className="cb-flash absolute inset-0 z-40 bg-white pointer-events-none" />}
+      {captureFlash > 0 && <div key={captureFlash} className="vx-flash absolute inset-0 z-40 bg-qr-paper pointer-events-none" />}
 
-      {/* Top bar */}
-      <header className="relative z-30 shrink-0 flex items-center justify-between gap-3 px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 bg-gradient-to-b from-black/80 to-transparent">
+      {/* Top bar: a solid strip, so it reads over any scene */}
+      <header className="relative z-30 shrink-0 flex items-center justify-between gap-3 px-4 pt-[max(0.5rem,env(safe-area-inset-top))] pb-2 bg-panel border-b-2 border-line">
         <div className="flex items-center gap-2 min-w-0">
           <span
-            className={`w-2 h-2 rounded-full shrink-0 ${
-              !sessionId ? 'bg-amber-400' : session.connected ? 'bg-emerald-400' : 'bg-neutral-500'
-            }`}
+            className={cx(
+              'w-3 h-3 shrink-0 border-2 border-line',
+              !sessionId ? 'bg-warn' : session.connected ? 'bg-leaf' : 'bg-well'
+            )}
             aria-hidden
           />
-          <span className="text-xs text-neutral-300 truncate">
+          <span className="text-xs font-bold text-ink truncate">
             {!sessionId ? 'Not linked to a computer' : session.connected ? 'Linked to your computer' : 'Connecting…'}
           </span>
         </div>
-        <div className="flex items-center gap-1">
-          <button
-            type="button"
-            onClick={() => setCoachOverride(true)}
-            aria-label="How to take the photos"
-            className="w-11 h-11 grid place-items-center rounded-full text-neutral-200 hover:bg-white/10 transition-colors"
-          >
+        <div className="flex items-center gap-2">
+          <IconButton label="How to take the photos" variant="ghost" onClick={() => setCoachOverride(true)}>
             <CircleHelp className="w-5 h-5" />
-          </button>
+          </IconButton>
           {hasTorch && (
-            <button
-              type="button"
+            <IconButton
+              label="Flash"
+              variant={torchActive ? 'primary' : 'ghost'}
               onClick={handleToggleTorch}
               aria-pressed={torchActive}
-              aria-label="Flash"
-              className={`w-11 h-11 grid place-items-center rounded-full transition-colors ${
-                torchActive ? 'bg-amber-400 text-black' : 'text-neutral-200 hover:bg-white/10'
-              }`}
             >
               <Zap className="w-5 h-5" />
-            </button>
+            </IconButton>
           )}
         </div>
       </header>
@@ -378,7 +386,7 @@ function CompanionScannerContent() {
         <main className="relative z-20 flex-1 min-h-0 flex flex-col items-center justify-center gap-4 px-4 pointer-events-none">
           <section
             key={currentStep.face}
-            className="cb-rise flex items-center gap-3 w-full max-w-sm p-3 rounded-2xl bg-black/65 backdrop-blur-md border border-white/10"
+            className="vx-panel vx-place flex items-center gap-3 w-full max-w-sm p-3 pb-4"
             aria-live="polite"
           >
             <FaceGuide
@@ -386,14 +394,14 @@ function CompanionScannerContent() {
               front={currentStep.centerColor}
               top={currentStep.view.top}
               right={currentStep.view.right}
-              className="cb-turn-in w-16 h-16 shrink-0"
+              className="vx-pop w-16 h-16 shrink-0"
             />
             <div className="flex flex-col gap-1 min-w-0">
-              <span className="text-[11px] font-mono uppercase tracking-wider text-sky-300">
+              <span className="font-display text-xs uppercase tracking-wider text-leaf">
                 Step {stepIndex + 1} of 6 · {currentStep.title}
               </span>
-              <p className="text-sm leading-snug text-white">{currentStep.instruction}</p>
-              <span className="text-xs text-neutral-400">{currentStep.rotationHint}</span>
+              <p className="text-sm font-bold leading-snug text-ink">{currentStep.instruction}</p>
+              <span className="text-xs text-muted">{currentStep.rotationHint}</span>
             </div>
           </section>
 
@@ -408,15 +416,10 @@ function CompanionScannerContent() {
             {hint && (
               <p
                 role="status"
-                className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-full text-sm backdrop-blur-md border ${
-                  hint.kind === 'error'
-                    ? 'bg-amber-500/20 border-amber-400/50 text-amber-100'
-                    : hint.kind === 'fix'
-                    ? 'bg-black/60 border-amber-400/40 text-amber-100'
-                    : hint.kind === 'progress'
-                    ? 'bg-sky-500/20 border-sky-400/40 text-sky-100'
-                    : 'bg-black/60 border-sky-400/40 text-sky-100'
-                }`}
+                className={cx(
+                  'inline-flex items-center gap-2 px-3 py-2 text-sm font-bold border-2 border-line shadow-block-sm',
+                  HINT_STYLE[hint.kind]
+                )}
               >
                 {hint.kind === 'progress' && <Loader2 className="w-4 h-4 animate-spin motion-reduce:animate-none" />}
                 {hint.kind === 'error' && <RotateCcw className="w-4 h-4" />}
@@ -431,32 +434,30 @@ function CompanionScannerContent() {
 
       {/* Camera states */}
       {cameraStatus === 'loading' && (
-        <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-3 bg-black">
-          <Loader2 className="w-7 h-7 text-sky-400 animate-spin motion-reduce:animate-none" />
-          <p className="text-sm text-neutral-300">Opening the camera…</p>
-          <p className="text-xs text-neutral-500">Allow camera access if your phone asks.</p>
+        <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-3 bg-ground">
+          <Loader2 className="w-8 h-8 text-leaf animate-spin motion-reduce:animate-none" />
+          <p className="text-sm font-bold text-ink">Opening the camera…</p>
+          <p className="text-xs text-muted">Allow camera access if your phone asks.</p>
         </div>
       )}
       {cameraStatus === 'error' && (
-        <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-4 bg-black px-8 text-center">
-          <AlertCircle className="w-10 h-10 text-rose-400" />
-          <div className="flex flex-col gap-1">
-            <h2 className="text-lg font-bold">The camera didn’t open</h2>
-            <p className="text-sm text-neutral-400 max-w-xs">{errorMessage}</p>
+        <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-4 bg-ground px-8 text-center">
+          <span className="vx-block grid place-items-center w-16 h-16 pb-1" data-variant="danger" aria-hidden>
+            <AlertCircle className="w-8 h-8" />
+          </span>
+          <div className="flex flex-col gap-2">
+            <h2 className="text-xl">The camera didn’t open</h2>
+            <p className="text-sm text-muted max-w-xs">{errorMessage}</p>
           </div>
-          <button
-            type="button"
-            onClick={() => setCameraAttempt((n) => n + 1)}
-            className="min-h-12 px-6 rounded-2xl bg-white text-neutral-950 font-bold text-sm"
-          >
+          <BlockButton variant="primary" size="lg" onClick={() => setCameraAttempt((n) => n + 1)}>
             Try again
-          </button>
+          </BlockButton>
         </div>
       )}
 
-      {/* Bottom controls */}
+      {/* Bottom controls: a solid deck so the shutter is easy to find */}
       {!isAllComplete && cameraStatus === 'streaming' && (
-        <footer className="relative z-30 shrink-0 flex flex-col items-center gap-3 px-4 pt-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] bg-gradient-to-t from-black/90 via-black/70 to-transparent">
+        <footer className="relative z-30 shrink-0 flex flex-col items-center gap-3 px-4 pt-3 pb-[max(0.5rem,env(safe-area-inset-bottom))] bg-panel border-t-2 border-line">
           <ol className="flex items-center gap-2" aria-label="Faces">
             {SCAN_SEQUENCE.map((step, idx) => {
               const status = session.status[step.face];
@@ -468,15 +469,24 @@ function CompanionScannerContent() {
                     onClick={() => setStepIndex(idx)}
                     aria-current={isCurrent ? 'step' : undefined}
                     aria-label={`${step.title}${status === 'accepted' ? ', read' : status === 'rejected' ? ', needs a retake' : ''}`}
-                    className="w-9 h-9 grid place-items-center"
+                    className="w-10 h-10 grid place-items-center"
                   >
                     <span
-                      className={`w-6 h-6 rounded-full grid place-items-center border-2 transition-transform duration-150 ${
-                        isCurrent ? 'scale-110 border-white' : status === 'rejected' ? 'border-amber-400' : 'border-transparent'
-                      }`}
-                      style={{ backgroundColor: COLOR_HEX[step.centerColor] }}
+                      className={cx(
+                        'grid place-items-center border-2 transition-transform duration-100',
+                        isCurrent
+                          ? 'w-8 h-8 border-line shadow-block-sm -translate-y-0.5'
+                          : status === 'rejected'
+                          ? 'w-6 h-6 border-warn'
+                          : 'w-6 h-6 border-line'
+                      )}
+                      style={{ backgroundColor: stickerColor(step.centerColor) }}
                     >
-                      {status === 'accepted' && <CheckCircle2 className="w-4 h-4 text-neutral-950" strokeWidth={3} />}
+                      {status === 'accepted' && (
+                        <span className="grid place-items-center w-4 h-4 bg-leaf border-2 border-line">
+                          <Check className="w-3 h-3 text-on-leaf" strokeWidth={4} />
+                        </span>
+                      )}
                     </span>
                   </button>
                 </li>
@@ -485,96 +495,101 @@ function CompanionScannerContent() {
           </ol>
 
           <div className="flex items-center justify-between w-full max-w-xs">
-            <button
-              type="button"
+            <IconButton
+              label="Previous face"
+              variant="ghost"
+              size="lg"
               disabled={stepIndex === 0}
               onClick={() => setStepIndex((i) => Math.max(0, i - 1))}
-              aria-label="Previous face"
-              className="w-12 h-12 grid place-items-center text-neutral-300 disabled:opacity-25"
             >
               <ChevronLeft className="w-6 h-6" />
-            </button>
+            </IconButton>
 
-            {/* Shutter: the ring fills while the frame holds steady, then the photo takes itself. */}
-            <button
-              type="button"
-              onClick={() => void takePhoto(quality)}
-              disabled={isCapturing || isWaitingOnComputer}
-              aria-label="Take photo"
-              className="relative w-[84px] h-[84px] grid place-items-center active:scale-95 transition-transform disabled:opacity-60"
-            >
-              <svg viewBox="0 0 84 84" className="absolute inset-0 -rotate-90" aria-hidden>
-                <circle cx="42" cy="42" r="38" fill="none" stroke="rgba(255,255,255,0.35)" strokeWidth="4" />
-                <circle
-                  cx="42"
-                  cy="42"
-                  r="38"
-                  fill="none"
-                  stroke={quality && !quality.ready && !isWaitingOnComputer ? '#fbbf24' : '#38bdf8'}
-                  strokeWidth="4"
-                  strokeLinecap="round"
-                  strokeDasharray={ringCircumference}
-                  strokeDashoffset={ringCircumference * (1 - holdProgress)}
-                />
-              </svg>
-              <span className="w-[66px] h-[66px] rounded-full bg-white grid place-items-center">
+            {/* Shutter: the segments fill while the frame holds steady, then the photo takes itself. */}
+            <div className="flex flex-col items-center gap-2">
+              <button
+                type="button"
+                data-variant="primary"
+                onClick={() => void takePhoto(quality)}
+                disabled={isCapturing || isWaitingOnComputer}
+                aria-label="Take photo"
+                className="vx-block w-20 h-20 pb-1 grid place-items-center"
+              >
                 {isWaitingOnComputer ? (
-                  <Loader2 className="w-6 h-6 text-neutral-900 animate-spin motion-reduce:animate-none" />
+                  <Loader2 className="w-8 h-8 animate-spin motion-reduce:animate-none" />
                 ) : (
-                  <Camera className="w-6 h-6 text-neutral-900" />
+                  <Camera className="w-8 h-8" />
                 )}
+              </button>
+              <span className="flex gap-1" aria-hidden>
+                {Array.from({ length: HOLD_SEGMENTS }).map((_, i) => (
+                  <span
+                    key={i}
+                    className={cx(
+                      'block w-4 h-2 border-2',
+                      i < holdSteps
+                        ? 'bg-leaf border-line'
+                        : shutterNeedsFix
+                        ? 'bg-warn-soft border-warn-edge'
+                        : 'bg-well border-line-soft'
+                    )}
+                  />
+                ))}
               </span>
-            </button>
+            </div>
 
-            <button
-              type="button"
+            <IconButton
+              label="Next face"
+              variant="ghost"
+              size="lg"
               disabled={stepIndex === SCAN_SEQUENCE.length - 1}
               onClick={() => setStepIndex((i) => Math.min(SCAN_SEQUENCE.length - 1, i + 1))}
-              aria-label="Next face"
-              className="w-12 h-12 grid place-items-center text-neutral-300 disabled:opacity-25"
             >
               <ChevronRight className="w-6 h-6" />
-            </button>
+            </IconButton>
           </div>
 
           <button
             type="button"
             onClick={() => setAutoCapture((a) => !a)}
             aria-pressed={autoCapture}
-            className="min-h-9 px-3 text-xs text-neutral-400 hover:text-white transition-colors"
+            className="min-h-10 inline-flex items-center gap-2 px-3 text-xs font-bold text-muted hover:text-ink"
           >
-            Auto-capture <span className={autoCapture ? 'text-sky-300' : 'text-neutral-500'}>{autoCapture ? 'on' : 'off'}</span>
+            Auto-capture
+            <span
+              className={cx(
+                'inline-flex items-center h-6 px-2 border-2 font-mono',
+                autoCapture ? 'bg-leaf text-on-leaf border-line' : 'bg-well text-muted border-line-soft'
+              )}
+            >
+              {autoCapture ? 'on' : 'off'}
+            </span>
           </button>
         </footer>
       )}
 
       {/* Done */}
       {isAllComplete && (
-        <div className="cb-rise absolute inset-0 z-40 flex flex-col items-center justify-center gap-6 p-8 bg-black/92 backdrop-blur-lg text-center">
-          <div className="p-4 rounded-3xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
-            <CheckCircle2 className="w-14 h-14" />
-          </div>
-          <div className="flex flex-col gap-2 max-w-xs">
-            <h2 className="text-xl font-bold tracking-tight">
+        <div className="absolute inset-0 z-40 flex flex-col items-center justify-center gap-6 p-8 bg-ground text-center">
+          <span className="vx-block vx-pop grid place-items-center w-24 h-24 pb-1" data-variant="primary" aria-hidden>
+            <CheckCircle2 className="w-12 h-12" />
+          </span>
+          <Panel className="vx-place flex flex-col gap-3 max-w-xs p-4 pb-6">
+            <h2 className="text-2xl leading-tight">
               {session.confirmed ? 'Solving on your computer' : sessionId ? 'All six faces read' : 'All six photos taken'}
             </h2>
-            <p className="text-sm text-neutral-300 leading-relaxed flex items-start gap-2 text-left">
-              <Monitor className="w-4 h-4 mt-0.5 shrink-0 text-sky-400" />
+            <p className="text-sm text-muted leading-relaxed flex items-start gap-2 text-left">
+              <Monitor className="w-4 h-4 mt-0.5 shrink-0 text-ink" />
               {session.confirmed
                 ? 'Follow the moves on the 3D cube. You can put your phone down.'
                 : sessionId
                 ? 'Check the cube on your computer, fix any tile it marks, then press Confirm & solve.'
                 : 'Open Cubyntra on a computer and scan its QR code to send your photos there.'}
             </p>
-          </div>
-          <button
-            type="button"
-            onClick={handleReset}
-            className="min-h-12 inline-flex items-center gap-2 px-5 rounded-2xl bg-neutral-800 hover:bg-neutral-700 text-sm font-semibold transition-colors"
-          >
-            <RotateCcw className="w-4 h-4" />
+          </Panel>
+          <BlockButton size="lg" onClick={handleReset} icon={<RotateCcw className="w-5 h-5" />}>
             Scan another cube
-          </button>
+          </BlockButton>
         </div>
       )}
 
@@ -587,7 +602,7 @@ export default function CompanionPage() {
   return (
     <Suspense
       fallback={
-        <div className="w-full h-[100dvh] bg-black grid place-items-center text-sm text-neutral-400">Loading…</div>
+        <div className="w-full h-[100dvh] bg-ground grid place-items-center text-sm text-muted">Loading…</div>
       }
     >
       <CompanionScannerContent />

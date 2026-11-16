@@ -7,19 +7,19 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { useCompanion } from '@/sync/CompanionSyncProvider';
-import { FACES, COLOR_HEX, CANONICAL_CENTER_COLORS } from '@/cube/constants';
+import { FACES, CANONICAL_CENTER_COLORS } from '@/cube/constants';
 import {
   Smartphone,
   CheckCircle2,
   Copy,
   Check,
   ExternalLink,
-  X,
   RefreshCw,
   Loader2,
   RotateCcw,
   AlertTriangle,
 } from 'lucide-react';
+import { BlockButton, Chip, Dialog, IconButton, stickerColor } from '@/components/ui';
 
 interface MobilePairingModalProps {
   isOpen: boolean;
@@ -79,233 +79,185 @@ export const MobilePairingModal: React.FC<MobilePairingModalProps> = ({
   const capturedCount = FACES.filter((f) => faceStatus[f] === 'accepted').length;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="relative w-full max-w-lg bg-overlay border border-neutral-800 rounded-3xl p-6 shadow-2xl flex flex-col gap-5 text-neutral-100 overflow-hidden max-h-[90vh] overflow-y-auto">
-        {/* Subtle accent glow */}
-        <div className="absolute -top-24 -right-24 w-48 h-48 bg-sky-500/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
-
-        {/* Header */}
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-2xl bg-sky-500/10 border border-sky-500/20 text-sky-400">
-              <Smartphone className="w-5 h-5" />
+    <Dialog
+      open={isOpen}
+      onClose={onClose}
+      icon={<Smartphone className="w-5 h-5" />}
+      title="Scan with your phone"
+      description="Point your phone camera at the code to take sharp, glare-free photos. Nothing to install."
+      footer={
+        <>
+          {onSwitchToWebcam && (
+            <BlockButton variant="ghost" size="sm" onClick={onSwitchToWebcam} className="mr-auto">
+              Switch back to Desktop Webcam
+            </BlockButton>
+          )}
+          <BlockButton onClick={onClose}>Close</BlockButton>
+        </>
+      }
+    >
+      {/* QR Code & State Card */}
+      <div className="vx-well flex flex-col items-center justify-center gap-4 p-4">
+        {isCreating ? (
+          <div role="status" className="flex flex-col items-center justify-center py-12 gap-4">
+            <span aria-hidden className="vx-loader">
+              <span />
+              <span />
+              <span />
+            </span>
+            <span className="text-sm text-muted">Making a secure pairing code…</span>
+          </div>
+        ) : qrDataUrl ? (
+          <div className="flex flex-col items-center gap-3">
+            <div className="p-3 bg-qr-paper border-2 border-line shadow-block">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={qrDataUrl} alt="Companion QR Code" className="w-52 h-52 object-contain [image-rendering:pixelated]" />
             </div>
-            <div>
-              <h3 className="text-lg font-bold text-white tracking-tight flex items-center gap-2">
-                Mobile Companion Scanner
-                <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                  Zero Install
-                </span>
-              </h3>
-              <p className="text-xs text-neutral-400 mt-0.5">
-                Scan the QR code with your phone camera to capture sharp, glare-free photos.
-              </p>
+
+            {/* Status */}
+            {mobileConnected ? (
+              <Chip tone="solid" icon={<CheckCircle2 className="w-3.5 h-3.5" aria-hidden />}>
+                Phone connected. Keep shooting on your phone.
+              </Chip>
+            ) : (
+              <Chip tone="warn" icon={<Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden />}>
+                Waiting for phone to scan...
+              </Chip>
+            )}
+          </div>
+        ) : error ? (
+          <div className="flex flex-col items-center gap-3 py-6 text-center">
+            <div aria-hidden data-variant="danger" className="vx-block flex h-10 w-10 items-center justify-center pb-1">
+              <AlertTriangle className="w-5 h-5" />
+            </div>
+            <p className="text-sm text-ink max-w-xs">Couldn’t create a pairing code. {error}</p>
+            <BlockButton
+              variant="primary"
+              size="sm"
+              onClick={() => void initSession()}
+              icon={<RefreshCw className="w-3.5 h-3.5" aria-hidden />}
+            >
+              Try again
+            </BlockButton>
+          </div>
+        ) : null}
+
+        {insecureLink && (
+          <div role="alert" className="flex items-start gap-2 w-full p-3 bg-warn-soft border-2 border-warn-edge text-sm text-ink text-left">
+            <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden />
+            <span>
+              The phone camera won’t open on an <span className="font-mono">http://</span> link. Stop the server and
+              start it with <span className="font-mono">npm run dev</span> (HTTPS), then open this page again.
+            </span>
+          </div>
+        )}
+
+        {/* Network IP Selector (if multiple interfaces available) */}
+        {availableIps && availableIps.length > 0 && (
+          <div className="flex flex-col gap-2 w-full pt-3 border-t-2 border-line-soft">
+            <div className="flex items-center justify-between text-xs text-muted">
+              <span className="font-bold uppercase tracking-wider">Local network IP</span>
+              <span>Same Wi-Fi required</span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {availableIps.map((ip) => {
+                const isSelected = Boolean(companionUrl?.includes(ip));
+                return (
+                  <button
+                    key={ip}
+                    type="button"
+                    aria-pressed={isSelected}
+                    onClick={() => {
+                      if (!sessionId) return;
+                      const proto = typeof window !== 'undefined' ? window.location.protocol : 'http:';
+                      const port = typeof window !== 'undefined' && window.location.port ? `:${window.location.port}` : ':3000';
+                      setCustomUrl(`${proto}//${ip}${port}/companion?session=${sessionId}`);
+                    }}
+                    className={`h-8 px-3 border-2 text-xs font-mono ${
+                      isSelected
+                        ? 'bg-leaf text-on-leaf border-line font-bold'
+                        : 'bg-panel text-muted border-line-soft hover:text-ink hover:border-line'
+                    }`}
+                  >
+                    {ip}
+                  </button>
+                );
+              })}
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 text-neutral-400 hover:text-white rounded-xl hover:bg-neutral-800/80 transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+        )}
 
-        {/* QR Code & State Card */}
-        <div className="flex flex-col items-center justify-center p-5 rounded-2xl bg-inset border border-neutral-800/80 gap-3">
-          {isCreating ? (
-            <div className="flex flex-col items-center justify-center py-12 gap-3">
-              <RefreshCw className="w-8 h-8 text-sky-400 animate-spin" />
-              <span className="text-xs font-mono text-neutral-400">Generating secure pairing session...</span>
-            </div>
-          ) : qrDataUrl ? (
-            <div className="relative group flex flex-col items-center">
-              <div className="p-3 bg-[#ffffff] rounded-2xl shadow-xl">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={qrDataUrl}
-                  alt="Companion QR Code"
-                  className="w-52 h-52 rounded-lg object-contain"
-                />
-              </div>
-
-              {/* Status Overlay Badge */}
-              <div className="mt-3 flex items-center justify-center gap-2">
-                {mobileConnected ? (
-                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-950/80 border border-emerald-500/40 text-emerald-400 text-xs font-medium">
-                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                    Phone connected. Keep shooting on your phone.
-                  </div>
-                ) : (
-                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-neutral-900 border border-neutral-700 text-neutral-300 text-xs font-mono">
-                    <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
-                    Waiting for phone to scan...
-                  </div>
-                )}
-              </div>
-            </div>
-          ) : error ? (
-            <div className="flex flex-col items-center gap-3 py-6 text-center">
-              <AlertTriangle className="w-7 h-7 text-rose-400" />
-              <p className="text-sm text-rose-200 max-w-xs">Couldn’t create a pairing code. {error}</p>
-              <button
-                type="button"
-                onClick={() => void initSession()}
-                className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg bg-white text-neutral-950 text-xs font-bold hover:bg-neutral-200 transition-colors"
-              >
-                <RefreshCw className="w-3.5 h-3.5" />
-                Try again
-              </button>
-            </div>
-          ) : null}
-
-          {insecureLink && (
-            <div role="alert" className="flex items-start gap-2 w-full p-3 rounded-lg bg-amber-500/10 border border-amber-500/40 text-xs text-amber-200 text-left">
-              <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-              <span>
-                The phone camera won’t open on an <span className="font-mono">http://</span> link. Stop the server and
-                start it with <span className="font-mono">npm run dev</span> (HTTPS), then open this page again.
+        {/* Session Direct Link */}
+        {companionUrl && (
+          <div className="flex items-center justify-between gap-2 w-full pl-3 pr-1 py-1 bg-panel border-2 border-line-soft text-xs text-muted font-mono">
+            <span ref={linkRef} className="truncate max-w-[280px]">
+              {companionUrl}
+            </span>
+            <div className="flex items-center gap-1 shrink-0">
+              <span role="status" className="text-xs text-ink font-sans font-bold">
+                {copyState === 'copied' ? 'Copied' : copyState === 'failed' ? 'Press Ctrl+C' : ''}
               </span>
+              <IconButton variant="ghost" size="sm" label="Copy link" onClick={() => void copyLink(companionUrl)}>
+                {copyState === 'copied' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+              </IconButton>
+              <a
+                href={companionUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                title="Open directly in new tab"
+                aria-label="Open directly in new tab"
+                className="inline-flex h-8 w-8 items-center justify-center hover:bg-well hover:text-ink"
+              >
+                <ExternalLink className="w-3.5 h-3.5" aria-hidden />
+              </a>
             </div>
-          )}
+          </div>
+        )}
+      </div>
 
-          {/* Network IP Selector (if multiple interfaces available) */}
-          {availableIps && availableIps.length > 0 && (
-            <div className="flex flex-col gap-1.5 w-full pt-2 border-t border-neutral-800/60">
-              <div className="flex items-center justify-between text-[10px] font-mono text-neutral-400">
-                <span>LOCAL NETWORK IP:</span>
-                <span className="text-neutral-500">Same Wi-Fi required</span>
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {availableIps.map((ip) => {
-                  const isSelected = companionUrl?.includes(ip);
-                  return (
-                    <button
-                      key={ip}
-                      type="button"
-                      onClick={() => {
-                        if (!sessionId) return;
-                        const proto = typeof window !== 'undefined' ? window.location.protocol : 'http:';
-                        const port = typeof window !== 'undefined' && window.location.port ? `:${window.location.port}` : ':3000';
-                        setCustomUrl(`${proto}//${ip}${port}/companion?session=${sessionId}`);
-                      }}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-mono border transition-all ${
-                        isSelected
-                          ? 'bg-sky-500/20 text-sky-400 border-sky-500/40 font-bold shadow-sm'
-                          : 'bg-neutral-900/80 text-neutral-400 border-neutral-800 hover:text-white'
-                      }`}
-                    >
-                      {ip}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Session Direct Link */}
-          {companionUrl && (
-            <div className="flex items-center justify-between gap-2 w-full px-3 py-1.5 rounded-lg bg-neutral-900 border border-neutral-800 text-xs text-neutral-400 font-mono">
-              <span ref={linkRef} className="truncate max-w-[280px]">{companionUrl}</span>
-              <div className="flex items-center gap-1 shrink-0">
-                <span role="status" className="text-[10px] text-neutral-400">
-                  {copyState === 'copied' ? 'Copied' : copyState === 'failed' ? 'Press Ctrl+C' : ''}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => void copyLink(companionUrl)}
-                  title="Copy link"
-                  aria-label="Copy link"
-                  className="p-1 hover:text-white transition-colors"
-                >
-                  {copyState === 'copied' ? (
-                    <Check className="w-3.5 h-3.5 text-emerald-400" />
-                  ) : (
-                    <Copy className="w-3.5 h-3.5" />
-                  )}
-                </button>
-                <a
-                  href={companionUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  title="Open directly in new tab"
-                  className="p-1 hover:text-sky-400 transition-colors"
-                >
-                  <ExternalLink className="w-3.5 h-3.5" />
-                </a>
-              </div>
-            </div>
-          )}
+      {/* 6-Face Progress Strip */}
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center justify-between gap-2 text-xs">
+          <span className="font-bold uppercase tracking-wider text-muted">Capture progress</span>
+          <span className="font-mono font-bold text-ink">{capturedCount} / 6 faces</span>
         </div>
 
-        {/* 6-Face Progress Strip */}
-        <div className="flex flex-col gap-2">
-          <div className="flex items-center justify-between text-xs font-mono text-neutral-400">
-            <span>CAPTURE PROGRESS</span>
-            <span className="text-white font-bold">{capturedCount} / 6 FACES</span>
-          </div>
+        <ul className="grid grid-cols-6 gap-2">
+          {FACES.map((face) => {
+            const status = faceStatus[face];
+            const color = CANONICAL_CENTER_COLORS[face];
 
-          <div className="grid grid-cols-6 gap-2">
-            {FACES.map((face) => {
-              const status = faceStatus[face];
-              const hex = COLOR_HEX[CANONICAL_CENTER_COLORS[face]];
-
-              return (
-                <div
-                  key={face}
-                  className={`p-2 rounded-xl border flex flex-col items-center justify-center gap-1 transition-colors duration-200 ${
-                    status === 'accepted'
-                      ? 'bg-emerald-950/40 border-emerald-500/50 text-emerald-400'
-                      : status === 'rejected'
-                      ? 'bg-amber-950/30 border-amber-500/40 text-amber-300'
-                      : status === 'analyzing'
-                      ? 'bg-sky-950/30 border-sky-500/40 text-sky-300'
-                      : 'bg-neutral-900/60 border-neutral-800 text-neutral-500'
-                  }`}
-                >
-                  <div
-                    className="w-3.5 h-3.5 rounded-full border border-black/30 shadow-sm"
-                    style={{ backgroundColor: hex }}
-                  />
-                  <span className="text-[11px] font-mono font-bold">{face}</span>
+            return (
+              <li
+                key={face}
+                className={`h-16 border-2 flex flex-col items-center justify-center gap-1 ${
+                  status === 'accepted'
+                    ? 'bg-leaf-soft border-leaf-edge'
+                    : status === 'rejected'
+                    ? 'bg-warn-soft border-warn-edge'
+                    : status === 'analyzing'
+                    ? 'bg-panel border-line'
+                    : 'bg-panel border-line-soft'
+                }`}
+              >
+                <span aria-hidden className="w-4 h-4 border-2 border-line" style={{ backgroundColor: stickerColor(color) }} />
+                <span className="flex items-center gap-1 text-xs font-mono font-bold text-ink">
+                  {face}
                   {status === 'accepted' ? (
                     <CheckCircle2 className="w-3 h-3" aria-label="Read" />
                   ) : status === 'analyzing' ? (
-                    <Loader2 className="w-3 h-3 animate-spin motion-reduce:animate-none" aria-label="Reading" />
+                    <Loader2 className="w-3 h-3 animate-spin" aria-label="Reading" />
                   ) : status === 'rejected' ? (
                     <RotateCcw className="w-3 h-3" aria-label="Retake" />
                   ) : (
-                    <span className="text-[9px] text-neutral-600 font-mono">WAIT</span>
+                    <span className="sr-only">waiting</span>
                   )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Footer Actions */}
-        <div className="flex items-center justify-between pt-2 border-t border-neutral-800">
-          {onSwitchToWebcam ? (
-            <button
-              type="button"
-              onClick={onSwitchToWebcam}
-              className="text-xs text-neutral-400 hover:text-white transition-colors underline underline-offset-4"
-            >
-              Switch back to Desktop Webcam
-            </button>
-          ) : (
-            <div />
-          )}
-
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-xs font-bold text-white transition-colors"
-          >
-            Close
-          </button>
-        </div>
+                </span>
+              </li>
+            );
+          })}
+        </ul>
       </div>
-    </div>
+    </Dialog>
   );
 };
