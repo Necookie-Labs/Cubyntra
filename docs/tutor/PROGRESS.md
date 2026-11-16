@@ -72,11 +72,11 @@ Checklist for `docs/tutor/GOAL.md`. Tick an item only when it is done and tested
 - [ ] Phase gate passed and pushed
 
 ## Phase 7: App shell and PWA
-- [ ] Routes and navigation
-- [ ] Phone solve layout and desktop layout
-- [ ] Manifest, icons, wake lock
-- [ ] Student profile and resume (`data/student.json`)
-- [ ] Error states
+- [x] Routes and navigation (`(app)` route group, tab bar and side nav; Trainer/Timer/Progress are layout shells for Phase 9; `/pair` opens the existing pairing dialog until Phase 8)
+- [x] Phone solve layout and desktop layout
+- [x] Manifest, icons, wake lock
+- [x] Student profile and resume (`data/student.json`)
+- [x] Error states (camera denied, coach offline/capped, cube unreadable, planning/worker failure); service-worker caching not done, setup notes in `docs/DEVELOPMENT.md` §6
 - [ ] Phase gate passed and pushed
 
 ## Phase 8: Sync
