@@ -1,3 +1,5 @@
+'use client';
+
 /**
  * Cubyntra - Segmented Control
  * Necookie Labs (c) 2026
