@@ -38,7 +38,7 @@ export interface F2LCase {
   algorithm: string;
 }
 
-const GROUP_NAMES: Record<F2LGroup, string> = {
+export const F2L_GROUP_NAMES: Record<F2LGroup, string> = {
   'easy-insert': 'Easy insert',
   'top-white-side': 'Both on top, white on the side',
   'top-white-up': 'Both on top, white facing up',
@@ -150,7 +150,7 @@ export const F2L_CASES: readonly F2LCase[] = (() => {
     seenInGroup.set(group, n);
     return {
       id: `f2l-${String(i + 1).padStart(2, '0')}`,
-      name: `${GROUP_NAMES[group]} ${n}`,
+      name: `${F2L_GROUP_NAMES[group]} ${n}`,
       group,
       position,
       recognition: describeF2LPosition(position),
