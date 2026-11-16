@@ -323,3 +323,60 @@ templateText(facts: CoachFacts): string
 getAppSecret(): string          // creates data/app-secret on first use
 getPairingToken(): string       // the app token carried by the pairing QR / typed code
 ```
+
+---
+
+## 8. Tutor Engine API (`src/tutor/`)
+
+Full description, step-plan fields and case tables: [`docs/tutor/METHODS.md`](tutor/METHODS.md).
+
+```typescript
+type MethodId = 'beginner' | 'cfop'
+type LastLayerMode = '2-look' | 'full'
+/** Learner settings. Every field optional; `{}` is the method as first taught. */
+interface MethodOptions { lastLayer?: LastLayerMode }   // CFOP only; default '2-look'
+
+// By method id (src/tutor/api.ts). `options` is always last and optional.
+getMethod(method: MethodId, options?: MethodOptions): MethodDefinition
+currentStage(state: CubeState, method: MethodId, options?: MethodOptions): StageDefinition | null
+progress(state: CubeState, method: MethodId, options?: MethodOptions): TutorProgress
+planNextStep(state: CubeState, method: MethodId, grip?: Grip, stepIndex?: number, options?: MethodOptions): StepPlan | null
+runGuidedSolve(state: CubeState, method: MethodId, grip?: Grip, options?: MethodOptions): GuidedSolve
+
+// A plan made with non-default settings carries them; default plans have no `options` field.
+interface StepPlan { /* ... */ options?: MethodOptions }
+interface MethodDefinition { id: MethodId; name: string; options?: MethodOptions; stages: StageDefinition[] }
+
+// Recovery (src/tutor/recovery.ts): resumeFrom / decideRecovery read plan.options themselves.
+replanFromScan(scanned: CubeState, method: MethodId, preferredGrip?: Grip, stepIndex?: number, options?: MethodOptions): ScanReplan
+
+// Case ids (src/tutor/caseIds.ts)
+CASE_IDS: Record<MethodId, Record<string, readonly string[]>>     // default variants, by stage
+CFOP_FULL_CASE_IDS: Record<string, readonly string[]>             // cross, f2l, oll, pll, auf
+caseIdsByStage(method: MethodId, options?: MethodOptions): Record<string, readonly string[]>
+caseIdsOf(method: MethodId, options?: MethodOptions): string[]
+allCaseIds(): string[]                                            // every id of every variant, each once
+
+// Full last-layer tables (src/tutor/cases/oll.ts, pll.ts)
+interface LastLayerCase { id: string; name: string; recognition: string; algorithm: string }
+interface OllCase extends LastLayerCase { number: number; group: OllGroup; pattern: string }   // 'oll-01' .. 'oll-57'
+interface PllCase extends LastLayerCase { group: PllGroup; cycles: string }                    // 'pll-aa' .. 'pll-z'
+OLL_CASES: readonly OllCase[]   // 57, in number order
+PLL_CASES: readonly PllCase[]   // 21: aa ab e f ga gb gc gd h ja jb na nb ra rb t ua ub v y z
+CFOP_FULL_METHOD: MethodDefinition   // src/tutor/methods/cfop.ts; what getMethod('cfop', { lastLayer: 'full' }) returns
+```
+
+Worker jobs (`src/solver/protocol.ts`) take the same optional settings:
+
+| Job | Payload | Result |
+|:---|:---|:---|
+| `tutor.plan` | `{ state, method, grip?, stepIndex?, options? }` | `StepPlan \| null` |
+| `tutor.progress` | `{ state, method, options? }` | `TutorProgress` |
+| `tutor.guidedSolve` | `{ state, method, grip?, options? }` | `GuidedSolve` |
+
+```typescript
+// src/solver/client.ts
+planStepInWorker(state, method, grip?, stepIndex?, options?): Promise<StepPlan | null>
+tutorProgressInWorker(state, method, options?): Promise<TutorProgress>
+guidedSolveInWorker(state, method, grip?, options?): Promise<GuidedSolve>
+```
