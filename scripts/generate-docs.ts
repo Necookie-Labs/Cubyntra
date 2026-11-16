@@ -42,7 +42,7 @@ const DOCS_TO_GENERATE: DocMapping[] = [
   {
     srcMarkdown: 'docs/SOLVER.md',
     destPdf: 'docs/pdf/Cubyntra-Solver.pdf',
-    title: 'Solver Specification (Kociemba Two-Phase)',
+    title: 'Solver Specification (Kociemba Two-Phase and Worker)',
   },
   {
     srcMarkdown: 'docs/UI_UX.md',
@@ -57,17 +57,17 @@ const DOCS_TO_GENERATE: DocMapping[] = [
   {
     srcMarkdown: 'docs/SECURITY_PRIVACY.md',
     destPdf: 'docs/pdf/Cubyntra-Security-Privacy.pdf',
-    title: 'Security & Client-Side Privacy Specification',
+    title: 'Security & Privacy Specification',
   },
   {
     srcMarkdown: 'docs/FUTURE_HARDWARE.md',
     destPdf: 'docs/pdf/Cubyntra-Future-Hardware.pdf',
-    title: 'Conceptual Hardware: Robotic Solver (Future / Scope Out)',
+    title: 'Conceptual Hardware: Robotic Solver (Concept Only)',
   },
   {
     srcMarkdown: 'docs/ROADMAP.md',
     destPdf: 'docs/pdf/Cubyntra-Roadmap.pdf',
-    title: 'Product Roadmap (V1 to V4)',
+    title: 'Product Roadmap',
   },
   {
     srcMarkdown: 'docs/AI_MODEL_TRAINING_METHODOLOGY.md',
@@ -79,11 +79,92 @@ const DOCS_TO_GENERATE: DocMapping[] = [
     destPdf: 'docs/pdf/Cubyntra-Three-D-Engine.pdf',
     title: '3D Graphics Engine & Digital Twin Specification',
   },
+  {
+    srcMarkdown: 'docs/DATA_FLOW.md',
+    destPdf: 'docs/pdf/Cubyntra-Data-Flow.pdf',
+    title: 'Data Flow Architecture',
+  },
+  {
+    srcMarkdown: 'docs/API_REFERENCE.md',
+    destPdf: 'docs/pdf/Cubyntra-API-Reference.pdf',
+    title: 'TypeScript API & HTTP Route Reference',
+  },
+  {
+    srcMarkdown: 'docs/DEVELOPMENT.md',
+    destPdf: 'docs/pdf/Cubyntra-Development.pdf',
+    title: 'Local Development Guide',
+  },
+  {
+    srcMarkdown: 'docs/DEPLOYMENT.md',
+    destPdf: 'docs/pdf/Cubyntra-Deployment.pdf',
+    title: 'Deployment Guide (Localhost Only)',
+  },
+  {
+    srcMarkdown: 'docs/tutor/METHODS.md',
+    destPdf: 'docs/pdf/Cubyntra-Tutor-Methods.pdf',
+    title: 'Tutor Methods & Tutor Engine',
+  },
+  {
+    srcMarkdown: 'docs/tutor/CHECKPOINTS.md',
+    destPdf: 'docs/pdf/Cubyntra-Tutor-Checkpoints.pdf',
+    title: 'Tutor Checkpoint Checks',
+  },
+  {
+    srcMarkdown: 'docs/ADR/011-voxel-design-system.md',
+    destPdf: 'docs/pdf/Cubyntra-ADR-011-Voxel-Design-System.pdf',
+    title: 'ADR-011: Voxel Design System',
+  },
+  {
+    srcMarkdown: 'docs/ADR/012-deterministic-tutor-engine.md',
+    destPdf: 'docs/pdf/Cubyntra-ADR-012-Deterministic-Tutor-Engine.pdf',
+    title: 'ADR-012: Deterministic Tutor Engine',
+  },
+  {
+    srcMarkdown: 'docs/ADR/013-checkpoint-verification.md',
+    destPdf: 'docs/pdf/Cubyntra-ADR-013-Checkpoint-Verification.pdf',
+    title: 'ADR-013: Checkpoint Verification',
+  },
+  {
+    srcMarkdown: 'docs/ADR/014-claude-coach.md',
+    destPdf: 'docs/pdf/Cubyntra-ADR-014-Claude-Coach.pdf',
+    title: 'ADR-014: Claude Coach',
+  },
+  {
+    srcMarkdown: 'docs/ADR/015-state-only-sync.md',
+    destPdf: 'docs/pdf/Cubyntra-ADR-015-State-Only-Sync.pdf',
+    title: 'ADR-015: State-Only Phone-Laptop Sync',
+  },
 ];
+
+/**
+ * The standard PDF fonts (Helvetica, Courier) only cover WinAnsi. Characters outside it would
+ * print as garbage, so the arrows, math signs and box-drawing characters used in the docs are
+ * spelled in ASCII first. Characters that WinAnsi has (en and em dashes, curly quotes, §, °, ±,
+ * ×, ·, •) are kept.
+ */
+const WIN_ANSI_FALLBACKS: Record<string, string> = {
+  '→': '->', '←': '<-', '↔': '<->', '⇒': '=>',
+  '≤': '<=', '≥': '>=', '≡': '==', '≈': '~', '≠': '!=', '−': '-',
+  'Δ': 'Delta ', 'π': 'pi', '✓': 'v', '✗': 'x',
+  '─': '-', '━': '-', '│': '|', '┃': '|',
+  '┌': '+', '┐': '+', '└': '+', '┘': '+', '├': '+', '┤': '+', '┬': '+', '┴': '+', '┼': '+',
+  '►': '>', '▶': '>', '◄': '<', '◀': '<', '▼': 'v', '▲': '^',
+};
+
+function toWinAnsi(text: string): string {
+  let out = '';
+  for (const ch of text) {
+    const mapped = WIN_ANSI_FALLBACKS[ch];
+    if (mapped !== undefined) out += mapped;
+    else if ((ch.codePointAt(0) ?? 0) > 0xff && !'–—‘’“”…•€™'.includes(ch)) out += '?';
+    else out += ch;
+  }
+  return out;
+}
 
 function cleanMarkdownLine(line: string): string {
   // Strip bold/italic markdown and format LaTeX characters for clean plain PDF rendering
-  return line
+  return toWinAnsi(line)
     .replace(/\*\*(.*?)\*\*/g, '$1')
     .replace(/\*(.*?)\*/g, '$1')
     .replace(/`([^`]+)`/g, '$1')
@@ -146,7 +227,7 @@ async function generatePdfForMarkdown(docMapping: DocMapping): Promise<void> {
       .fillColor('#64748B')
       .fontSize(8)
       .font('Helvetica')
-      .text('CONFIDENTIAL & PROPRIETARY  •  VERIFIED SPECIFICATION', { align: 'right' });
+      .text('OPEN SOURCE (MIT)  •  GENERATED FROM THE MARKDOWN SOURCE', { align: 'right' });
 
     doc.moveDown(0.5);
     doc.strokeColor('#E2E8F0').lineWidth(1).moveTo(50, doc.y).lineTo(545, doc.y).stroke();
@@ -163,7 +244,7 @@ async function generatePdfForMarkdown(docMapping: DocMapping): Promise<void> {
       .fillColor('#64748B')
       .fontSize(10)
       .font('Helvetica')
-      .text(`Source: ${docMapping.srcMarkdown}  •  Status: Verified & Synchronized`, { align: 'left' });
+      .text(`Source: ${docMapping.srcMarkdown}  •  Generated ${new Date().toISOString().slice(0, 10)}`, { align: 'left' });
 
     doc.moveDown(1);
     doc.strokeColor('#0284C7').lineWidth(2).moveTo(50, doc.y).lineTo(150, doc.y).stroke();
@@ -188,7 +269,7 @@ async function generatePdfForMarkdown(docMapping: DocMapping): Promise<void> {
           doc.font('Courier').fontSize(8).fillColor('#1E293B');
           
           // Draw code text
-          doc.text(codeBlockText.trimEnd(), 60, startY + 5, {
+          doc.text(toWinAnsi(codeBlockText.trimEnd()), 60, startY + 5, {
             width: 475,
             lineGap: 2,
           });
@@ -221,8 +302,8 @@ async function generatePdfForMarkdown(docMapping: DocMapping): Promise<void> {
       // H1 Header
       if (rawLine.startsWith('# ')) {
         const text = cleanMarkdownLine(rawLine.replace(/^#\s+/, ''));
-        // If it's the duplicate main title at the top, skip or format cleanly
-        if (i < 5 && text.toLowerCase().includes('cubyntra')) {
+        // The document's own title is already printed in the header block
+        if (i < 5) {
           continue;
         }
         doc.moveDown(1.2);
