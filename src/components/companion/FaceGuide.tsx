@@ -9,7 +9,7 @@
  */
 
 import React from 'react';
-import { COLOR_HEX } from '@/cube/constants';
+import { stickerColor } from '@/components/ui';
 import { CubeColor } from '@/cube/types';
 
 type Point = [number, number];
@@ -44,6 +44,8 @@ function tiles(face: typeof TOP): string[] {
   return out;
 }
 
+const CORE = 'var(--vx-sticker-core)';
+
 const TOP_TILES = tiles(TOP);
 const FRONT_TILES = tiles(FRONT);
 const RIGHT_TILES = tiles(RIGHT);
@@ -63,25 +65,26 @@ export const FaceGuide: React.FC<FaceGuideProps> = ({ front, top, right, classNa
       aria-label={`Hold the cube with ${front} facing the camera, ${top} on top and ${right} on the right`}
       className={className}
     >
-      <polygon points={TOP.map((p) => p.join(',')).join(' ')} fill="#0b0c10" />
-      <polygon points={FRONT.map((p) => p.join(',')).join(' ')} fill="#0b0c10" />
-      <polygon points={RIGHT.map((p) => p.join(',')).join(' ')} fill="#0b0c10" />
+      {/* Flat block body; colors come from the sticker tokens, so no hex lives here. */}
+      <polygon points={TOP.map((p) => p.join(',')).join(' ')} style={{ fill: CORE }} />
+      <polygon points={FRONT.map((p) => p.join(',')).join(' ')} style={{ fill: CORE }} />
+      <polygon points={RIGHT.map((p) => p.join(',')).join(' ')} style={{ fill: CORE }} />
 
-      {/* Side faces are shaded so the lit face toward the camera reads first. */}
+      {/* Side faces are flat darker tones so the face toward the camera reads first. */}
       {TOP_TILES.map((pts, i) => (
-        <polygon key={`t${i}`} points={pts} fill={COLOR_HEX[top]} opacity={0.62} />
+        <polygon key={`t${i}`} points={pts} style={{ fill: stickerColor(top) }} opacity={0.7} />
       ))}
       {RIGHT_TILES.map((pts, i) => (
-        <polygon key={`r${i}`} points={pts} fill={COLOR_HEX[right]} opacity={0.5} />
+        <polygon key={`r${i}`} points={pts} style={{ fill: stickerColor(right) }} opacity={0.5} />
       ))}
       {FRONT_TILES.map((pts, i) => (
-        <polygon key={`f${i}`} points={pts} fill={COLOR_HEX[front]} />
+        <polygon key={`f${i}`} points={pts} style={{ fill: stickerColor(front) }} />
       ))}
 
-      {/* Camera lens pointing at the front face */}
-      <g transform="translate(4 86)">
-        <circle r="5.5" fill="#0ea5e9" />
-        <circle r="2.4" fill="#0b0c10" />
+      {/* Camera lens pointing at the front face: a square pixel block */}
+      <g transform="translate(0 82)">
+        <rect width="10" height="10" style={{ fill: 'var(--vx-leaf)', stroke: CORE }} strokeWidth="1.5" />
+        <rect x="3" y="3" width="4" height="4" style={{ fill: CORE }} />
       </g>
     </svg>
   );
