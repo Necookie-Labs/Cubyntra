@@ -3,12 +3,13 @@
 **Product**: Cubyntra  
 **Organization**: Necookie Labs  
 **Tagline**: *See it. Solve it.*  
-**Status**: V1 Release  
-**Last Updated**: 2026-09-26  
+**Status**: 2.0.0, the local cube tutor  
+**Last Updated**: 2026-11-17  
 
-Welcome to the comprehensive engineering documentation portal for **Cubyntra**. Cubyntra is a high-precision, 100% client-side Computer Vision Rubik's Cube scanner, state validator, deterministic solver, and interactive 3D digital twin.
-
-All documents in this directory represent the actual implemented codebase and are kept strictly synchronized with source code.
+Cubyntra is a local, single-student Rubik's Cube tutor: a PWA served from the student's laptop
+that scans their cube, shows each step of the beginner's method or CFOP on a 3D twin, has a
+Claude coach explain it, and checks each step with the camera. These documents describe the code
+as it is; where a number is measured, the document says how.
 
 ---
 
@@ -17,62 +18,70 @@ All documents in this directory represent the actual implemented codebase and ar
 ### 1. Product & Specifications
 | Document | Format | Description |
 | :--- | :--- | :--- |
-| [**Product Requirements Document (PRD)**](./PRD.md) | [Markdown](./PRD.md) • [PDF](./pdf/Cubyntra-PRD.pdf) | Comprehensive product vision, user stories, requirements, and acceptance criteria |
-| [**Software Requirements Specification (SRS)**](./SRS.md) | [Markdown](./SRS.md) • [PDF](./pdf/Cubyntra-SRS.pdf) | IEEE-inspired functional and non-functional requirements with traceability matrix |
-| [**Roadmap**](./ROADMAP.md) | [Markdown](./ROADMAP.md) • [PDF](./pdf/Cubyntra-Roadmap.pdf) | Product evolution from V1 CV Web Solver to V4 Robotic Physical Solver |
+| [**Product Requirements (PRD)**](./PRD.md) | [Markdown](./PRD.md) • [PDF](./pdf/Cubyntra-PRD.pdf) | Vision, user, goals, scope, user stories and acceptance criteria |
+| [**Software Requirements (SRS)**](./SRS.md) | [Markdown](./SRS.md) • [PDF](./pdf/Cubyntra-SRS.pdf) | Functional and non-functional requirements with a traceability matrix |
+| [**Roadmap**](./ROADMAP.md) | [Markdown](./ROADMAP.md) • [PDF](./pdf/Cubyntra-Roadmap.pdf) | 1.0 scanner, 2.0 tutor, known gaps |
+| [**Tutor goal and progress**](./tutor/GOAL.md) | [Goal](./tutor/GOAL.md) • [Progress](./tutor/PROGRESS.md) | The approved plan for the tutor rebuild and its checklist |
 
 ### 2. Architecture & System Design
 | Document | Format | Description |
 | :--- | :--- | :--- |
-| [**System Architecture**](./ARCHITECTURE.md) | [Markdown](./ARCHITECTURE.md) • [PDF](./pdf/Cubyntra-Architecture.pdf) | High-level system structure, module boundaries, and dependency directions |
-| [**System Design**](./SYSTEM_DESIGN.md) | [Markdown](./SYSTEM_DESIGN.md) • [PDF](./pdf/Cubyntra-System-Design.pdf) | Low-level design, state machines, sequence diagrams, and concurrency |
-| [**Data Flow Architecture**](./DATA_FLOW.md) | [Markdown](./DATA_FLOW.md) | End-to-end data pipeline from video frames to 3D matrix transformations |
-| [**Internal API Reference**](./API_REFERENCE.md) | [Markdown](./API_REFERENCE.md) | Core TypeScript interfaces, domain types, and architectural contracts |
+| [**System Architecture**](./ARCHITECTURE.md) | [Markdown](./ARCHITECTURE.md) • [PDF](./pdf/Cubyntra-Architecture.pdf) | Principles, pipeline, module boundaries and dependency rules, app shell |
+| [**System Design**](./SYSTEM_DESIGN.md) | [Markdown](./SYSTEM_DESIGN.md) • [PDF](./pdf/Cubyntra-System-Design.pdf) | Subsystems, guided-solve sequence, state machines, concurrency |
+| [**Data Flow**](./DATA_FLOW.md) | [Markdown](./DATA_FLOW.md) • [PDF](./pdf/Cubyntra-Data-Flow.pdf) | From camera to tile colors, the guided solve, phone sync and the profile |
+| [**API Reference**](./API_REFERENCE.md) | [Markdown](./API_REFERENCE.md) • [PDF](./pdf/Cubyntra-API-Reference.pdf) | TypeScript contracts and HTTP routes |
 
-### 3. Core Algorithms & Mathematics
+### 3. Tutor
 | Document | Format | Description |
 | :--- | :--- | :--- |
-| [**Computer Vision Pipeline**](./COMPUTER_VISION.md) | [Markdown](./COMPUTER_VISION.md) • [PDF](./pdf/Cubyntra-Computer-Vision.pdf) | ROI targeting, trimmed-mean aggregation, HSV/CIELAB classification, and temporal stability |
-| [**AI Model Training Methodology**](./AI_MODEL_TRAINING_METHODOLOGY.md) | [Markdown](./AI_MODEL_TRAINING_METHODOLOGY.md) • [PDF](./pdf/Cubyntra-AI-Model-Training.pdf) | Kaggle dataset training, empirical CIELAB color profiles, and Fitzpatrick skin tone rejection |
-| [**Cube Domain Model**](./CUBE_MODEL.md) | [Markdown](./CUBE_MODEL.md) • [PDF](./pdf/Cubyntra-Cube-Model.pdf) | URFDLB standards, 54-facelet mapping, 3D cubie coordinates, and permutation invariants |
-| [**Kociemba Two-Phase Solver**](./SOLVER.md) | [Markdown](./SOLVER.md) • [PDF](./pdf/Cubyntra-Solver.pdf) | Two-phase algorithm, Half Turn Metric (HTM), and pre/post-solve verification |
+| [**Methods and the Tutor Engine**](./tutor/METHODS.md) | [Markdown](./tutor/METHODS.md) • [PDF](./pdf/Cubyntra-Tutor-Methods.pdf) | Step plans, beginner's method, CFOP, case tables, soak results, learning rules |
+| [**Checkpoint Checks**](./tutor/CHECKPOINTS.md) | [Markdown](./tutor/CHECKPOINTS.md) • [PDF](./pdf/Cubyntra-Tutor-Checkpoints.pdf) | Showing a face, the palette, verification, diagnosis, recovery, measured rates |
 
-### 4. 3D Graphics & User Experience
+### 4. Core Algorithms & Mathematics
 | Document | Format | Description |
 | :--- | :--- | :--- |
-| [**3D Digital Twin Engine**](./THREE_D_ENGINE.md) | [Markdown](./THREE_D_ENGINE.md) • [PDF](./pdf/Cubyntra-3D-Engine.pdf) | Three.js 27-cubie construction, zero-drift layer rotations, and dynamic move arrows |
-| [**UI / UX Design System**](./UI_UX.md) | [Markdown](./UI_UX.md) • [PDF](./pdf/Cubyntra-UI-UX.pdf) | Minimalist technical aesthetic, procedural hexagonal canvas, and state wireframes |
+| [**Cube Domain Model**](./CUBE_MODEL.md) | [Markdown](./CUBE_MODEL.md) • [PDF](./pdf/Cubyntra-Cube-Model.pdf) | Facelets, cubies, invariants, move notation, grip and pieces |
+| [**Computer Vision Pipeline**](./COMPUTER_VISION.md) | [Markdown](./COMPUTER_VISION.md) • [PDF](./pdf/Cubyntra-Computer-Vision.pdf) | Sampling, classification, ML cube check, 54-tile resolution, student palette |
+| [**AI Model Training Methodology**](./AI_MODEL_TRAINING_METHODOLOGY.md) | [Markdown](./AI_MODEL_TRAINING_METHODOLOGY.md) • [PDF](./pdf/Cubyntra-AI-Model-Training.pdf) | Dataset color profiles and the cube / face detector |
+| [**Solver**](./SOLVER.md) | [Markdown](./SOLVER.md) • [PDF](./pdf/Cubyntra-Solver.pdf) | Kociemba two-phase solver and the Web Worker that runs solver and tutor jobs |
 
-### 5. Quality, Security & Operations
+### 5. 3D Graphics & User Experience
 | Document | Format | Description |
 | :--- | :--- | :--- |
-| [**Testing Strategy & Matrix**](./TESTING.md) | [Markdown](./TESTING.md) • [PDF](./pdf/Cubyntra-Testing.pdf) | Automated invariant tests, synthetic vision benchmarks, and E2E verification |
-| [**Security & Privacy Architecture**](./SECURITY_PRIVACY.md) | [Markdown](./SECURITY_PRIVACY.md) • [PDF](./pdf/Cubyntra-Security-Privacy.pdf) | Local client-side processing guarantee and camera security boundaries |
-| [**Development Guide**](./DEVELOPMENT.md) | [Markdown](./DEVELOPMENT.md) | Environment setup, scripts, debugging tools, and testing commands |
-| [**Deployment Guide**](./DEPLOYMENT.md) | [Markdown](./DEPLOYMENT.md) | Production build guidelines, Vercel deployment, and HTTPS camera requirements |
-| [**Contributing Guide**](./CONTRIBUTING.md) | [Markdown](./CONTRIBUTING.md) | Open-source contribution standards and Conventional Commits workflow |
+| [**3D Engine & Teaching Twin**](./THREE_D_ENGINE.md) | [Markdown](./THREE_D_ENGINE.md) • [PDF](./pdf/Cubyntra-Three-D-Engine.pdf) | Voxel cubies, drift-free turns, playback, grip camera, spotlight, preview |
+| [**UI / UX**](./UI_UX.md) | [Markdown](./UI_UX.md) • [PDF](./pdf/Cubyntra-UI-UX.pdf) | Voxel tokens and components, screens and navigation, accessibility |
 
-### 6. Hardware & Future Planning
+### 6. Quality, Security & Operations
 | Document | Format | Description |
 | :--- | :--- | :--- |
-| [**Future Hardware Integration**](./FUTURE_HARDWARE.md) | [Markdown](./FUTURE_HARDWARE.md) • [PDF](./pdf/Cubyntra-Future-Hardware.pdf) | Hardware architecture, ESP32 integration, motor kinematics, and physical grippers |
+| [**Testing**](./TESTING.md) | [Markdown](./TESTING.md) • [PDF](./pdf/Cubyntra-Testing.pdf) | Suites, counts, soak, measured results |
+| [**Security & Privacy**](./SECURITY_PRIVACY.md) | [Markdown](./SECURITY_PRIVACY.md) • [PDF](./pdf/Cubyntra-Security-Privacy.pdf) | Camera privacy, the coach, pairing, threat table and honest limits |
+| [**Development Guide**](./DEVELOPMENT.md) | [Markdown](./DEVELOPMENT.md) • [PDF](./pdf/Cubyntra-Development.pdf) | Setup, scripts, the coach key, profile, PWA install and certificates |
+| [**Deployment Guide**](./DEPLOYMENT.md) | [Markdown](./DEPLOYMENT.md) • [PDF](./pdf/Cubyntra-Deployment.pdf) | Localhost only: dev server or a local production build |
+| [**Contributing Guide**](./CONTRIBUTING.md) | [Markdown](./CONTRIBUTING.md) | Principles, Conventional Commits and the PR checklist |
 
-### 7. Architecture Decision Records (ADRs)
-- [**ADR Index & Guidelines**](./ADR/README.md)
-- [**ADR-001: Client-Side Computer Vision & Privacy Model**](./ADR/001-client-side-processing.md)
-- [**ADR-002: Dual Logical State Model & Three.js Decoupling**](./ADR/002-cube-state-model.md)
-- [**ADR-003: Guided Target Reticle vs Unconstrained Contour Segmentation**](./ADR/003-computer-vision-strategy.md)
-- [**ADR-004: Herbert Kociemba Two-Phase Algorithm Selection**](./ADR/004-solver-selection.md)
-- [**ADR-005: Orthogonal Matrix Snapping for Zero Floating-Point Drift**](./ADR/005-threejs-rendering.md)
+### 7. Future Concepts
+| Document | Format | Description |
+| :--- | :--- | :--- |
+| [**Robotic Solver (concept)**](./FUTURE_HARDWARE.md) | [Markdown](./FUTURE_HARDWARE.md) • [PDF](./pdf/Cubyntra-Future-Hardware.pdf) | A robot rig sketch; not planned, not built |
+
+### 8. Architecture Decision Records
+[ADR index](./ADR/README.md) with statuses and relations. Tutor-era records with PDFs:
+[ADR-011](./ADR/011-voxel-design-system.md) ([PDF](./pdf/Cubyntra-ADR-011-Voxel-Design-System.pdf)),
+[ADR-012](./ADR/012-deterministic-tutor-engine.md) ([PDF](./pdf/Cubyntra-ADR-012-Deterministic-Tutor-Engine.pdf)),
+[ADR-013](./ADR/013-checkpoint-verification.md) ([PDF](./pdf/Cubyntra-ADR-013-Checkpoint-Verification.pdf)),
+[ADR-014](./ADR/014-claude-coach.md) ([PDF](./pdf/Cubyntra-ADR-014-Claude-Coach.pdf)),
+[ADR-015](./ADR/015-state-only-sync.md) ([PDF](./pdf/Cubyntra-ADR-015-State-Only-Sync.pdf)).
 
 ---
 
-## Automated Documentation Generation
-
-To generate or refresh all PDF counterparts from Markdown sources, run:
+## PDF Generation
 
 ```bash
 npm run docs:pdf
 ```
 
-The script `scripts/generate-docs.ts` parses the Markdown documentation and produces vector-rendered PDF documents in `docs/pdf/` matching Necookie Labs design standards.
+`scripts/generate-docs.ts` renders each Markdown document listed in it to `docs/pdf/` with
+PDFKit's standard fonts. It is a simple renderer: Mermaid diagrams appear as their source text,
+LaTeX is reduced to plain text, and characters the standard fonts cannot show (arrows, box
+drawing, some math signs) are spelled in ASCII. The Markdown is the source of truth.
