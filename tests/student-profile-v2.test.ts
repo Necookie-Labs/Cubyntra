@@ -85,11 +85,24 @@ describe('student profile v2', () => {
         activeDays: ['2026-11-15', '2026-11-16'],
       },
       trainer: { turn: 4, cards: { 'oll-21': { box: 2 as const, due: 7, seen: 2, missed: 0 } }, set: 'oll' as const },
-      timer: { history: [{ ms: 41230, penalty: '+2' as const, at: '2026-11-16T10:00:00.000Z', scramble: "R U R'" }] },
+      timer: { history: [{ id: 'abc123', ms: 41230, penalty: '+2' as const, at: '2026-11-16T10:00:00.000Z', scramble: "R U R'" }] },
       currentSolve: { ...sampleProfile().currentSolve!, stageHint: 2 as const },
+      closedSolveStartedAt: '2026-11-16T09:00:00.000Z',
     };
     const parsed = parseStudentProfile(JSON.parse(JSON.stringify(profile)));
     expect(parsed.ok && parsed.profile).toEqual(profile);
+  });
+
+  it('gives a timer solve saved before ids existed a stable id', () => {
+    const solve = { ms: 41230, penalty: 'none' as const, at: '2026-11-16T10:00:00.000Z', scramble: '' };
+    const withOld = { ...sampleProfile(), timer: { history: [solve, solve] } };
+    const first = parseStudentProfile(withOld);
+    const again = parseStudentProfile(withOld);
+    const ids = first.ok ? first.profile.timer.history.map((s) => s.id) : [];
+    expect(ids).toHaveLength(2);
+    expect(new Set(ids).size).toBe(2);
+    expect(again.ok && again.profile.timer.history.map((s) => s.id)).toEqual(ids);
+    expect(parseStudentProfile({ ...sampleProfile(), timer: { history: [{ ...solve, id: 'no spaces!' }] } }).ok).toBe(false);
   });
 
   it('sorts active days and drops repeats', () => {

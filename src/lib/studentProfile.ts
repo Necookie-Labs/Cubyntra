@@ -10,7 +10,9 @@
  *
  * Version 2 added `settings.lastLayer`, `stats.stages`, `stats.activeDays`,
  * `currentSolve.stageHint`, `trainer` and `timer`. A version 1 profile is migrated when it is
- * read (`migrateProfileV1`), so an existing `data/student.json` keeps working.
+ * read (`migrateProfileV1`), so an existing `data/student.json` keeps working. Two optional
+ * version 2 fields came later and need no migration: an `id` on each timer solve (given to older
+ * solves when read) and `closedSolveStartedAt` (see `profileOps.ts`).
  */
 
 import type { CubeColor, CubeState, Face } from '../cube/types';
@@ -107,6 +109,11 @@ export interface StudentProfile {
   stats: StudentStats;
   trainer: TrainerState;
   timer: TimerState;
+  /**
+   * `startedAt` of the newest solve that was finished or abandoned. A late save of that solve
+   * (or an older one) from another device is ignored rather than bringing it back.
+   */
+  closedSolveStartedAt?: string;
 }
 
 export const DEFAULT_SETTINGS: StudentSettings = {
@@ -300,19 +307,24 @@ function parseTrainer(v: unknown): TrainerState {
   return { turn: v.turn as number, cards, set: v.set as TrainerSetId | null };
 }
 
-function parseTimerSolve(v: unknown): TimerSolve {
+const TIMER_ID = /^[A-Za-z0-9_-]{1,64}$/;
+
+function parseTimerSolve(v: unknown, index: number): TimerSolve {
   need(isRecord(v), 'a timer solve must be an object');
+  need(v.id === undefined || (typeof v.id === 'string' && TIMER_ID.test(v.id)), 'a timer solve id must be short letters and digits');
   need(isCount(v.ms) && v.ms < 24 * 3600 * 1000, 'a timer solve needs a whole number of milliseconds');
   need(v.penalty === 'none' || v.penalty === '+2' || v.penalty === 'DNF', 'a timer solve penalty must be none, +2 or DNF');
   need(isIsoDate(v.at), 'a timer solve date must be an ISO date');
   need(typeof v.scramble === 'string' && v.scramble.length <= MAX_SCRAMBLE_LENGTH, 'a timer solve scramble is too long');
-  return { ms: v.ms, penalty: v.penalty as Penalty, at: v.at, scramble: v.scramble };
+  // A solve saved before ids existed gets a stable one from its date and place.
+  const id = typeof v.id === 'string' ? v.id : `t${Date.parse(v.at).toString(36)}-${index}`;
+  return { id, ms: v.ms, penalty: v.penalty as Penalty, at: v.at, scramble: v.scramble };
 }
 
 function parseTimer(v: unknown): TimerState {
   need(isRecord(v), 'timer must be an object');
   need(Array.isArray(v.history) && v.history.length <= MAX_TIMER_HISTORY, `timer.history must hold at most ${MAX_TIMER_HISTORY} solves`);
-  return { history: v.history.map(parseTimerSolve) };
+  return { history: v.history.map((s, i) => parseTimerSolve(s, i)) };
 }
 
 /**
@@ -325,6 +337,10 @@ export function parseStudentProfile(raw: unknown): ProfileParse {
     need(isRecord(input), 'the profile must be an object');
     need(input.version === STUDENT_PROFILE_VERSION, `version must be ${STUDENT_PROFILE_VERSION}`);
     need(typeof input.name === 'string' && input.name.length <= MAX_NAME_LENGTH, `name must be at most ${MAX_NAME_LENGTH} characters`);
+    need(
+      input.closedSolveStartedAt === undefined || isIsoDate(input.closedSolveStartedAt),
+      'closedSolveStartedAt must be an ISO date'
+    );
     let palette: StudentPalette | null = null;
     if (input.palette !== null && input.palette !== undefined) {
       palette = parsePalette(input.palette);
@@ -341,6 +357,7 @@ export function parseStudentProfile(raw: unknown): ProfileParse {
         stats: parseStats(input.stats),
         trainer: parseTrainer(input.trainer),
         timer: parseTimer(input.timer),
+        ...(input.closedSolveStartedAt !== undefined ? { closedSolveStartedAt: input.closedSolveStartedAt as string } : {}),
       },
     };
   } catch (error) {

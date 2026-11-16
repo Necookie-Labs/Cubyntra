@@ -388,7 +388,37 @@ guidedSolveInWorker(state, method, grip?, options?): Promise<GuidedSolve>
 | Route | Auth | Body | Response |
 |---|---|---|---|
 | `GET /api/student` | token | – | `StudentProfile` (the default one before anything is saved) |
-| `PUT /api/student` | token | whole `StudentProfile` (≤ 128 KB) | the saved profile; `400` invalid, `401` no token, `413` too large |
+| `PATCH /api/student` | token | `{ ops: ProfileOp[]; batchId?: string }` (≤ 200 ops, ≤ 128 KB, read in chunks) | the merged, saved profile; `400` bad op or invalid result, `401` no token, `413` too large, `500` write failed |
+
+There is no whole-profile `PUT`: a device sends only what changed, and the server merges it into
+the profile it holds, so a paired phone or a second tab never wipes what the laptop saved.
+Updates are serialized per server process (a promise-chain lock around read, apply, validate,
+write), the merged profile is validated as a whole (`parseStudentProfile`) before the atomic
+write, and a `batchId` seen lately (the last 500) is not applied twice, so a retry is safe.
+
+```typescript
+// src/lib/profileOps.ts (shared; no Node or DOM)
+type ProfileOp =
+  | { op: 'setName'; name: string }
+  | { op: 'setSettings'; settings: Partial<StudentSettings> }      // fields set, the rest kept
+  | { op: 'setPalette'; palette: StudentPalette | null }
+  | { op: 'setCurrentSolve'; solve: CurrentSolve }                  // only if newer (below)
+  | { op: 'clearCurrentSolve'; startedAt: string }                  // clears that solve or an older one, and closes it
+  | { op: 'incrementStats'; solvesCompleted?: number; stepsCompleted?: number; checkpointsPassed?: number }
+  | { op: 'setLastSolveAt'; at: string }                            // only moves forward
+  | { op: 'recordStage'; key: string; hint: HintUse }               // appended (newest 10 kept)
+  | { op: 'addActiveDay'; day: string }                             // union
+  | { op: 'answerTrainerCase'; caseId: string; correct: boolean }   // Leitner update replayed on the server's trainer state
+  | { op: 'setTrainerSet'; set: TrainerSetId | null }
+  | { op: 'addTimerSolve'; solve: TimerSolve & { id: string } }     // ignored if the id is there
+  | { op: 'setTimerPenalty'; id: string; penalty: Penalty }
+  | { op: 'deleteTimerSolve'; id: string };
+applyProfileOps(profile, ops): StudentProfile     // the same merge on the server and in the store
+isNewerSolve(incoming, existing, closedStartedAt?): boolean
+  // a later startedAt (a new solve); else the same solve at a later stepIndex; else the same step
+  // with an updatedAt at least as late. Nothing started at or before closedStartedAt comes back.
+parseProfileOps(body): { ok: true; ops; batchId } | { ok: false; error }
+```
 
 ```typescript
 // src/lib/studentProfile.ts (shared; no Node or DOM)
@@ -410,7 +440,9 @@ interface StudentProfile {
   trainer: { turn: number;                        // v2: drills answered so far
              cards: Record<caseId, { box: 1 | 2 | 3 | 4 | 5; due: number; seen: number; missed: number }>; // ≤ 300
              set: 'beginner' | 'f2l' | 'last-layer-2look' | 'oll' | 'pll' | null };
-  timer: { history: { ms: number; penalty: 'none' | '+2' | 'DNF'; at: string; scramble: string }[] }; // v2: ≤ 100, oldest first
+  timer: { history: { id: string; ms: number; penalty: 'none' | '+2' | 'DNF'; at: string; scramble: string }[] }; // v2: ≤ 100, oldest first;
+                                                  // id: [A-Za-z0-9_-]{1,64}, given to older solves when read
+  closedSolveStartedAt?: string;                  // startedAt of the newest finished or abandoned solve
 }
 parseStudentProfile(input: unknown): { ok: true; profile: StudentProfile } | { ok: false; error: string }
   // a version 1 profile is migrated first (migrateProfileV1); version 3+ is rejected
@@ -419,7 +451,8 @@ defaultStudentProfile(): StudentProfile
 
 // src/lib/studentFile.ts (server only)
 readStudentProfile(): StudentProfile             // default when missing; damaged file -> student.json.bad
-writeStudentProfile(profile: StudentProfile): void  // atomic; throws ProfileTooLargeError
+writeStudentProfile(profile: StudentProfile): Promise<void>  // atomic; rejects with ProfileTooLargeError
+updateStudentProfile(change: (p) => StudentProfile): Promise<StudentProfile>  // read-change-write under the per-process lock
 
 // src/stores/useTutorStore.ts
 type SolvePhase = 'idle' | 'loading' | 'step' | 'checking' | 'celebrate' | 'mismatch' | 'solved' | 'error';
@@ -429,6 +462,12 @@ advance(); replayStep(); continueFromDiagnosis(); showNextFace(); replanFromResc
 setGrip(grip); applyRemoteCheckpoint({ stepIndex, result, mistakes? }); abandonSolve();
 followRemoteStep({ state, method, stepIndex })   // join the paired device's step when no solve is open here
 updateSettings(patch); setName(name); savePalette(palette); loadProfile();
+// Every profile change is a ProfileOp applied to the local copy at once and queued; the queue is
+//   sent as one PATCH per batch, in order, once there is a token and the profile has loaded (or
+//   failed to load). loadProfile() applies the queued ops on top of the loaded profile, so
+//   changes made while it loads, or on an unpaired phone before it got a token, are merged.
+//   A batch the server refuses (400/413) is dropped; one that cannot be sent is kept for later.
+flushTutorSaves(); pendingProfileOps(); resetPendingProfileOps()   // tests
 noteHint(level)                                  // stageHint = max(stageHint, level); saved with the solve
 // advance(): when the step finished its stage (progressAfter's thousands > stageIndex), records
 //   stats.stages['<method>/<stage>'] with stageHint and resets it; a finished solve adds today to activeDays

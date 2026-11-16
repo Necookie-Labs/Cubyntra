@@ -5,6 +5,10 @@
  * Reads and writes `data/student.json`. Writes are atomic (temporary file, then rename), so an
  * interrupted save never leaves half a profile. A missing file reads as the default profile; a
  * damaged one is moved aside to `student.json.bad` rather than silently overwritten.
+ *
+ * `updateStudentProfile` is the read-change-write used by `PATCH /api/student`. Updates are
+ * serialized per process (a promise-chain mutex), so two requests arriving together are applied
+ * one after the other to the latest profile and neither is lost.
  */
 
 import fs from 'node:fs';
@@ -52,6 +56,27 @@ export function readStudentProfile(): StudentProfile {
     }
     return defaultStudentProfile();
   }
+}
+
+let profileLock: Promise<unknown> = Promise.resolve();
+
+/** Runs `task` once every update queued before it has finished (rejections included). */
+function withProfileLock<T>(task: () => Promise<T>): Promise<T> {
+  const run = profileLock.then(task, task);
+  profileLock = run.catch(() => {});
+  return run;
+}
+
+/**
+ * Reads the profile, passes it to `change` and saves what it returns, under the profile lock.
+ * Resolves to the saved profile. `change` may throw to cancel the update (nothing is written).
+ */
+export function updateStudentProfile(change: (profile: StudentProfile) => StudentProfile): Promise<StudentProfile> {
+  return withProfileLock(async () => {
+    const next = change(readStudentProfile());
+    await writeStudentProfile(next);
+    return next;
+  });
 }
 
 /** Saves a validated profile atomically. Rejects with `ProfileTooLargeError` over the size cap. */

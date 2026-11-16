@@ -176,8 +176,11 @@ flowchart LR
   `/api/student`, starts catching the install prompt and applies the reduce-motion setting.
 - **Student profile.** `src/lib/studentProfile.ts` (schema, validation, defaults; no Node or DOM)
   and `src/lib/studentFile.ts` (server: atomic read/write of `data/student.json`).
-  `useTutorStore` saves the whole profile through `PUT /api/student` after every change; without
-  a token everything works for the visit and is marked unsaved.
+  `useTutorStore` turns every change into an operation (`src/lib/profileOps.ts`), applies it
+  locally and queues it; the queue goes out as `PATCH /api/student` once the profile has loaded,
+  and the server merges it into the saved profile under a per-process lock. Without a token
+  everything works for the visit and is marked unsaved; the queued changes are merged once a
+  token arrives and the profile loads.
 - **Checkpoint adapter.** `src/app-shell/checkpointAdapter.ts` is the only caller of
   `verifyCheckpoint`, `diagnoseMistake`, `decideRecovery` and `replanFromScan` (ADR-013). A
   confident diagnosis resumes with a corrective step or a fresh plan; otherwise the student shows

@@ -10,38 +10,34 @@ import { applyMoves, parseAlgorithm } from '../src/cube/transforms';
 import { planNextStep } from '../src/tutor';
 import { observationOf } from '../src/tutor/checkpoint';
 import type { StepPlan } from '../src/tutor/types';
-import { defaultStudentProfile } from '../src/lib/studentProfile';
+import { defaultStudentProfile, type StudentProfile } from '../src/lib/studentProfile';
 import { localDay } from '../src/learn/mastery';
 import { MAX_TIMER_HISTORY, type TimerSolve } from '../src/learn/types';
 import { scrambledState } from './helpers/scrambles';
+import { fakeStudentServer, type FakeStudentServer } from './helpers/fakeStudentServer';
 
 const planMock = vi.hoisted(() => vi.fn());
 vi.mock('@/solver/client', () => ({ planStepInWorker: planMock }));
 
-const { useTutorStore, flushTutorSaves, methodOptionsFor } = await import('../src/stores/useTutorStore');
+const { useTutorStore, flushTutorSaves, methodOptionsFor, resetPendingProfileOps } = await import('../src/stores/useTutorStore');
 
 const store = () => useTutorStore.getState();
 const scramble = scrambledState(9, 1);
-const saved: Array<{ stats: { stages: Record<string, number[]>; activeDays: string[] } }> = [];
+let server: FakeStudentServer;
+let saved: StudentProfile[];
 
-beforeEach(() => {
-  saved.length = 0;
+beforeEach(async () => {
   planMock.mockReset();
   planMock.mockImplementation(async (state, method, grip, stepIndex, options) =>
     planNextStep(state, method, grip, stepIndex, options)
   );
-  vi.stubGlobal(
-    'fetch',
-    vi.fn(async (_url: string, init?: RequestInit) => {
-      if (init?.method === 'PUT') {
-        saved.push(JSON.parse(String(init.body)));
-        return new Response(String(init.body), { status: 200 });
-      }
-      return Response.json(defaultStudentProfile());
-    })
-  );
+  server = fakeStudentServer();
+  vi.stubGlobal('fetch', server.fetch);
+  resetPendingProfileOps();
   useTutorStore.setState({ token: 'secret', profile: defaultStudentProfile(), profileStatus: 'ready' });
   store().abandonSolve();
+  await flushTutorSaves();
+  saved = server.saved;
 });
 afterEach(() => vi.unstubAllGlobals());
 

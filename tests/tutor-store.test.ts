@@ -12,33 +12,29 @@ import { observationOf } from '../src/tutor/checkpoint';
 import type { StepPlan } from '../src/tutor/types';
 import { defaultStudentProfile } from '../src/lib/studentProfile';
 import { scrambledState } from './helpers/scrambles';
+import { fakeStudentServer, type FakeStudentServer } from './helpers/fakeStudentServer';
 
 const planMock = vi.hoisted(() => vi.fn());
 vi.mock('@/solver/client', () => ({ planStepInWorker: planMock }));
 
-const { useTutorStore, flushTutorSaves } = await import('../src/stores/useTutorStore');
+const { useTutorStore, flushTutorSaves, resetPendingProfileOps } = await import('../src/stores/useTutorStore');
 
 const store = () => useTutorStore.getState();
 const scramble = scrambledState(5, 3);
-const saved: unknown[] = [];
+let server: FakeStudentServer;
+let saved: unknown[];
 
-beforeEach(() => {
-  saved.length = 0;
+beforeEach(async () => {
   planMock.mockReset();
   planMock.mockImplementation(async (state, method, grip, stepIndex) => planNextStep(state, method, grip, stepIndex));
-  vi.stubGlobal(
-    'fetch',
-    vi.fn(async (_url: string, init?: RequestInit) => {
-      if (init?.method === 'PUT') {
-        saved.push(JSON.parse(String(init.body)));
-        return new Response(String(init.body), { status: 200 });
-      }
-      return Response.json(defaultStudentProfile());
-    })
-  );
+  server = fakeStudentServer();
+  vi.stubGlobal('fetch', server.fetch);
+  resetPendingProfileOps();
   useTutorStore.setState({ token: 'secret', profile: defaultStudentProfile(), profileStatus: 'ready' });
   store().abandonSolve();
-  saved.length = 0;
+  await flushTutorSaves();
+  server.saved.length = 0;
+  saved = server.saved;
 });
 afterEach(() => vi.unstubAllGlobals());
 

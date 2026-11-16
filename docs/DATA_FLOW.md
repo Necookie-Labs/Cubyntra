@@ -142,7 +142,7 @@ sequenceDiagram
 ```mermaid
 flowchart TD
     SCAN[/scan: 6 faces + review/] -->|confirm| PAL[buildStudentPalette from raw samples]
-    PAL -->|savePalette| PROF[(data/student.json via PUT /api/student)]
+    PAL -->|savePalette| PROF[(data/student.json via PATCH /api/student ops)]
     SCAN -->|originalScrambleState + method| START[useTutorStore.startSolve]
     START --> PLAN[tutor.plan in the worker]
     PLAN -->|StepPlan| SOLVE[/solve: twin + coach + I did it/]
@@ -168,9 +168,14 @@ flowchart TD
   counters, the highest hint used each time a stage was completed, the days practised, the trainer's
   Leitner boxes per case and the timer history (times, penalties and scrambles; no images).
 - **What leaves the tab.** Checkpoint photos never leave the device that took them: frames are
-  drawn into a canvas, sampled to 9 RGB values and classified in the tab. Only the profile JSON
-  goes to `/api/student` and only the compact facts JSON (no images, no cube state) goes to
+  drawn into a canvas, sampled to 9 RGB values and classified in the tab. Only profile changes
+  (small JSON operations) go to `/api/student` and only the compact facts JSON (no images, no cube state) goes to
   `/api/coach`, both with the `x-cubyntra-token` header.
 - **Resume.** On every step the solve's current cube and step index are saved. Opening `/solve`
   later loads the profile and plans the next step from the saved cube.
+- **Two devices.** The laptop and a paired phone (or two tabs) each send only their changes
+  (`PATCH /api/student`, `src/lib/profileOps.ts`); the server merges them one request at a time.
+  Timer solves merge by id, trainer answers and stat counts add up, and the saved solve only moves
+  forward (a newer solve, a later step, or a later save of the same step), so neither device can
+  wipe or roll back the other's progress.
 

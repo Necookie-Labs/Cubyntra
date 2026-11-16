@@ -39,6 +39,12 @@ export type Penalty = 'none' | '+2' | 'DNF';
 
 /** One timed solve. `ms` is the time on the clock, without the +2. */
 export interface TimerSolve {
+  /**
+   * Unique id, so devices can add, re-score and delete solves without clobbering each other.
+   * Always present on a saved profile (older solves get one when read); optional only for a
+   * solve that has just been timed and not yet stored.
+   */
+  id?: string;
   ms: number;
   penalty: Penalty;
   /** ISO date the solve finished. */

@@ -9,9 +9,16 @@
  *                                      |-> checking (uncertain or wrong face: show again)
  *                                      '-> mismatch -> replay step | continue | rescan | it matches
  *
- * The profile (settings, palette, current solve, stats) is saved to `data/student.json`
- * through `/api/student` whenever it changes, so an interrupted solve resumes. Without an app
- * token (an unpaired phone) everything still works for this visit; it just is not saved.
+ * The profile (settings, palette, current solve, stats, trainer, timer) is saved to
+ * `data/student.json` through `PATCH /api/student` whenever it changes, so an interrupted solve
+ * resumes. Every change is an operation (`src/lib/profileOps.ts`) applied to the local copy at
+ * once and queued for the server, which merges it into the profile it has: a paired phone or a
+ * second tab adds to what the laptop saved instead of overwriting it.
+ *
+ * Operations wait in the queue until the profile has loaded (so a change made while it loads is
+ * applied on top of the loaded profile, never over it) and while there is no app token (an
+ * unpaired phone): everything still works for this visit, and once a token arrives and the
+ * profile loads, the queued changes are merged into it and sent.
  */
 
 import { create } from 'zustand';
@@ -22,13 +29,14 @@ import { planStepInWorker } from '@/solver/client';
 import { applyTileEdits, type TileEdit } from '@/tutor/checkpoint';
 import type { FaceObservation, MethodId, MethodOptions, StepPlan } from '@/tutor/types';
 import type { StudentPalette } from '@/vision/palette';
-import { answerDrill } from '@/learn/leitner';
-import { addActiveDay, completedStage, localDay, recordStage, stageKey } from '@/learn/mastery';
-import { MAX_TIMER_HISTORY, type HintUse, type Penalty, type TimerSolve, type TrainerSetId } from '@/learn/types';
+import { completedStage, localDay, stageKey } from '@/learn/mastery';
+import { type HintUse, type Penalty, type TimerSolve, type TrainerSetId } from '@/learn/types';
+import { applyProfileOps, type ProfileOp } from '@/lib/profileOps';
 import {
   MAX_SAVED_ATTEMPTS,
   defaultStudentProfile,
   parseStudentProfile,
+  type CurrentSolve,
   type StudentProfile,
   type StudentSettings,
 } from '@/lib/studentProfile';
@@ -166,47 +174,95 @@ async function planStep(
 
 const today = () => localDay(new Date());
 
-// Saves are chained so they reach the server in order.
+/** A queue this long means the server has been out of reach for a long time; the oldest go. */
+const MAX_PENDING_OPS = 2000;
+
+// Operations applied locally and not yet acknowledged by the server, oldest first.
+let pendingOps: ProfileOp[] = [];
+// Sends are chained so they reach the server in order, one batch at a time.
 let saveChain: Promise<unknown> = Promise.resolve();
+// `updatedAt` must grow even for two saves in the same millisecond.
+let lastStamp = 0;
+const stamp = () => {
+  lastStamp = Math.max(Date.now(), lastStamp + 1);
+  return new Date(lastStamp).toISOString();
+};
+
+const newId = () =>
+  globalThis.crypto?.randomUUID?.().replace(/-/g, '') ?? `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 12)}`;
 
 export const useTutorStore = create<TutorStore>((set, get) => {
-  const persist = (profile: StudentProfile) => {
-    set({ profile });
+  /** Sends everything queued, if there is a token and the profile has loaded (or failed to). */
+  const flush = () => {
     const { token } = get();
-    if (!token) {
-      set({ profileStatus: 'unsaved' });
+    if (!token) return;
+    saveChain = saveChain.then(async () => {
+      const batch = pendingOps;
+      if (!batch.length) return;
+      // The token may have changed while earlier batches were in flight.
+      const current = get().token;
+      if (!current) return;
+      pendingOps = [];
+      try {
+        const res = await fetch('/api/student', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', [APP_TOKEN_HEADER]: current },
+          body: JSON.stringify({ ops: batch, batchId: newId() }),
+        });
+        if (res.ok) {
+          set({ profileStatus: 'ready' });
+        } else if (res.status === 400 || res.status === 413) {
+          // The server will never take this batch: keep the local copy, drop the batch.
+          set({ profileStatus: 'unsaved' });
+        } else {
+          pendingOps = [...batch, ...pendingOps].slice(-MAX_PENDING_OPS);
+          set({ profileStatus: 'unsaved' });
+        }
+      } catch {
+        pendingOps = [...batch, ...pendingOps].slice(-MAX_PENDING_OPS);
+        set({ profileStatus: 'unsaved' });
+      }
+    });
+  };
+
+  /** Applies operations to the local profile now and queues them for the server. */
+  const commit = (...ops: ProfileOp[]) => {
+    if (!ops.length) return;
+    set((s) => ({ profile: applyProfileOps(s.profile, ops) }));
+    pendingOps = [...pendingOps, ...ops].slice(-MAX_PENDING_OPS);
+    if (!get().token) {
+      if (get().profileStatus !== 'loading') set({ profileStatus: 'unsaved' });
       return;
     }
-    saveChain = saveChain
-      .then(() =>
-        fetch('/api/student', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json', [APP_TOKEN_HEADER]: token },
-          body: JSON.stringify(profile),
-        })
-      )
-      .then((res) => set({ profileStatus: res.ok ? 'ready' : 'unsaved' }))
-      .catch(() => set({ profileStatus: 'unsaved' }));
+    flush();
+  };
+
+  /** The session's solve as it should be saved. */
+  const solveRecord = (): CurrentSolve | null => {
+    const { profile, method, cube, grip, stepIndex, attempts, stageHint } = get();
+    if (!method || !cube || !grip) return null;
+    return {
+      method,
+      state: cube,
+      grip,
+      stepIndex,
+      attempts: attempts.slice(-MAX_SAVED_ATTEMPTS),
+      ...(stageHint > 0 ? { stageHint } : {}),
+      startedAt: profile.currentSolve?.startedAt ?? stamp(),
+      updatedAt: stamp(),
+    };
   };
 
   /** Writes the session's solve into the profile. */
-  const persistSolve = () => {
-    const { profile, method, cube, grip, stepIndex, attempts, stageHint } = get();
-    if (!method || !cube || !grip) return;
-    const startedAt = profile.currentSolve?.startedAt ?? now();
-    persist({
-      ...profile,
-      currentSolve: {
-        method,
-        state: cube,
-        grip,
-        stepIndex,
-        attempts: attempts.slice(-MAX_SAVED_ATTEMPTS),
-        ...(stageHint > 0 ? { stageHint } : {}),
-        startedAt,
-        updatedAt: now(),
-      },
-    });
+  const persistSolve = (...alongside: ProfileOp[]) => {
+    const solve = solveRecord();
+    commit(...alongside, ...(solve ? [{ op: 'setCurrentSolve' as const, solve }] : []));
+  };
+
+  /** Clears the saved solve (finished or abandoned), closing it so a late save cannot revive it. */
+  const clearSolveOp = (): ProfileOp[] => {
+    const startedAt = get().profile.currentSolve?.startedAt;
+    return startedAt ? [{ op: 'clearCurrentSolve', startedAt }] : [];
   };
 
   const recordOutcome = (outcome: CheckpointOutcome) => {
@@ -254,21 +310,19 @@ export const useTutorStore = create<TutorStore>((set, get) => {
       } catch {
         set({ profileStatus: 'unsaved' });
       }
+      flush();
     },
 
-    updateSettings: (patch) => {
-      const { profile } = get();
-      persist({ ...profile, settings: { ...profile.settings, ...patch } });
-    },
+    updateSettings: (patch) => commit({ op: 'setSettings', settings: patch }),
 
-    setName: (name) => persist({ ...get().profile, name: name.slice(0, 40) }),
+    setName: (name) => commit({ op: 'setName', name: name.slice(0, 40) }),
 
-    savePalette: (palette) => persist({ ...get().profile, palette }),
+    savePalette: (palette) => commit({ op: 'setPalette', palette }),
 
     startSolve: async (state, method) => {
+      const closing = clearSolveOp();
       set({ ...SESSION_RESET, method, cube: state, grip: gripOf(state), phase: 'loading' });
-      const { profile } = get();
-      set({ profile: { ...profile, currentSolve: null } });
+      commit(...closing);
       persistSolve();
       await get().loadPlan();
     },
@@ -299,17 +353,12 @@ export const useTutorStore = create<TutorStore>((set, get) => {
         // A newer solve may have started while this one planned.
         if (get().cube !== cube) return;
         if (!plan) {
-          const { profile } = get();
-          persist({
-            ...profile,
-            currentSolve: null,
-            stats: {
-              ...profile.stats,
-              solvesCompleted: profile.stats.solvesCompleted + 1,
-              lastSolveAt: now(),
-              activeDays: addActiveDay(profile.stats.activeDays, today()),
-            },
-          });
+          commit(
+            ...clearSolveOp(),
+            { op: 'incrementStats', solvesCompleted: 1 },
+            { op: 'setLastSolveAt', at: now() },
+            { op: 'addActiveDay', day: today() }
+          );
           set({ phase: 'solved' });
           return;
         }
@@ -357,7 +406,7 @@ export const useTutorStore = create<TutorStore>((set, get) => {
     },
 
     advance: async () => {
-      const { plan, profile, stepIndex, stageHint } = get();
+      const { plan, stepIndex, stageHint } = get();
       if (!plan) return;
       // A step that finished its stage records the stage with the highest hint it needed.
       const finished = completedStage(plan);
@@ -367,19 +416,11 @@ export const useTutorStore = create<TutorStore>((set, get) => {
         stepIndex: stepIndex + 1,
         attempts: [],
         stageHint: finished ? 0 : stageHint,
-        profile: {
-          ...profile,
-          stats: {
-            ...profile.stats,
-            stepsCompleted: profile.stats.stepsCompleted + 1,
-            checkpointsPassed: profile.stats.checkpointsPassed + 1,
-            stages: finished
-              ? recordStage(profile.stats.stages, stageKey(plan.method, finished), stageHint)
-              : profile.stats.stages,
-          },
-        },
       });
-      persistSolve();
+      persistSolve(
+        { op: 'incrementStats', stepsCompleted: 1, checkpointsPassed: 1 },
+        ...(finished ? [{ op: 'recordStage' as const, key: stageKey(plan.method, finished), hint: stageHint }] : [])
+      );
       await get().loadPlan();
     },
 
@@ -482,7 +523,7 @@ export const useTutorStore = create<TutorStore>((set, get) => {
 
     abandonSolve: () => {
       set({ ...SESSION_RESET });
-      persist({ ...get().profile, currentSolve: null });
+      commit(...clearSolveOp());
     },
 
     noteHint: (level) => {
@@ -491,37 +532,26 @@ export const useTutorStore = create<TutorStore>((set, get) => {
       persistSolve();
     },
 
-    answerTrainerCase: (caseId, correct) => {
-      const { profile } = get();
-      persist({
-        ...profile,
-        trainer: answerDrill(profile.trainer, caseId, correct),
-        stats: { ...profile.stats, activeDays: addActiveDay(profile.stats.activeDays, today()) },
-      });
-    },
+    answerTrainerCase: (caseId, correct) =>
+      commit({ op: 'answerTrainerCase', caseId, correct }, { op: 'addActiveDay', day: today() }),
 
     setTrainerSet: (trainerSet) => {
-      const { profile } = get();
-      if (profile.trainer.set === trainerSet) return;
-      persist({ ...profile, trainer: { ...profile.trainer, set: trainerSet } });
+      if (get().profile.trainer.set === trainerSet) return;
+      commit({ op: 'setTrainerSet', set: trainerSet });
     },
 
-    addTimerSolve: (solve) => {
-      const { profile } = get();
-      persist({ ...profile, timer: { history: [...profile.timer.history, solve].slice(-MAX_TIMER_HISTORY) } });
-    },
+    addTimerSolve: (solve) => commit({ op: 'addTimerSolve', solve: { ...solve, id: solve.id ?? newId() } }),
 
     setLastTimerPenalty: (penalty) => {
-      const { profile } = get();
-      const history = profile.timer.history;
-      if (!history.length) return;
-      persist({ ...profile, timer: { history: [...history.slice(0, -1), { ...history[history.length - 1], penalty }] } });
+      const last = get().profile.timer.history.at(-1);
+      if (!last?.id) return;
+      commit({ op: 'setTimerPenalty', id: last.id, penalty });
     },
 
     deleteLastTimerSolve: () => {
-      const { profile } = get();
-      if (!profile.timer.history.length) return;
-      persist({ ...profile, timer: { history: profile.timer.history.slice(0, -1) } });
+      const last = get().profile.timer.history.at(-1);
+      if (!last?.id) return;
+      commit({ op: 'deleteTimerSolve', id: last.id });
     },
   };
 });
@@ -529,4 +559,14 @@ export const useTutorStore = create<TutorStore>((set, get) => {
 /** Waits for profile saves already sent (tests). */
 export function flushTutorSaves(): Promise<unknown> {
   return saveChain;
+}
+
+/** Operations waiting for the server (tests). */
+export function pendingProfileOps(): readonly ProfileOp[] {
+  return pendingOps;
+}
+
+/** Forgets queued operations (tests: a fresh store between cases). */
+export function resetPendingProfileOps(): void {
+  pendingOps = [];
 }

@@ -12,13 +12,12 @@ import { POST as createSession } from '../src/app/api/session/route';
 import { POST as pair } from '../src/app/api/session/pair/route';
 import { GET as getToken } from '../src/app/api/auth/token/route';
 import { POST as postCoach } from '../src/app/api/coach/route';
-import { GET as getStudent, PUT as putStudent } from '../src/app/api/student/route';
+import { GET as getStudent, PATCH as patchStudent } from '../src/app/api/student/route';
 import { APP_TOKEN_HEADER, coachRateLimiter, getAppSecret } from '../src/lib/localAuth';
 import { parsePairingFragment } from '../src/sync/pairingLink';
 import { sessionManager } from '../src/sync/sessionManager';
 import { resetSyncLimitersForTests } from '../src/sync/server';
 import { resetSpendTrackerForTests } from '../src/coach/spend';
-import { defaultStudentProfile } from '../src/lib/studentProfile';
 import { SAMPLE_FACTS } from './helpers/coachFacts';
 import { useScratchDataDir } from './helpers/scratchData';
 
@@ -54,11 +53,11 @@ async function laptopPairing(): Promise<{ code: string; companionUrl: string }> 
 async function phoneCalls(token: string) {
   const headers = { ...PHONE, [APP_TOKEN_HEADER]: token, 'Content-Type': 'application/json' };
   const student = await getStudent(new Request('https://192.168.1.20:3000/api/student', { headers }));
-  const saved = await putStudent(
+  const saved = await patchStudent(
     new Request('https://192.168.1.20:3000/api/student', {
-      method: 'PUT',
+      method: 'PATCH',
       headers,
-      body: JSON.stringify({ ...defaultStudentProfile(), name: 'Phone' }),
+      body: JSON.stringify({ ops: [{ op: 'setName', name: 'Phone' }] }),
     })
   );
   const coach = await postCoach(
