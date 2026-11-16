@@ -1,7 +1,7 @@
 {
   "name": "cubyntra",
   "version": "1.0.0",
-  "description": "Cubyntra \u2014 Computer Vision Rubik's Cube Scanner & Solver by Necookie Labs",
+  "description": "Cubyntra — Computer Vision Rubik's Cube Scanner & Solver by Necookie Labs",
   "private": true,
   "scripts": {
     "dev": "node scripts/dev-cert.mjs && next dev -H 0.0.0.0 --experimental-https --experimental-https-key .certs/dev-key.pem --experimental-https-cert .certs/dev-cert.pem",
@@ -17,7 +17,7 @@
   "dependencies": {
     "canvas-confetti": "^1.9.4",
     "lucide-react": "^1.48.0",
-    "next": "16.3.6",
+    "next": "16.4.6",
     "pdfkit": "^0.20.2",
     "qrcode": "^1.5.4",
     "react": "19.2.8",
@@ -36,7 +36,7 @@
     "@types/react-dom": "^19",
     "@types/three": "^0.186.0",
     "eslint": "^9",
-    "eslint-config-next": "16.3.6",
+    "eslint-config-next": "16.4.6",
     "selfsigned": "^5.5.0",
     "tailwindcss": "^4",
     "tsx": "^4.23.15",
