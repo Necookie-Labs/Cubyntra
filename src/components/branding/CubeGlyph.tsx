@@ -2,24 +2,20 @@
  * Cubyntra - 3x3 Logo Glyph
  * Necookie Labs (c) 2026
  *
- * Uses fixed cube colors rather than theme classes, so the logo looks the same in light and
- * dark themes.
+ * A flat 3x3 face of sticker blocks on dark plastic. Sticker tokens are the same in both
+ * themes, so the logo never changes with the theme.
  */
 
 import React from 'react';
-import { COLOR_HEX } from '@/cube/constants';
 import { CubeColor } from '@/cube/types';
+import { stickerColor } from '@/components/ui';
 
 const TILES: CubeColor[] = ['red', 'blue', 'yellow', 'green', 'white', 'orange', 'blue', 'green', 'red'];
 
 export const CubeGlyph: React.FC<{ className?: string }> = ({ className = 'w-8 h-8' }) => (
-  <div
-    aria-hidden
-    className={`${className} rounded-lg p-1 grid grid-cols-3 gap-0.5 shadow-inner`}
-    style={{ backgroundColor: '#15161b', border: '1px solid #33363d' }}
-  >
+  <div aria-hidden className={`${className} grid grid-cols-3 gap-0.5 p-0.5 bg-sticker-core border-2 border-line`}>
     {TILES.map((color, i) => (
-      <div key={i} className="rounded-[1px]" style={{ backgroundColor: COLOR_HEX[color] }} />
+      <div key={i} style={{ backgroundColor: stickerColor(color) }} />
     ))}
   </div>
 );
