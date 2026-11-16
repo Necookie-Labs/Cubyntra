@@ -16,6 +16,7 @@
 import { CubeColor, CubeState, Face, ValidationIssue, ValidationResult } from './types';
 import { CANONICAL_CENTER_COLORS, COLORS, FACES } from './constants';
 import { cubeStateToFaceletString } from './transforms';
+import { normalizeOrientation } from './orientation';
 import { Cube } from 'rubik-solver';
 
 interface CornerDefinition {
@@ -63,9 +64,14 @@ const EDGES: EdgeDefinition[] = [
 
 /**
  * Validates a CubeState thoroughly. Returns a ValidationResult with granular diagnostic issues.
+ *
+ * A state held in another orientation (after x, y, z or slice moves) is first turned to the
+ * standard one, so issues name faces in standard orientation. Centers that no real cube can
+ * show are reported as INVALID_CENTERS.
  */
-export function validateCubeState(state: CubeState): ValidationResult {
+export function validateCubeState(input: CubeState): ValidationResult {
   const issues: ValidationIssue[] = [];
+  const state = normalizeOrientation(input)?.state ?? input;
 
   // 1. Check Color Counts
   const colorCounts: Record<CubeColor, number> = {

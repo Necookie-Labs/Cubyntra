@@ -381,6 +381,8 @@ export function isCubeSolved(state: CubeState): boolean {
 
 /**
  * Converts CubeState to standard 54-character facelet string format (U R F D L B).
+ * Letters come from fixed colors (white = U, ...), so the state must be in standard orientation;
+ * pass it through `normalizeOrientation` (./orientation) first if it may have been rotated.
  */
 export function cubeStateToFaceletString(state: CubeState): string {
   const colorMap: Record<CubeColor, string> = {

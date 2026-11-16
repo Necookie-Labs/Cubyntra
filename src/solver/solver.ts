@@ -14,6 +14,11 @@ import {
   isCubeSolved,
 } from '../cube/transforms';
 import { validateCubeState } from '../cube/validator';
+import {
+  normalizeOrientation,
+  translateAlgorithmThroughRotation,
+} from '../cube/orientation';
+import { formatAlgorithm, invertAlgorithm } from '../cube/transforms';
 import { SolveResult } from './types';
 
 let isInitialized = false;
@@ -40,7 +45,7 @@ export function ensureSolverInitialized(): void {
  * Workflow:
  * 1. Validates the cube state mathematically.
  * 2. Checks if the cube is already solved.
- * 3. Converts CubeState to standard 54-facelet representation.
+ * 3. Turns the state to standard orientation and converts it to the 54-facelet representation.
  * 4. Runs deterministic Two-Phase search.
  * 5. Parses output into structured CubeMove[].
  * 6. Strictly verifies that applying the solution results in a solved state.
@@ -76,7 +81,11 @@ export async function solveCube(state: CubeState): Promise<SolveResult> {
   ensureSolverInitialized();
 
   try {
-    const faceletStr = cubeStateToFaceletString(state);
+    // Kociemba needs the standard orientation. Solve the turned copy, then express the solution
+    // in the frame the cube is actually held in.
+    const normalized = normalizeOrientation(state);
+    if (!normalized) throw new Error('Cube centers are not in a reachable orientation.');
+    const faceletStr = cubeStateToFaceletString(normalized.state);
     const cube = Cube.fromString(faceletStr);
 
     const rawSolution = kociembaSolve(cube);
@@ -91,8 +100,11 @@ export async function solveCube(state: CubeState): Promise<SolveResult> {
       };
     }
 
-    const trimmedSolution = rawSolution.trim();
-    const moves = trimmedSolution ? parseAlgorithm(trimmedSolution) : [];
+    const rawMoves = rawSolution.trim() ? parseAlgorithm(rawSolution.trim()) : [];
+    const moves = normalized.rotation.length
+      ? translateAlgorithmThroughRotation(rawMoves, invertAlgorithm(normalized.rotation))
+      : rawMoves;
+    const trimmedSolution = formatAlgorithm(moves);
 
     // 6. Invariant verification: Verify that applying the moves yields solved state
     const simulatedState = applyMoves(state, moves);
