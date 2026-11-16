@@ -118,6 +118,21 @@ describe('live replies', () => {
     expect(tracker.monthUsage().requests).toBe(1);
   });
 
+  it('holds back a lone letter until the next word shows it starts a run of moves', async () => {
+    const events = await collect({ chunks: ['Look at the F ', "R U R' now."] });
+    const firstReplace = events.findIndex((e) => e.type === 'replace');
+    expect(firstReplace).toBeGreaterThan(-1);
+    const shownBefore = events.slice(0, firstReplace).map((e) => (e.type === 'delta' ? e.text : '')).join('');
+    expect(shownBefore).toBe('Look at the ');
+    expect(events.at(-1)).toMatchObject({ source: 'template', reason: 'guard' });
+  });
+
+  it('lets a lone capital in prose through once the next word arrives', async () => {
+    const events = await collect({ chunks: ['Look at the F ', 'face, then plan B.'] });
+    expect(shown(events)).toBe('Look at the F face, then plan B.');
+    expect(events.at(-1)).toEqual({ type: 'done', source: 'live', mode: 'live' });
+  });
+
   it('checks the last word too', async () => {
     const events = await collect({ chunks: ['Finish with B2'] });
     expect(events.at(-1)).toMatchObject({ source: 'template', reason: 'guard' });

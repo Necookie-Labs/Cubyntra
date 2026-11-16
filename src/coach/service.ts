@@ -12,7 +12,7 @@
 
 import Anthropic from '@anthropic-ai/sdk';
 import { allowedMoves } from './facts';
-import { checkReplyMoves } from './guard';
+import { checkReplyMoves, relayableLength } from './guard';
 import { COACH_MAX_TOKENS, COACH_MODEL, SpendTracker, estimateCallCost, getSpendTracker } from './spend';
 import { COACH_SYSTEM_PROMPT } from './systemPrompt';
 import { CASE_NOTES, NOTICES, templateText } from './templates';
@@ -118,8 +118,8 @@ export async function* coachReply(facts: CoachFacts, options: CoachReplyOptions 
     for await (const event of stream) {
       if (rejected || event.type !== 'content_block_delta' || event.delta.type !== 'text_delta') continue;
       full += event.delta.text;
-      // Relay up to the last whitespace: a token is complete once a space follows it.
-      const cut = Math.max(full.lastIndexOf(' '), full.lastIndexOf('\n')) + 1;
+      // Relay only complete tokens, holding back a bare letter that may start a run of moves.
+      const cut = relayableLength(full);
       if (cut <= sent) continue;
       if (!checkReplyMoves(full.slice(0, cut), allowed, names).ok) {
         // Swap in the template now; keep reading so the call's usage can be recorded.
