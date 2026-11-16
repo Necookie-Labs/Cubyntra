@@ -10,28 +10,21 @@ import * as THREE from 'three';
 import { CubeColor, CubeMove, CubeState, Face } from '../src/cube/types';
 import { CANONICAL_CENTER_COLORS, createSolvedCubeState } from '../src/cube/constants';
 import { applyMoves, invertAlgorithm, parseAlgorithm } from '../src/cube/transforms';
-import { SPEEDCUBE_COLORS, type CubieMesh } from '../src/three/cubie';
+import type { CubieMesh } from '../src/three/cubie';
+import { STICKER_HEX } from '../src/lib/tokens';
 
 vi.mock('three', async (importOriginal) => {
   const actual = await importOriginal<typeof import('three')>();
   class FakeRenderer {
     domElement = { addEventListener() {}, removeEventListener() {}, parentNode: null };
-    shadowMap = { enabled: false, type: 0 };
     outputColorSpace = '';
     toneMapping = 0;
-    toneMappingExposure = 1;
     setSize() {}
     setPixelRatio() {}
     render() {}
     dispose() {}
   }
-  class FakePMREM {
-    fromScene() {
-      return { texture: new actual.Texture() };
-    }
-    dispose() {}
-  }
-  return { ...actual, WebGLRenderer: FakeRenderer, PMREMGenerator: FakePMREM };
+  return { ...actual, WebGLRenderer: FakeRenderer };
 });
 
 const { CubeEngine, snapQuaternionToCubeGroup } = await import('../src/three/engine');
@@ -133,7 +126,7 @@ function readStateFromGeometry(engine: Engine): CubeState {
 }
 
 const COLOR_BY_HEX = Object.fromEntries(
-  (Object.entries(SPEEDCUBE_COLORS) as [CubeColor, string][]).map(([color, hex]) => [hex.slice(1).toLowerCase(), color])
+  (Object.entries(STICKER_HEX) as [CubeColor, string][]).map(([color, hex]) => [hex.slice(1).toLowerCase(), color])
 ) as Record<string, CubeColor>;
 
 /** Reads what the viewer actually sees: each tile's material color, placed by where it faces now. */
@@ -149,7 +142,7 @@ function readStateFromMaterials(engine: Engine): CubeState {
     for (const child of g.children) {
       if (child.position.lengthSq() < 1e-6) continue;
       const facing = FACE_BY_NORMAL[axisKey(child.position.clone().normalize().applyQuaternion(g.quaternion))];
-      const material = (child as THREE.Mesh).material as THREE.MeshPhysicalMaterial;
+      const material = (child as THREE.Mesh).material as THREE.MeshLambertMaterial;
       const color = COLOR_BY_HEX[material.color.getHexString()];
 
       let index = 0;
@@ -372,5 +365,21 @@ describe('CubeEngine layer turns', () => {
     pumpFrames(3);
     engine.dispose();
     await expect(Promise.all(done)).resolves.toBeDefined();
+  });
+});
+
+describe('CubeEngine resources', () => {
+  it('disposes the shared voxel geometries and materials with the engine', () => {
+    const engine = makeEngine();
+    const kit = (engine as unknown as { kit: import('../src/three/cubie').VoxelKit }).kit;
+    const spies = [kit.bodyGeometry, kit.tileGeometry, ...kit.materials()].map((r) => vi.spyOn(r, 'dispose'));
+    engine.dispose();
+    for (const spy of spies) expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders without tone mapping, so token colors reach the screen unchanged', () => {
+    const engine = makeEngine();
+    expect(engine.renderer.toneMapping).toBe(THREE.NoToneMapping);
+    engine.dispose();
   });
 });

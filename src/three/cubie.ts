@@ -1,212 +1,157 @@
 /**
- * Cubyntra - Three.js Speedcube Physical Cubie Construction & Material Management
+ * Cubyntra - Voxel Cubie Construction & Shared Materials
  * Necookie Labs (c) 2026
  *
- * Implements high-precision speedcube geometry:
- * - Rounded chamfered cubie body (ExtrudeGeometry with bevel)
- * - 3D rounded beveled tiles with clearcoat specular reflections
- * - Authentic speedcube competition color palette
- * - Shared geometry reuse across 27 cubies for zero memory waste
+ * The twin is drawn in the flat voxel style of ADR-011:
+ * - Every cubie is a plain box in the core color, with a chunky raised tile per visible side.
+ * - Materials are Lambert (diffuse only): no specular, clearcoat, environment map or tone
+ *   mapping. Under the engine's fixed light rig each face direction therefore gets one flat
+ *   tone, so the cube reads as 3D without gradients or gloss.
+ * - Colors come from the design tokens (src/lib/tokens.ts mirrors globals.css).
+ * - One VoxelKit holds every geometry and material the cubies share: 2 geometries and
+ *   14 materials for all 27 cubies. The engine owns the kit and disposes it.
  */
 
 import * as THREE from 'three';
 import { CubeColor, Face } from '../cube/types';
-import { COLOR_HEX } from '../cube/constants';
+import { STICKER_CORE_HEX, STICKER_HEX } from '../lib/tokens';
 
-/**
- * Authentic speedcube competition color palette optimized for PBR lighting.
- */
-export const SPEEDCUBE_COLORS: Record<CubeColor, string> = {
-  white: '#f4f5f0',
-  yellow: '#ffd500',
-  green: '#00b35c',
-  blue: '#0a5cff',
-  red: '#e8132e',
-  orange: '#ff7a00',
-};
+/** Edge length of a cubie body. The 0.02 gap to the next cubie shows as a dark seam. */
+export const CUBIE_SIZE = 0.98;
+/** Tile footprint and thickness: thick enough to read as a separate block. */
+export const TILE_SIZE = 0.82;
+export const TILE_DEPTH = 0.05;
+/** Opacity of cubies outside the spotlight (GOAL Phase 4: 35%). */
+export const FADED_OPACITY = 0.35;
 
-/**
- * Creates rounded chamfered cubie body geometry.
- */
-export function createRoundedBoxGeometry(
-  size = 0.985,
-  radius = 0.11,
-  smooth = 5
-): THREE.BufferGeometry {
-  const shape = new THREE.Shape();
-  const eps = 0.00001;
-  const r = radius - eps;
-  const s = size;
-  shape.absarc(eps, eps, eps, -Math.PI / 2, -Math.PI, true);
-  shape.absarc(eps, s - r * 2, eps, Math.PI, Math.PI / 2, true);
-  shape.absarc(s - r * 2, s - r * 2, eps, Math.PI / 2, 0, true);
-  shape.absarc(s - r * 2, eps, eps, 0, -Math.PI / 2, true);
+const COLORS: readonly CubeColor[] = ['white', 'yellow', 'red', 'orange', 'blue', 'green'];
 
-  const geom = new THREE.ExtrudeGeometry(shape, {
-    depth: s - radius * 2,
-    bevelEnabled: true,
-    bevelSegments: smooth * 2,
-    steps: 1,
-    bevelSize: r,
-    bevelThickness: radius,
-    curveSegments: smooth,
-  });
-  geom.center();
-  geom.computeVertexNormals();
-  return geom;
+export interface VoxelKitOptions {
+  /** Opacity used by `sticker(color, true)` and `bodyMaterial(true)`. */
+  fadedOpacity?: number;
 }
 
-/**
- * Creates realistic rounded 3D beveled tile geometry.
- */
-export function createRoundedTileGeometry(
-  size = 0.84,
-  radius = 0.13,
-  depth = 0.018
-): THREE.BufferGeometry {
-  const h = size / 2;
-  const r = radius;
-  const sh = new THREE.Shape();
-  sh.moveTo(-h + r, -h);
-  sh.lineTo(h - r, -h);
-  sh.quadraticCurveTo(h, -h, h, -h + r);
-  sh.lineTo(h, h - r);
-  sh.quadraticCurveTo(h, h, h - r, h);
-  sh.lineTo(-h + r, h);
-  sh.quadraticCurveTo(-h, h, -h, h - r);
-  sh.lineTo(-h, -h + r);
-  sh.quadraticCurveTo(-h, -h, -h + r, -h);
-
-  const geom = new THREE.ExtrudeGeometry(sh, {
-    depth,
-    bevelEnabled: true,
-    bevelThickness: 0.012,
-    bevelSize: 0.012,
-    bevelSegments: 3,
-    curveSegments: 10,
-  });
-  geom.computeVertexNormals();
-  return geom;
-}
-
-// Module-level shared geometry singletons for maximum WebGL memory efficiency
-let sharedBodyGeom: THREE.BufferGeometry | null = null;
-let sharedTileGeom: THREE.BufferGeometry | null = null;
-
-export function getSharedBodyGeometry(): THREE.BufferGeometry {
-  if (!sharedBodyGeom) {
-    sharedBodyGeom = createRoundedBoxGeometry(0.985, 0.11, 5);
+function flatMaterial(hex: string, opacity: number | null): THREE.MeshLambertMaterial {
+  const mat = new THREE.MeshLambertMaterial({ color: new THREE.Color(hex), flatShading: true });
+  if (opacity !== null) {
+    mat.transparent = true;
+    mat.opacity = opacity;
+    // Faded pieces must not hide the lit pieces behind them.
+    mat.depthWrite = false;
   }
-  return sharedBodyGeom;
+  return mat;
 }
 
-export function getSharedTileGeometry(): THREE.BufferGeometry {
-  if (!sharedTileGeom) {
-    sharedTileGeom = createRoundedTileGeometry(0.84, 0.13, 0.018);
+/**
+ * The geometries and materials shared by a set of cubies. Swapping a mesh between materials
+ * (rather than recoloring one material per tile) keeps the material count fixed.
+ */
+export class VoxelKit {
+  public readonly bodyGeometry: THREE.BoxGeometry;
+  public readonly tileGeometry: THREE.BoxGeometry;
+  public readonly fadedOpacity: number;
+  private readonly body: THREE.MeshLambertMaterial;
+  private readonly bodyFaded: THREE.MeshLambertMaterial;
+  private readonly stickers = new Map<CubeColor, THREE.MeshLambertMaterial>();
+  private readonly stickersFaded = new Map<CubeColor, THREE.MeshLambertMaterial>();
+  private disposed = false;
+
+  constructor(options: VoxelKitOptions = {}) {
+    this.fadedOpacity = options.fadedOpacity ?? FADED_OPACITY;
+    this.bodyGeometry = new THREE.BoxGeometry(CUBIE_SIZE, CUBIE_SIZE, CUBIE_SIZE);
+    this.tileGeometry = new THREE.BoxGeometry(TILE_SIZE, TILE_SIZE, TILE_DEPTH);
+    this.body = flatMaterial(STICKER_CORE_HEX, null);
+    this.bodyFaded = flatMaterial(STICKER_CORE_HEX, this.fadedOpacity);
+    for (const color of COLORS) {
+      this.stickers.set(color, flatMaterial(STICKER_HEX[color], null));
+      this.stickersFaded.set(color, flatMaterial(STICKER_HEX[color], this.fadedOpacity));
+    }
   }
-  return sharedTileGeom;
+
+  public bodyMaterial(faded = false): THREE.MeshLambertMaterial {
+    return faded ? this.bodyFaded : this.body;
+  }
+
+  public sticker(color: CubeColor, faded = false): THREE.MeshLambertMaterial {
+    return (faded ? this.stickersFaded : this.stickers).get(color)!;
+  }
+
+  /** Every material, for disposal and for re-upload after a lost WebGL context. */
+  public materials(): THREE.Material[] {
+    return [this.body, this.bodyFaded, ...this.stickers.values(), ...this.stickersFaded.values()];
+  }
+
+  /** Marks every material for recompilation (used after the WebGL context is restored). */
+  public invalidate(): void {
+    for (const m of this.materials()) m.needsUpdate = true;
+  }
+
+  public dispose(): void {
+    if (this.disposed) return;
+    this.disposed = true;
+    this.bodyGeometry.dispose();
+    this.tileGeometry.dispose();
+    for (const m of this.materials()) m.dispose();
+  }
 }
 
 export interface CubieMeshConfig {
   x: -1 | 0 | 1;
   y: -1 | 0 | 1;
   z: -1 | 0 | 1;
-  size?: number;
   spacing?: number;
 }
+
+/** Outward direction and tile rotation for the side each face is built on. */
+const TILE_SIDES: Record<Face, { normal: [number, number, number]; rotation: THREE.Euler; color: CubeColor }> = {
+  R: { normal: [1, 0, 0], rotation: new THREE.Euler(0, Math.PI / 2, 0), color: 'red' },
+  L: { normal: [-1, 0, 0], rotation: new THREE.Euler(0, -Math.PI / 2, 0), color: 'orange' },
+  U: { normal: [0, 1, 0], rotation: new THREE.Euler(-Math.PI / 2, 0, 0), color: 'white' },
+  D: { normal: [0, -1, 0], rotation: new THREE.Euler(Math.PI / 2, 0, 0), color: 'yellow' },
+  F: { normal: [0, 0, 1], rotation: new THREE.Euler(0, 0, 0), color: 'green' },
+  B: { normal: [0, 0, -1], rotation: new THREE.Euler(0, Math.PI, 0), color: 'blue' },
+};
 
 export class CubieMesh {
   public group: THREE.Group;
   public readonly initialPos: THREE.Vector3;
+  private readonly kit: VoxelKit;
+  private readonly body: THREE.Mesh;
   private stickerMeshes: Partial<Record<Face, THREE.Mesh>> = {};
-  private stickerMaterials: Partial<Record<Face, THREE.MeshPhysicalMaterial>> = {};
+  private stickerColors: Partial<Record<Face, CubeColor>> = {};
+  private faded = false;
 
-  constructor(config: CubieMeshConfig) {
-    const { x, y, z, size = 0.985, spacing = 1.0 } = config;
+  constructor(config: CubieMeshConfig, kit: VoxelKit) {
+    const { x, y, z, spacing = 1.0 } = config;
+    this.kit = kit;
     this.initialPos = new THREE.Vector3(x * spacing, y * spacing, z * spacing);
 
     this.group = new THREE.Group();
     this.group.position.copy(this.initialPos);
 
-    // 1. High-Precision Matte Black Speedcube Body
-    const bodyGeometry = getSharedBodyGeometry();
-    const bodyMaterial = new THREE.MeshPhysicalMaterial({
-      color: 0x15161b,
-      roughness: 0.55,
-      metalness: 0,
-      clearcoat: 0.25,
-      clearcoatRoughness: 0.5,
-    });
-    const bodyMesh = new THREE.Mesh(bodyGeometry, bodyMaterial);
-    bodyMesh.castShadow = true;
-    bodyMesh.receiveShadow = true;
-    this.group.add(bodyMesh);
+    // The body sits at the cubie's origin; tests tell it from tiles by that.
+    this.body = new THREE.Mesh(kit.bodyGeometry, kit.bodyMaterial());
+    this.group.add(this.body);
 
-    // 2. High-Precision 3D Rounded Facelet Tiles
-    const tileGeometry = getSharedTileGeometry();
-    const offset = size / 2 - 0.004;
-
-    // +X (Right face)
-    if (x === 1) {
-      this.addSticker('R', tileGeometry, offset, new THREE.Euler(0, Math.PI / 2, 0), 'red', 'x', 1);
-    }
-    // -X (Left face)
-    if (x === -1) {
-      this.addSticker('L', tileGeometry, offset, new THREE.Euler(0, -Math.PI / 2, 0), 'orange', 'x', -1);
-    }
-    // +Y (Up face)
-    if (y === 1) {
-      this.addSticker('U', tileGeometry, offset, new THREE.Euler(-Math.PI / 2, 0, 0), 'white', 'y', 1);
-    }
-    // -Y (Down face)
-    if (y === -1) {
-      this.addSticker('D', tileGeometry, offset, new THREE.Euler(Math.PI / 2, 0, 0), 'yellow', 'y', -1);
-    }
-    // +Z (Front face)
-    if (z === 1) {
-      this.addSticker('F', tileGeometry, offset, new THREE.Euler(0, 0, 0), 'green', 'z', 1);
-    }
-    // -Z (Back face)
-    if (z === -1) {
-      this.addSticker('B', tileGeometry, offset, new THREE.Euler(0, Math.PI, 0), 'blue', 'z', -1);
+    const coord = { x, y, z };
+    for (const face of Object.keys(TILE_SIDES) as Face[]) {
+      const side = TILE_SIDES[face];
+      const axis = side.normal[0] !== 0 ? 'x' : side.normal[1] !== 0 ? 'y' : 'z';
+      const sign = side.normal[0] + side.normal[1] + side.normal[2];
+      if (coord[axis] === sign) this.addSticker(face);
     }
   }
 
-  private addSticker(
-    face: Face,
-    geometry: THREE.BufferGeometry,
-    posOffset: number,
-    rotation: THREE.Euler,
-    defaultColor: CubeColor,
-    axis: 'x' | 'y' | 'z',
-    sign: number
-  ): void {
-    const mat = new THREE.MeshPhysicalMaterial({
-      color: new THREE.Color(SPEEDCUBE_COLORS[defaultColor] || COLOR_HEX[defaultColor]),
-      roughness: 0.32,
-      metalness: 0,
-      clearcoat: 0.7,
-      clearcoatRoughness: 0.18,
-      envMapIntensity: 0.9,
-    });
-
-    const mesh = new THREE.Mesh(geometry, mat);
-    mesh.rotation.copy(rotation);
-
-    if (axis === 'x') {
-      mesh.position.set(sign * posOffset, 0, 0);
-    } else if (axis === 'y') {
-      mesh.position.set(0, sign * posOffset, 0);
-    } else {
-      mesh.position.set(0, 0, sign * posOffset);
-    }
-
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
-
+  private addSticker(face: Face): void {
+    const side = TILE_SIDES[face];
+    const mesh = new THREE.Mesh(this.kit.tileGeometry, this.kit.sticker(side.color));
+    mesh.rotation.copy(side.rotation);
+    // The tile's back face sits just inside the body surface, so no seam shows between them.
+    const offset = CUBIE_SIZE / 2 + TILE_DEPTH / 2 - 0.005;
+    mesh.position.set(side.normal[0] * offset, side.normal[1] * offset, side.normal[2] * offset);
     this.group.add(mesh);
     this.stickerMeshes[face] = mesh;
-    this.stickerMaterials[face] = mat;
+    this.stickerColors[face] = side.color;
   }
 
   /**
@@ -220,7 +165,7 @@ export class CubieMesh {
       const mesh = this.stickerMeshes[face]!;
       outward.copy(mesh.position).normalize().applyQuaternion(this.group.quaternion);
       if (outward.dot(direction) > 0.9) {
-        this.stickerMaterials[face]!.color.set(SPEEDCUBE_COLORS[color] || COLOR_HEX[color]);
+        this.setStickerColor(face, color);
         return;
       }
     }
@@ -231,22 +176,28 @@ export class CubieMesh {
    * cubie; use setColorFacing to paint by current orientation.
    */
   public setStickerColor(face: Face, color: CubeColor): void {
-    const mat = this.stickerMaterials[face];
-    if (mat) {
-      mat.color.set(SPEEDCUBE_COLORS[color] || COLOR_HEX[color]);
+    const mesh = this.stickerMeshes[face];
+    if (!mesh) return;
+    this.stickerColors[face] = color;
+    mesh.material = this.kit.sticker(color, this.faded);
+  }
+
+  /** Fades the whole cubie (body and tiles) to the kit's faded opacity, or restores it. */
+  public setFaded(faded: boolean): void {
+    if (faded === this.faded) return;
+    this.faded = faded;
+    this.body.material = this.kit.bodyMaterial(faded);
+    for (const face of Object.keys(this.stickerMeshes) as Face[]) {
+      this.stickerMeshes[face]!.material = this.kit.sticker(this.stickerColors[face]!, faded);
     }
   }
 
+  public isFaded(): boolean {
+    return this.faded;
+  }
+
+  /** Geometries and materials belong to the shared VoxelKit; only the scene graph is released. */
   public dispose(): void {
-    this.group.traverse((obj) => {
-      if (obj instanceof THREE.Mesh) {
-        // Do not dispose shared geometries here to allow multi-instance or reuse
-        if (Array.isArray(obj.material)) {
-          obj.material.forEach((m) => m.dispose());
-        } else if (obj.material) {
-          obj.material.dispose();
-        }
-      }
-    });
+    this.group.removeFromParent();
   }
 }

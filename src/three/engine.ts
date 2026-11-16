@@ -3,10 +3,9 @@
  * Necookie Labs (c) 2026
  *
  * Implements:
- * - 27-cubie speedcube construction with PBR physical materials
- * - Studio environment reflection mapping via PMREMGenerator
- * - Soft contact radial shadow projection
- * - Subtle organic floating idle animation
+ * - 27 voxel cubies with flat Lambert colors from the design tokens (ADR-011)
+ * - A fixed light rig that gives each face direction its own flat tone
+ * - Subtle floating idle animation (off under reduced motion)
  * - Drift-free face, wide, slice and whole-cube turns with integer matrix snapping
  * - Dynamic 3D move arrows
  * - Camera controls & reset
@@ -17,7 +16,7 @@ import * as THREE from 'three';
 import { CubeMove, CubeState } from '../cube/types';
 import { moveLayers } from '../cube/transforms';
 import type { Layer } from '../cube/geometry';
-import { CubieMesh } from './cubie';
+import { CubieMesh, VoxelKit } from './cubie';
 import { MoveArrow } from './arrows';
 
 interface QueuedMove {
@@ -105,13 +104,8 @@ export class CubeEngine {
   private pivotGroup: THREE.Group;
   private moveArrow: MoveArrow;
 
-  // Studio environment and contact shadow
-  private pmremGenerator: THREE.PMREMGenerator | null = null;
-  private envTexture: THREE.Texture | null = null;
-  private shadowMesh: THREE.Mesh | null = null;
-  private shadowGeometry: THREE.PlaneGeometry | null = null;
-  private shadowMaterial: THREE.MeshBasicMaterial | null = null;
-  private shadowTexture: THREE.CanvasTexture | null = null;
+  // Geometries and materials shared by all 27 cubies (disposed with the engine).
+  private kit: VoxelKit;
 
   private timer = new THREE.Timer();
   private elapsedS = 0;
@@ -163,7 +157,7 @@ export class CubeEngine {
     this.camera.position.set(0, 0, this.currentDistance);
     this.camera.lookAt(0, 0, 0);
 
-    // 3. WebGL Renderer with High-End Color Science
+    // 3. Renderer: no shadows and no tone mapping, so token colors reach the screen unchanged.
     this.renderer = new THREE.WebGLRenderer({
       antialias: true,
       alpha: true,
@@ -171,34 +165,25 @@ export class CubeEngine {
     });
     this.renderer.setSize(width, height);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-    this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.05;
+    this.renderer.toneMapping = THREE.NoToneMapping;
     container.appendChild(this.renderer.domElement);
 
-    // 4. Studio Environment & Reflections
-    this.pmremGenerator = new THREE.PMREMGenerator(this.renderer);
-    this.setupEnvironment();
-
-    // 5. Lighting
+    // 4. Fixed light rig
     this.setupLighting();
 
-    // 6. Contact Shadow
-    this.setupShadowPlane();
-
-    // 7. Build 27 Speedcube Cubies
+    // 5. Build 27 voxel cubies
+    this.kit = new VoxelKit();
     this.buildCubies();
 
-    // 8. Directional Move Arrow
+    // 6. Directional Move Arrow
     this.moveArrow = new MoveArrow();
     this.rootCubeGroup.add(this.moveArrow.group);
 
-    // 9. Event Listeners
+    // 7. Event Listeners
     this.attachEventListeners();
 
-    // 10. Start Render Loop. The timer is deliberately not connected to the Page Visibility
+    // 8. Start Render Loop. The timer is deliberately not connected to the Page Visibility
     // API: it would report zero elapsed time whenever document.hidden is true, which freezes
     // queued turns in contexts that keep rendering while hidden. Clamping each frame's delta
     // (MAX_FRAME_DELTA_S) already stops a returning tab from fast-forwarding a turn.
@@ -206,116 +191,32 @@ export class CubeEngine {
     this.renderLoop();
   }
 
-  private setupEnvironment(): void {
-    if (!this.pmremGenerator) return;
-
-    try {
-      const envScene = new THREE.Scene();
-      const room = new THREE.Mesh(
-        new THREE.BoxGeometry(20, 20, 20),
-        new THREE.MeshBasicMaterial({ color: 0x3a3f4c, side: THREE.BackSide })
-      );
-      envScene.add(room);
-
-      const addPanel = (w: number, h: number, x: number, y: number, z: number, intensity: number) => {
-        const m = new THREE.Mesh(
-          new THREE.PlaneGeometry(w, h),
-          new THREE.MeshBasicMaterial({
-            color: new THREE.Color(intensity, intensity, intensity),
-            side: THREE.DoubleSide,
-          })
-        );
-        m.position.set(x, y, z);
-        m.lookAt(0, 0, 0);
-        envScene.add(m);
-      };
-
-      addPanel(8, 4, 0, 9, 2, 5.0); // Big overhead softbox
-      addPanel(3, 6, -9, 2, 4, 3.0); // Left strip
-      addPanel(3, 6, 9, 1, -3, 2.2); // Right strip
-      addPanel(6, 2, 0, -2, 9, 1.2); // Front fill
-
-      const renderTarget = this.pmremGenerator.fromScene(envScene, 0.04);
-      this.envTexture = renderTarget.texture;
-      this.scene.environment = this.envTexture;
-
-      envScene.traverse((obj) => {
-        if (obj instanceof THREE.Mesh) {
-          if (obj.geometry) obj.geometry.dispose();
-          if (obj.material) {
-            if (Array.isArray(obj.material)) obj.material.forEach((m) => m.dispose());
-            else obj.material.dispose();
-          }
-        }
-      });
-    } catch {
-      // Graceful fallback if WebGL environment generation fails
-    }
-  }
-
+  /**
+   * Flat-tone light rig. Lambert materials have no specular term, and a box face is planar, so
+   * a directional light gives every face one uniform tone set by the angle it makes with the
+   * light. The light rides on the camera (the camera never orbits; the cube group does), so
+   * tones stay put on screen: faces pointing up read lightest, faces toward the viewer a step
+   * darker, side faces darker again. Intensities are in units of pi because Lambert divides by
+   * pi: ambient + key on a face facing the light is about 1.0, the token color itself.
+   */
   private setupLighting(): void {
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.45);
-    this.scene.add(ambientLight);
-
-    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x445066, 0.4);
-    this.scene.add(hemiLight);
-
-    const mainKeyLight = new THREE.DirectionalLight(0xffffff, 1.2);
-    mainKeyLight.position.set(5, 8, 6);
-    mainKeyLight.castShadow = true;
-    mainKeyLight.shadow.mapSize.width = 1024;
-    mainKeyLight.shadow.mapSize.height = 1024;
-    this.scene.add(mainKeyLight);
-
-    const fillLight = new THREE.DirectionalLight(0x94a3b8, 0.5);
-    fillLight.position.set(-6, -3, -6);
-    this.scene.add(fillLight);
-  }
-
-  private setupShadowPlane(): void {
-    if (typeof document === 'undefined') return;
-
-    try {
-      const sc = document.createElement('canvas');
-      sc.width = 256;
-      sc.height = 256;
-      const sctx = sc.getContext('2d');
-      if (sctx) {
-        const grd = sctx.createRadialGradient(128, 128, 0, 128, 128, 128);
-        grd.addColorStop(0, 'rgba(0,0,0,0.60)');
-        grd.addColorStop(0.45, 'rgba(0,0,0,0.22)');
-        grd.addColorStop(1, 'rgba(0,0,0,0)');
-        sctx.fillStyle = grd;
-        sctx.fillRect(0, 0, 256, 256);
-      }
-      this.shadowTexture = new THREE.CanvasTexture(sc);
-      this.shadowGeometry = new THREE.PlaneGeometry(6.5, 6.5);
-      this.shadowMaterial = new THREE.MeshBasicMaterial({
-        map: this.shadowTexture,
-        transparent: true,
-        depthWrite: false,
-        opacity: 0.85,
-      });
-      this.shadowMesh = new THREE.Mesh(this.shadowGeometry, this.shadowMaterial);
-      this.shadowMesh.rotation.x = -Math.PI / 2;
-      this.shadowMesh.position.y = -2.35;
-      this.scene.add(this.shadowMesh);
-    } catch {
-      // Non-critical visual embellishment
-    }
+    this.scene.add(new THREE.AmbientLight(0xffffff, Math.PI * 0.62));
+    const key = new THREE.DirectionalLight(0xffffff, Math.PI * 0.45);
+    key.position.set(0.35, 1, 0.6);
+    key.target.position.set(0, 0, 0);
+    this.camera.add(key);
+    this.camera.add(key.target);
+    this.scene.add(this.camera);
   }
 
   private buildCubies(): void {
     for (let x = -1; x <= 1; x++) {
       for (let y = -1; y <= 1; y++) {
         for (let z = -1; z <= 1; z++) {
-          const cubie = new CubieMesh({
-            x: x as -1 | 0 | 1,
-            y: y as -1 | 0 | 1,
-            z: z as -1 | 0 | 1,
-            size: 0.985,
-            spacing: 1.0,
-          });
+          const cubie = new CubieMesh(
+            { x: x as -1 | 0 | 1, y: y as -1 | 0 | 1, z: z as -1 | 0 | 1 },
+            this.kit
+          );
           this.cubies.push(cubie);
           this.rootCubeGroup.add(cubie.group);
         }
@@ -601,15 +502,9 @@ export class CubeEngine {
 
     this.rootCubeGroup.rotation.copy(this.currentRotation);
 
-    // Subtle physical floating bob and breathing shadow
+    // Subtle floating bob
     if (!this.prefersReducedMotion) {
-      const t = this.elapsedS;
-      const bob = Math.sin(t * 1.2) * 0.06;
-      this.rootCubeGroup.position.y = bob;
-      if (this.shadowMaterial && this.shadowMesh) {
-        this.shadowMaterial.opacity = 0.85 - bob * 1.8;
-        this.shadowMesh.scale.setScalar(1 - bob * 0.5);
-      }
+      this.rootCubeGroup.position.y = Math.sin(this.elapsedS * 1.2) * 0.06;
     }
 
     this.camera.position.set(0, 0, this.currentDistance);
@@ -658,17 +553,10 @@ export class CubeEngine {
     window.removeEventListener('mouseup', this.onMouseUp);
     window.removeEventListener('resize', this.onWindowResize);
 
-    // Clean up shadow resources
-    if (this.shadowTexture) this.shadowTexture.dispose();
-    if (this.shadowGeometry) this.shadowGeometry.dispose();
-    if (this.shadowMaterial) this.shadowMaterial.dispose();
-
-    // Clean up environment resources
-    if (this.envTexture) this.envTexture.dispose();
-    if (this.pmremGenerator) this.pmremGenerator.dispose();
-
     this.moveArrow.dispose();
     this.cubies.forEach((c) => c.dispose());
+    this.cubies = [];
+    this.kit.dispose();
 
     this.renderer.dispose();
     if (this.renderer.domElement && this.renderer.domElement.parentNode) {
