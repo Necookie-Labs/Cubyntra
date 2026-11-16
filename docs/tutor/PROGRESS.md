@@ -19,7 +19,7 @@ Checklist for `docs/tutor/GOAL.md`. Tick an item only when it is done and tested
 - [x] HexagonBackground and all gradients removed
 - [x] Design-rules test (no gradient/blur/backdrop/text-shadow, tokens only)
 - [x] ADR-011
-- [ ] Phase gate passed and pushed
+- [x] Phase gate passed and pushed
 
 ## Phase 2: Cube engine extensions
 - [x] Rotations x y z
