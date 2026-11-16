@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { TimerView } from '@/components/placeholders/Placeholders';
+import { TimerView } from '@/components/timer/TimerView';
 
 export const metadata: Metadata = { title: 'Timer' };
 

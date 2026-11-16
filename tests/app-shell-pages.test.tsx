@@ -67,7 +67,7 @@ vi.mock('@/sync/CompanionSyncProvider', () => ({
 const { useTutorStore } = await import('@/stores/useTutorStore');
 const { AppShell } = await import('@/components/shell/AppShell');
 const { HomeView } = await import('@/components/home/HomeView');
-const { TimerView, ProgressView } = await import('@/components/placeholders/Placeholders');
+const { ProgressView } = await import('@/components/placeholders/Placeholders');
 const { PairView } = await import('@/components/pair/PairView');
 const { resetAppTokenCache } = await import('@/app-shell/appToken');
 
@@ -170,14 +170,6 @@ describe('Home', () => {
 });
 
 describe('placeholder screens', () => {
-  it.each([
-    ['Timer', TimerView],
-  ])('%s says plainly that it is coming soon', (title, View) => {
-    render(<View />);
-    expect(screen.getByRole('heading', { level: 1, name: title })).toBeTruthy();
-    expect(screen.getByText('Coming soon')).toBeTruthy();
-  });
-
   it('Progress shows the real counts from the profile', () => {
     useTutorStore.setState({ profile: { ...defaultStudentProfile(), stats: { ...defaultStudentProfile().stats, solvesCompleted: 2, stepsCompleted: 31, checkpointsPassed: 29 } } });
     render(<ProgressView />);
