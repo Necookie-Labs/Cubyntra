@@ -368,6 +368,51 @@ describe('CubeEngine layer turns', () => {
   });
 });
 
+describe('CubeEngine playback', () => {
+  /** Pumps frames until the controller has finished every command. */
+  async function settle(engine: Engine): Promise<void> {
+    let idle = false;
+    void engine.playback.whenIdle().then(() => (idle = true));
+    for (let guard = 0; guard < 20_000 && !idle; guard++) {
+      pumpFrames(1);
+      await Promise.resolve();
+    }
+    expect(idle).toBe(true);
+  }
+
+  it('plays, steps back and seeks with the twin matching the logical state after every step', async () => {
+    const engine = makeEngine();
+    const start = applyMoves(createSolvedCubeState(), parseAlgorithm("F2 D' L"));
+    const alg = parseAlgorithm("R u M' x2 S U'");
+    engine.playback.load(start, alg);
+    await settle(engine);
+    expect(readStateFromMaterials(engine)).toEqual(start);
+
+    let state = start;
+    for (const move of alg) {
+      void engine.playback.stepForward();
+      await settle(engine);
+      state = applyMoves(state, [move]);
+      // The start state was painted, not turned in, so only the paint can be compared to it.
+      expect(readStateFromMaterials(engine), move.notation).toEqual(state);
+      expect(allTransformsExact(engine)).toBe(true);
+    }
+
+    for (let i = alg.length; i > 0; i--) {
+      void engine.playback.stepBack();
+      await settle(engine);
+      const expected = applyMoves(start, alg.slice(0, i - 1));
+      expect(readStateFromMaterials(engine)).toEqual(expected);
+      expect(allTransformsExact(engine)).toBe(true);
+    }
+
+    void engine.playback.seek(4);
+    await settle(engine);
+    expect(readStateFromMaterials(engine)).toEqual(applyMoves(start, alg.slice(0, 4)));
+    engine.dispose();
+  });
+});
+
 describe('CubeEngine resources', () => {
   it('disposes the shared voxel geometries and materials with the engine', () => {
     const engine = makeEngine();

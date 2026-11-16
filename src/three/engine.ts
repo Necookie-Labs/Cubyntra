@@ -18,6 +18,7 @@ import { moveLayers } from '../cube/transforms';
 import type { Layer } from '../cube/geometry';
 import { CubieMesh, VoxelKit } from './cubie';
 import { MoveArrow } from './arrows';
+import { PlaybackController } from './playback';
 import { TWIN_THEME_HEX, type ThemeName } from '../lib/tokens';
 
 interface QueuedMove {
@@ -104,6 +105,8 @@ export class CubeEngine {
   private rootCubeGroup: THREE.Group;
   private pivotGroup: THREE.Group;
   private moveArrow: MoveArrow;
+  /** Plays an algorithm on this twin (see src/three/playback.ts). */
+  public readonly playback: PlaybackController;
 
   // Geometries and materials shared by all 27 cubies (disposed with the engine).
   private kit: VoxelKit;
@@ -182,10 +185,13 @@ export class CubeEngine {
     this.moveArrow = new MoveArrow();
     this.rootCubeGroup.add(this.moveArrow.group);
 
-    // 7. Event Listeners
+    // 7. Algorithm playback, driving this engine's turn queue
+    this.playback = new PlaybackController(this);
+
+    // 8. Event Listeners
     this.attachEventListeners();
 
-    // 8. Start Render Loop. The timer is deliberately not connected to the Page Visibility
+    // 9. Start Render Loop. The timer is deliberately not connected to the Page Visibility
     // API: it would report zero elapsed time whenever document.hidden is true, which freezes
     // queued turns in contexts that keep rendering while hidden. Clamping each frame's delta
     // (MAX_FRAME_DELTA_S) already stops a returning tab from fast-forwarding a turn.
@@ -541,6 +547,7 @@ export class CubeEngine {
 
   public dispose(): void {
     this.isDisposed = true;
+    this.playback.dispose();
     if (this.animationFrameId) {
       cancelAnimationFrame(this.animationFrameId);
     }
