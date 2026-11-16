@@ -135,8 +135,8 @@ function MethodPicker() {
             aria-checked={active}
             onClick={() => updateSettings({ methodDefault: id })}
             className={cx(
-              'vx-panel flex flex-col items-start gap-3 p-4 pb-5 text-left',
-              active ? 'bg-leaf-soft' : 'hover:bg-well'
+              'flex flex-col items-start gap-3 border-2 border-line p-4 pb-5 text-left shadow-[inset_0_-4px_0_0_var(--vx-panel-edge),4px_4px_0_0_var(--vx-shadow)]',
+              active ? 'bg-leaf-soft' : 'bg-panel hover:bg-well'
             )}
           >
             <span className="flex w-full items-center justify-between gap-2">

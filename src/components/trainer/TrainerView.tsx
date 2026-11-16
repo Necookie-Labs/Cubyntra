@@ -60,7 +60,7 @@ function SetPicker({ value, onChange }: { value: TrainerSetId; onChange: (id: Tr
             aria-checked={active}
             onClick={() => onChange(set.id)}
             className={cx(
-              'flex min-h-[88px] flex-col items-start justify-between gap-2 border-2 border-line p-3 pb-4 text-left shadow-block-sm',
+              'flex min-h-[88px] flex-col items-start justify-between gap-2 border-2 border-line p-3 pb-4 text-left shadow-[inset_0_-4px_0_0_var(--vx-panel-edge),4px_4px_0_0_var(--vx-shadow)]',
               active ? 'bg-leaf-soft' : 'bg-panel hover:bg-well'
             )}
           >
