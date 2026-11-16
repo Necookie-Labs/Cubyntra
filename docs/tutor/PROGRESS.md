@@ -69,7 +69,7 @@ Checklist for `docs/tutor/GOAL.md`. Tick an item only when it is done and tested
 - [x] Tests with a mocked SDK
 - [x] `scripts/coach-eval.ts`
 - [x] ADR-014
-- [ ] Phase gate passed and pushed
+- [x] Phase gate passed and pushed
 
 ## Phase 7: App shell and PWA
 - [x] Routes and navigation (`(app)` route group, tab bar and side nav; Trainer, Timer and Progress built in Phase 9; `/pair` shows the QR and typed code)
@@ -97,8 +97,8 @@ Checklist for `docs/tutor/GOAL.md`. Tick an item only when it is done and tested
 ## Phase 10: Finish
 - [x] Accessibility pass (axe page audit, token contrast, 44px targets, reduced motion in the twin; `docs/UI_UX.md` §5)
 - [x] Docs, README, CHANGELOG, PDFs (every doc in `docs/` checked against the code; README and CHANGELOG 2.0.0 rewritten; `npm run docs:pdf` builds 25 PDFs, now including the tutor docs and ADR-011 to 015)
-- [ ] Morning report
-- [ ] Final gate passed and pushed
+- [x] Morning report (`docs/tutor/MORNING_REPORT.md`)
+- [x] Final gate passed and pushed
 
 ## Blocked
-_None yet._
+_None._
