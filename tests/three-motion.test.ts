@@ -28,6 +28,7 @@ vi.mock('three', async (importOriginal) => {
 });
 
 const { CubeEngine, snapQuaternionToCubeGroup } = await import('../src/three/engine');
+const ghostModule = await import('../src/three/ghost');
 
 type Engine = InstanceType<typeof CubeEngine>;
 
@@ -505,6 +506,37 @@ describe('CubeEngine grip framing', () => {
     expect(gripOf(engine).current.angleTo(new THREE.Quaternion())).toBeCloseTo(Math.PI, 9);
     engine.setGrip(null);
     expect(gripOf(engine).current.angleTo(new THREE.Quaternion())).toBeLessThan(1e-9);
+    engine.dispose();
+  });
+});
+
+describe('CubeEngine "after" preview', () => {
+  it('shows the expected state in the corner, inside the view, and makes room for it', () => {
+    const engine = makeEngine();
+    pumpFrames(60);
+    const before = (engine as unknown as { currentDistance: number }).currentDistance;
+    const ghost = (engine as unknown as { ghost: import('../src/three/ghost').GhostCube }).ghost;
+    const expected = applyMoves(createSolvedCubeState(), parseAlgorithm("R U R' U'"));
+    engine.setGhostState(expected);
+    pumpFrames(120);
+    expect(ghost.group.visible).toBe(true);
+    expect(ghost.getState()).toBe(expected);
+    expect((engine as unknown as { currentDistance: number }).currentDistance).toBeGreaterThan(before * 1.2);
+
+    // The preview's whole bounding sphere projects inside the frame.
+    const camera = engine.camera;
+    camera.updateMatrixWorld(true);
+    const { GHOST_RADIUS } = ghostModule;
+    const c = ghost.group.position;
+    for (const [dx, dy] of [[1, 0], [0, 1], [-1, 0], [0, -1]]) {
+      const ndc = new THREE.Vector3(c.x + dx * GHOST_RADIUS, c.y + dy * GHOST_RADIUS, 0).project(camera);
+      expect(Math.abs(ndc.x)).toBeLessThanOrEqual(1);
+      expect(Math.abs(ndc.y)).toBeLessThanOrEqual(1);
+    }
+    expect(ghost.group.quaternion.equals((engine as unknown as { rootCubeGroup: THREE.Group }).rootCubeGroup.quaternion)).toBe(true);
+
+    engine.setGhostState(null);
+    expect(ghost.group.visible).toBe(false);
     engine.dispose();
   });
 });

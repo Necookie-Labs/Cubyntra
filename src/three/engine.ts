@@ -23,6 +23,7 @@ import { CubieMesh, paintCubies, VoxelKit } from './cubie';
 import { MoveArrow } from './arrows';
 import { PlaybackController } from './playback';
 import { GripAnimator, gripQuaternion } from './gripCamera';
+import { GhostCube } from './ghost';
 import { isSpotlit, SlotOutline, spotlightKeys, type PiecePosition, type SpotlightPiece } from './spotlight';
 import { TWIN_THEME_HEX, type ThemeName } from '../lib/tokens';
 
@@ -55,6 +56,9 @@ const ORBIT_DAMPING_PER_S = -60 * Math.log(1 - 0.12);
  * inside it in any orientation, including mid-turn, so fitting it in view never clips.
  */
 const CUBE_BOUNDING_RADIUS = 1.5 * Math.sqrt(3);
+
+/** Extra camera distance while the "after" preview is shown, leaving room in the corner. */
+const GHOST_ROOM = 1.3;
 
 const AXES = [new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, 1)];
 
@@ -117,6 +121,8 @@ export class CubeEngine {
   // Teaching aids: lit positions (null = all lit) and the target-slot outline.
   private spotlight: ReadonlySet<string> | null = null;
   private slotOutline: SlotOutline;
+  // Small faded "after" preview in the corner of the view.
+  private ghost: GhostCube;
 
   private timer = new THREE.Timer();
   private elapsedS = 0;
@@ -193,6 +199,8 @@ export class CubeEngine {
     this.rootCubeGroup.add(this.moveArrow.group);
     this.slotOutline = new SlotOutline(TWIN_THEME_HEX[this.theme].focus);
     this.rootCubeGroup.add(this.slotOutline.group);
+    this.ghost = new GhostCube();
+    this.scene.add(this.ghost.group);
 
     // 7. Algorithm playback, driving this engine's turn queue
     this.playback = new PlaybackController(this);
@@ -293,6 +301,16 @@ export class CubeEngine {
     if (this.pendingSync) return this.pendingSync;
     if (this.activeTween) return this.activeTween.targetState;
     return this.shownState;
+  }
+
+  /**
+   * Shows a small faded preview of `state` (what the twin should look like after the current
+   * step) in the top-right corner, or hides it for null. While it is shown the twin's fitted
+   * distance grows a little so the two do not overlap.
+   */
+  public setGhostState(state: CubeState | null): void {
+    this.ghost.setState(state);
+    if (!this.userZoomed) this.targetDistance = this.fitDistance();
   }
 
   /**
@@ -442,7 +460,9 @@ export class CubeEngine {
   private fitDistance(): number {
     const halfV = THREE.MathUtils.degToRad(this.camera.fov / 2);
     const halfH = Math.atan(Math.tan(halfV) * this.camera.aspect);
-    return CUBE_BOUNDING_RADIUS / Math.sin(Math.min(halfV, halfH));
+    const fit = CUBE_BOUNDING_RADIUS / Math.sin(Math.min(halfV, halfH));
+    // Step back a little while the "after" preview shares the view.
+    return this.ghost?.group.visible ? fit * GHOST_ROOM : fit;
   }
 
   private onMouseDown = (e: MouseEvent): void => {
@@ -546,6 +566,13 @@ export class CubeEngine {
     this.camera.position.set(0, 0, this.currentDistance);
     this.camera.lookAt(0, 0, 0);
 
+    if (this.ghost.group.visible) {
+      // Same orientation as the twin, parked in the corner of the visible area at its depth.
+      this.ghost.group.quaternion.copy(this.rootCubeGroup.quaternion);
+      const halfHeight = this.currentDistance * Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2));
+      this.ghost.placeInCorner(halfHeight * this.camera.aspect, halfHeight);
+    }
+
     this.renderer.render(this.scene, this.camera);
     this.animationFrameId = requestAnimationFrame(this.renderLoop);
   }
@@ -592,6 +619,7 @@ export class CubeEngine {
 
     this.moveArrow.dispose();
     this.slotOutline.dispose();
+    this.ghost.dispose();
     this.cubies.forEach((c) => c.dispose());
     this.cubies = [];
     this.kit.dispose();
