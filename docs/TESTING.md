@@ -2,115 +2,93 @@
 
 **Product**: Cubyntra  
 **Organization**: Necookie Labs  
-**Status**: Implemented & Passing (35/35 Tests)  
+**Status**: Implemented, 1,353 tests in 147 files passing (2026-11-17)  
 **Directory**: `tests/`
 
 ---
 
 ## 1. Quality Assurance Philosophy
 
-Because Cubyntra operates at the intersection of discrete group theory, computer vision heuristics, and 3D coordinate geometry, automated testing is mandatory for ensuring system stability.
-
-### Core Testing Invariants:
-1. **Mathematical Invariant Rigor**: Scramble operations must never corrupt piece counts or violate solvability parity unless specifically testing rejection paths.
-2. **Zero Regressions**: All core modules (`src/cube`, `src/vision`, `src/solver`) must maintain full unit test coverage.
-3. **Deterministic Integration Lifecycle**: Integration tests must simulate full end-to-end user workflows from raw frame sampling to final solved identity state.
-
----
-
-## 2. Test Suite Architecture
-
-Cubyntra utilizes **Vitest** for ultrafast, ESM-native TypeScript test execution.
-
-```
-tests/
-├── cube.test.ts         # Domain models, face rotations, invariant validation (14 tests)
-├── vision.test.ts       # Color space conversions, Delta-E, stability filtering (9 tests)
-├── solver.test.ts       # Two-phase algorithm, move parsing, verification (7 tests)
-└── integration.test.ts  # End-to-end scanning, error recovery, and playback (5 tests)
-```
+1. **The logical cube is checked, not trusted.** Tutor plans are replayed on the cube engine, the
+   twin is compared with the logical state after every step, and case tables are checked against
+   hand-written sheets rather than their own entries.
+2. **No network, no real API calls.** The coach is tested with a fake Anthropic client
+   (`tests/helpers/fakeAnthropic.ts`); the build and test suite never call Claude. Route handlers
+   are called directly; profile and usage files are written to a scratch data directory.
+3. **Privacy is a test.** `tests/sync-privacy.test.ts` fails if any route or message can carry
+   image data, or if sync code produces or sends an image.
+4. **Design and accessibility are tests.** Gradients, blur, off-token colors, contrast below AA
+   and small tap targets fail the suite.
+5. **Never loosen a check to get green** (`docs/tutor/GOAL.md`, execution rule 5).
 
 ---
 
-## 3. Test Coverage Matrix
-
-### 3.1 `tests/cube.test.ts`
-- **Initial Solved State**: Verifies exactly 6 faces, 9 stickers per face, correct center colors.
-- **Single Face Rotations**: Verifies `U`, `D`, `L`, `R`, `F`, `B` preserve adjacent face boundary order.
-- **Double Turns & Inverses**: Verifies $M \cdot M' = I$ and $M \cdot M^2 \cdot M = I$.
-- **Validation Engine**:
-  - Rejects invalid facelet counts (e.g. 10 whites, 8 yellows).
-  - Rejects malformed strings (< 54 or > 54 chars, unexpected tokens).
-  - Rejects physical impossible pieces (e.g. White-Yellow edge or Blue-Green corner).
-  - Rejects parity errors (unsolvable single edge flip or single corner twist).
-- **Scramble Generation**: Confirms random scrambles maintain piece invariants.
-
-### 3.2 `tests/vision.test.ts`
-- **Color Conversions**:
-  - RGB to HSV conversion accuracy across primary color bounds.
-  - RGB to CIELAB $L^* a^* b^*$ conversion accuracy under D65 standard illuminant.
-- **CIELAB Delta-E Distance**: Validates perceptual distance matching between reference swatches and noisy camera inputs.
-- **Grid Sampling**: Verifies 9 sample points centered accurately within camera bounding boxes with circular kernel averaging.
-- **Temporal Stability Filter**:
-  - Verifies stability count increments on static frames.
-  - Verifies stability resets to 0 when camera detects motion blur or sticker change.
-  - Locks face capture only after threshold (10 consecutive frames).
-
-### 3.3 `tests/solver.test.ts`
-- **Identity State**: Solved cube returns empty move sequence (`[]`) in < 1 ms.
-- **Benchmark Positions**:
-  - **Superflip**: Solved within 20 HTM moves.
-  - **T-Permutation**: Solved accurately.
-  - **Random Scrambles**: Solved within 20–24 moves.
-- **Move Parsing**: Parses standard notation (`R`, `U'`, `F2`) into structured objects.
-- **Move Inversion**: Correctly reverses move sequences:
-  $$(R \ U \ R' \ U')^{-1} = U \ R \ U' \ R'$$
-- **Simulation Verification**: Proves that applying the generated solution to the initial state arrives at identity.
-
-### 3.4 `tests/integration.test.ts`
-- **Full Scan-to-Solve Lifecycle**: Simulates sequential scanning of 6 faces, validates cube state, runs Kociemba solver, and verifies final state.
-- **Error Recovery Workflow**: Simulates an optical misclassification (e.g. White misread as Yellow), verifies validator rejection, applies manual user correction, and solves successfully.
-- **Interactive Scramble & Solve**: Applies random moves to digital twin, solves, and navigates step-by-step playback to completion.
-
----
-
-## 4. Test Execution & CI Automation
+## 2. Running the Tests
 
 ```bash
-# Execute full test suite
-npm run test
+npm test                  # the whole suite (vitest run), about 30 s on the dev laptop
+npm run test:watch        # watch mode
+npm run test:tutor-soak   # tests/tutor-scrambles.test.ts at 10,000 scrambles per method and
+                          # variant (vitest.soak.config.mts, about 95 s); npm test runs 1,000
+npx vitest run tests/coach-guard.test.ts   # one file
 
-# Run tests in continuous watch mode
-npm run test:watch
-
-# Generate code coverage report
-npm run test:coverage
-
-# Tutor engine soak: 10,000 fixed-seed scrambles for the beginner's method, CFOP 2-look and
-# CFOP with the full last layer (about 95 s). `npm run test` runs the same suite with 1,000 each.
-npm run test:tutor-soak
-```
-
-The tutor engine tests (`tests/tutor-*.test.ts`) and their measured move counts are described in
-`docs/tutor/METHODS.md`, section 8.
-
-The checkpoint tests (`tests/vision-palette.test.ts`, `tests/vision-checkpoint-capture.test.ts`,
-`tests/tutor-checkpoint.test.ts`, `tests/tutor-diagnose.test.ts`, `tests/tutor-recovery.test.ts`
-and the end-to-end `tests/checkpoint-synthetic.test.ts`) and their measured rates are described
-in `docs/tutor/CHECKPOINTS.md`, section 7. To write the rates as JSON:
-
-```bash
+# Write the checkpoint rates as JSON
 CHECKPOINT_REPORT=report.json npx vitest run tests/checkpoint-synthetic.test.ts
 ```
 
-### Current Test Execution Results:
-```
- ✓ tests/cube.test.ts (14 tests) 18ms
- ✓ tests/vision.test.ts (9 tests) 12ms
- ✓ tests/solver.test.ts (7 tests) 42ms
- ✓ tests/integration.test.ts (5 tests) 28ms
+`vitest.config.mts` maps `@/` to `src/`, raises the timeouts (the first Kociemba solve in each
+worker builds its tables) and excludes `.claude/` worktrees. There is no coverage script.
+`npm run coach:eval` is not a test: it runs only when invoked, and calls Claude only with a key
+([DEVELOPMENT.md](DEVELOPMENT.md) §5.4).
 
- Test Files  4 passed (4)
-      Tests  35 passed (35)
-   Duration  240ms (transform 48ms, setup 0ms, collect 38ms, tests 100ms, environment 0ms, prepare 22ms)
-```
+CI (`.github/workflows/ci.yml`, Node 22) runs lint, typecheck, test and build on pushes and pull
+requests to `main`.
+
+---
+
+## 3. Suites
+
+Counts are tests per area as of 2026-11-17 (`npx vitest run --reporter=json`).
+
+| Area | Files | Tests | What they cover |
+|:---|---:|---:|:---|
+| Cube engine (`cube`, `cube-*`, `move-names`) | 7 | 65 | Moves of every kind with hand-written sticker permutations, inverses and orders, `x = R M' L'` style identities, grip, orientation, pieces, validation and parity, move names |
+| Tutor engine (`tutor-*`) | 34 | 250 | Every stage with hand-made cubes, F2L / 2-look / full OLL and PLL tables against hand-written sheets, cross search ≤ 8, replay and advance checks, the fixed-seed scramble suite, checkpoint verification, diagnosis, recovery, the worker jobs, the tutor store |
+| Checkpoint end to end (`checkpoint-*`) | 2 | 16 | Synthetic photos through the real sampling, glare and palette code with injected mistakes; the adapter |
+| Learning (`learn-*` except `learn-case-tiles`) | 4 | 61 | Trainer sets and drills, Leitner boxes, mastery and streaks, WCA inspection and averages |
+| Vision (`vision*`, `color-boundary`, `calibration`, `capture-quality`, `face-analyzer`, `feature-extractor`, `ml-detector`, `reticle-mapping`, `resolve-colors`) | 12 | 81 | Color spaces, red/orange boundary, ML features (parity with the Python formula) and detector, capture checks, 54-tile resolution, palette, checkpoint read, camera start and timeouts |
+| Solver (`solver*`) | 2 | 14 | Kociemba solves verified by simulation, invalid cubes rejected; the worker protocol, client and fallback |
+| 3D twin (`three-*`, `arrows`, `twin-*`, `cube-visualizer`, `app-solve-twin`) | 17 | 145 | Turn direction and exact snapping, playback controller, grip camera, spotlight, ghost, letters, context loss, arrows on all six faces, teaching-twin mapping and hooks, twin colors equal `expectedState` after each step |
+| Coach (`coach-*`) | 11 | 244 | Facts parser, system prompt size and stability, templates and case notes for every id, the move guardrail (tables both ways), the service with a fake SDK (request shape, cap cutoff, fallbacks, usage from stream events), SSE, routes (token, rate limit, body cap), `useCoach` |
+| Sync (`sync-*`, `session-routes`, `paired-phone-routes`, `companion*`, `mobile-integration`, `network`) | 20 | 175 | Session manager, routes and secrets, typed code, pairing storage, message validation, playback and tutor mirroring, phone solve, reconnect, privacy scan, phone capture UI |
+| Profile and local data (`student-*`, `data-dir`, `local-auth`, `app-token`, `read-body-capped`, `route-body-cap`) | 8 | 89 | Profile v2 schema and v1 migration, operation merge, `/api/student`, atomic writes, the app secret and loopback check, streaming body caps |
+| Scan store (`store-*`, `review-store`, `integration`) | 6 | 27 | Scan flow, review fixes and pending phone faces, resets, seek, errors, solver client |
+| App shell and screens (`app-*` except `app-token` and `app-solve-twin`, `pwa-*`, `wake-lock`) | 11 | 66 | Every shell page renders, scan, solve, trainer, timer, progress, settings, method info, manifest and icons, install prompt, wake lock |
+| Design and accessibility (`design-rules`, `tokens`, `ui-*`, `a11y-*`, `learn-case-tiles`) | 13 | 120 | No gradients / blur / glass / off-token colors, token block, UI kit components, axe audit of every screen, contrast, tap targets, reduced motion |
+| **Total** | **147** | **1,353** | |
+
+Each file is counted in one area (for example `learn-case-tiles` under design, `app-token` under profile);
+the per-file list is the output of `npx vitest run`.
+
+---
+
+## 4. Key Measured Results
+
+- **Tutor engine**: 10,000 fixed-seed scrambles per method and variant all solve, every step
+  advances, every case id is triggered; averages 155.8 turns (beginner's), 75.7 (CFOP 2-look),
+  62.3 (CFOP full last layer). Details in [`docs/tutor/METHODS.md`](tutor/METHODS.md) §8.
+- **Checkpoints**: on synthetic photos, correct steps match 311 / 311; 1,819 of 1,821 visible
+  injected mistakes are reported as a mismatch on the first photo and the top diagnosis is right
+  in all 1,819; zero confident-but-wrong diagnoses. Details in
+  [`docs/tutor/CHECKPOINTS.md`](tutor/CHECKPOINTS.md) §7.
+- **Accessibility**: axe finds no serious or critical violations on any screen; method in
+  [UI_UX.md](UI_UX.md) §5.3.
+
+---
+
+## 5. Limits
+
+- Vision numbers come from synthetic photos; real cameras, glare and worn stickers are checked
+  by hand, not by the suite.
+- jsdom has no layout: contrast is computed from the tokens and tap targets from class names.
+- The coach's live behaviour is sampled by `npm run coach:eval` with a key, outside the suite.
