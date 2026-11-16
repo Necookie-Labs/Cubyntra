@@ -7,8 +7,17 @@
 
 import React from 'react';
 import { useCubyntraStore } from '@/stores/useCubyntraStore';
-import { COLOR_HEX } from '@/cube/constants';
 import { Activity, X, Eye } from 'lucide-react';
+import { Chip, IconButton, stickerColor } from '@/components/ui';
+
+function Stat({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-baseline justify-between gap-2">
+      <span className="text-muted">{label}</span>
+      <span className="font-bold text-ink">{children}</span>
+    </div>
+  );
+}
 
 export const CVDebugger: React.FC = () => {
   const { currentClassification, isDebugMode, toggleDebugMode } = useCubyntraStore();
@@ -16,136 +25,91 @@ export const CVDebugger: React.FC = () => {
   if (!isDebugMode) return null;
 
   const stickers = currentClassification?.stickers || [];
+  const detection = currentClassification?.detection;
 
   return (
-    <div className="fixed bottom-4 left-4 z-40 w-96 max-h-[85vh] bg-inset/95 backdrop-blur-md border border-neutral-800 rounded-xl shadow-2xl p-4 flex flex-col gap-3 font-mono text-xs overflow-y-auto">
+    <div className="vx-panel vx-place fixed bottom-4 left-4 z-40 flex max-h-[85vh] w-96 max-w-[calc(100vw-2rem)] flex-col gap-3 overflow-y-auto p-4 pb-5 font-mono text-xs">
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-neutral-800 pb-2">
-        <div className="flex items-center gap-2 text-sky-400">
-          <Activity className="w-4 h-4" />
-          <span className="font-bold tracking-wider uppercase text-[11px]">
-            CV Pipeline Telemetry
+      <div className="flex items-center justify-between border-b-2 border-line-soft pb-2">
+        <div className="flex items-center gap-2 text-ink">
+          <span
+            aria-hidden
+            data-variant="primary"
+            className="vx-block flex h-6 w-6 items-center justify-center"
+          >
+            <Activity className="h-4 w-4" />
           </span>
+          <span className="font-display text-sm">CV Pipeline Telemetry</span>
         </div>
-        <button
-          type="button"
-          onClick={toggleDebugMode}
-          className="text-neutral-400 hover:text-white p-1 rounded hover:bg-neutral-800"
-        >
-          <X className="w-3.5 h-3.5" />
-        </button>
+        <IconButton label="Close CV debugger" variant="ghost" size="sm" onClick={toggleDebugMode}>
+          <X className="h-4 w-4" />
+        </IconButton>
       </div>
 
       {/* Global Stability Metrics */}
-      <div className="grid grid-cols-2 gap-2 text-[11px] bg-neutral-900/80 p-2.5 rounded-lg border border-neutral-800/80">
-        <div>
-          <span className="text-neutral-400">Target Face:</span>{' '}
-          <span className="text-white font-bold">{currentClassification?.expectedFace || 'None'}</span>
-        </div>
-        <div>
-          <span className="text-neutral-400">Avg Conf:</span>{' '}
-          <span className="text-emerald-400 font-bold">
-            {currentClassification ? `${Math.round(currentClassification.averageConfidence * 100)}%` : '--'}
-          </span>
-        </div>
-        <div>
-          <span className="text-neutral-400">Stability:</span>{' '}
-          <span className={currentClassification?.isStable ? 'text-emerald-400' : 'text-amber-400'}>
-            {currentClassification?.isStable ? 'LOCKED' : 'SAMPLING'}
-          </span>
-        </div>
-        <div>
-          <span className="text-neutral-400">Frames:</span>{' '}
-          <span className="text-neutral-200">{currentClassification?.stableFramesCount || 0}</span>
-        </div>
+      <div className="vx-well grid grid-cols-2 gap-x-4 gap-y-1 p-2">
+        <Stat label="Target face">{currentClassification?.expectedFace || 'None'}</Stat>
+        <Stat label="Avg conf">
+          {currentClassification ? `${Math.round(currentClassification.averageConfidence * 100)}%` : '--'}
+        </Stat>
+        <Stat label="Stability">{currentClassification?.isStable ? 'LOCKED' : 'SAMPLING'}</Stat>
+        <Stat label="Frames">{currentClassification?.stableFramesCount || 0}</Stat>
       </div>
 
       {/* ML Cube vs Face Detector Telemetry */}
-      {currentClassification?.detection && (
-        <div className="bg-neutral-900/90 border border-neutral-800 p-2.5 rounded-lg flex flex-col gap-1.5 text-[11px]">
-          <div className="flex items-center justify-between border-b border-neutral-800/80 pb-1">
-            <span className="text-sky-400 font-bold uppercase tracking-wider text-[10px]">
-              ML Presence Verification
-            </span>
-            <span
-              className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${
-                currentClassification.detection.isCube
-                  ? 'bg-emerald-950 text-emerald-400 border border-emerald-800'
-                  : currentClassification.detection.classification === 'face'
-                  ? 'bg-rose-950 text-rose-400 border border-rose-800'
-                  : 'bg-neutral-800 text-neutral-400'
-              }`}
-            >
-              {currentClassification.detection.isCube
-                ? 'Cube Verified'
-                : currentClassification.detection.classification === 'face'
-                ? 'Face Detected'
-                : 'No Cube'}
-            </span>
+      {detection && (
+        <div className="vx-well flex flex-col gap-2 p-2">
+          <div className="flex items-center justify-between gap-2 border-b-2 border-line-soft pb-2">
+            <span className="font-bold uppercase text-ink">ML presence check</span>
+            <Chip tone={detection.isCube ? 'leaf' : detection.classification === 'face' ? 'danger' : 'neutral'}>
+              {detection.isCube ? 'Cube Verified' : detection.classification === 'face' ? 'Face Detected' : 'No Cube'}
+            </Chip>
           </div>
 
-          <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-[10px]">
-            <div>
-              <span className="text-neutral-400">P(Cube):</span>{' '}
-              <span className="text-white font-semibold">
-                {Math.round(currentClassification.detection.cubeConfidence * 100)}%
+          <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+            <Stat label="P(cube)">{Math.round(detection.cubeConfidence * 100)}%</Stat>
+            <Stat label="P(face)">
+              <span className={detection.faceConfidence > 0.4 ? 'bg-danger-soft px-1' : undefined}>
+                {Math.round(detection.faceConfidence * 100)}%
               </span>
-            </div>
-            <div>
-              <span className="text-neutral-400">P(Face):</span>{' '}
-              <span className={currentClassification.detection.faceConfidence > 0.4 ? 'text-rose-400 font-semibold' : 'text-white'}>
-                {Math.round(currentClassification.detection.faceConfidence * 100)}%
-              </span>
-            </div>
-            <div>
-              <span className="text-neutral-400">Skin Ratio:</span>{' '}
-              <span className="text-neutral-200">
-                {Math.round(currentClassification.detection.features.skinFraction * 100)}%
-              </span>
-            </div>
-            <div>
-              <span className="text-neutral-400">Seam Contrast:</span>{' '}
-              <span className="text-neutral-200">
-                {Math.round(currentClassification.detection.features.gridSeamContrast * 100)}%
-              </span>
-            </div>
+            </Stat>
+            <Stat label="Skin">{Math.round(detection.features.skinFraction * 100)}%</Stat>
+            <Stat label="Seams">{Math.round(detection.features.gridSeamContrast * 100)}%</Stat>
           </div>
 
-          <div className="text-[9px] text-neutral-400 truncate pt-0.5">
-            {currentClassification.detection.reason}
-          </div>
+          <div className="truncate text-muted">{detection.reason}</div>
         </div>
       )}
 
       {/* 3x3 Live Sticker Matrix */}
       <div>
-        <div className="text-[10px] text-neutral-400 uppercase tracking-wider mb-1 flex items-center gap-1">
-          <Eye className="w-3 h-3" />
-          <span>3x3 Sticker Cell Inspection</span>
+        <div className="mb-2 flex items-center gap-1 uppercase text-muted">
+          <Eye className="h-4 w-4" />
+          <span>3x3 sticker cells</span>
         </div>
 
-        <div className="grid grid-cols-3 gap-1.5">
+        <div className="grid grid-cols-3 gap-2">
           {stickers.map((sample) => (
-            <div
-              key={sample.index}
-              className="bg-neutral-900/90 border border-neutral-800 p-1.5 rounded flex flex-col gap-1"
-            >
+            <div key={sample.index} className="flex flex-col gap-1 border-2 border-line-soft bg-panel p-2">
               <div className="flex items-center justify-between">
-                <span className="text-[9px] text-neutral-400">#{sample.index}</span>
-                <div
-                  className="w-3 h-3 rounded-[2px] border border-white/40"
-                  style={{ backgroundColor: COLOR_HEX[sample.predictedColor] }}
+                <span className="text-muted">#{sample.index}</span>
+                <span
+                  aria-hidden
+                  className="h-4 w-4 border-2 border-line"
+                  style={{ backgroundColor: stickerColor(sample.predictedColor) }}
                 />
               </div>
 
-              <div className="text-[10px] font-bold text-white capitalize truncate">
-                {sample.predictedColor}
-              </div>
+              <div className="truncate font-bold capitalize text-ink">{sample.predictedColor}</div>
 
-              <div className="text-[9px] text-neutral-400 space-y-0.5">
-                <div>RGB: {sample.rgb.r},{sample.rgb.g},{sample.rgb.b}</div>
-                <div>HSV: {Math.round(sample.hsv.h)}°,{Math.round(sample.hsv.s)}%</div>
-                <div>Conf: {Math.round(sample.confidence * 100)}%</div>
+              <div className="flex flex-col text-muted">
+                <span>
+                  RGB {sample.rgb.r},{sample.rgb.g},{sample.rgb.b}
+                </span>
+                <span>
+                  HSV {Math.round(sample.hsv.h)}°,{Math.round(sample.hsv.s)}%
+                </span>
+                <span>Conf {Math.round(sample.confidence * 100)}%</span>
               </div>
             </div>
           ))}
