@@ -4,7 +4,7 @@
  * Cubyntra - Settings
  * Necookie Labs (c) 2026
  *
- * Name, default method, how moves and stickers are shown, theme and motion, the coach's mode
+ * Name, default method (and CFOP's last layer), how moves and stickers are shown, theme and motion, the coach's mode
  * and spend this month, and installing the app on a phone. Every change saves to the
  * student's profile on the laptop.
  */
@@ -20,7 +20,7 @@ import { promptInstall, useInstallState } from '@/app-shell/install';
 import { MAX_NAME_LENGTH, type ThemeSetting } from '@/lib/studentProfile';
 import { THEME_CHANGE_EVENT, readThemePreference, setThemePreference, type ThemePreference } from '@/lib/theme';
 import type { CoachMode } from '@/coach/types';
-import type { MethodId } from '@/tutor/types';
+import type { LastLayerMode, MethodId } from '@/tutor/types';
 
 function subscribeTheme(onChange: () => void) {
   window.addEventListener(THEME_CHANGE_EVENT, onChange);
@@ -184,7 +184,12 @@ const THEME_OPTIONS = [
   { value: 'system', label: 'System', icon: <Monitor aria-hidden className="h-4 w-4" /> },
 ] as const;
 
-const SAMPLE_FACE = ['green', 'white', 'red', 'orange', 'blue', 'yellow', 'red', 'green', 'white'] as const;
+const LAST_LAYER_OPTIONS = [
+  { value: '2-look', label: '2-look' },
+  { value: 'full', label: 'Full OLL and PLL' },
+] as const;
+
+const SAMPLE_FACE =['green', 'white', 'red', 'orange', 'blue', 'yellow', 'red', 'green', 'white'] as const;
 
 export function SettingsView() {
   const settings = useTutorStore((s) => s.profile.settings);
@@ -222,6 +227,22 @@ export function SettingsView() {
               onChange={(methodDefault) => updateSettings({ methodDefault })}
             />
           </div>
+          {settings.methodDefault === 'cfop' && (
+            <div className="flex flex-col gap-2">
+              <span className="text-sm font-bold text-ink">CFOP last layer</span>
+              <SegmentedControl<LastLayerMode>
+                label="CFOP last layer"
+                value={settings.lastLayer}
+                options={LAST_LAYER_OPTIONS}
+                onChange={(lastLayer) => updateSettings({ lastLayer })}
+              />
+              <p className="text-xs text-muted">
+                {settings.lastLayer === 'full'
+                  ? 'One OLL step and one PLL step: 57 and 21 cases. Practise them in the trainer.'
+                  : 'Four short steps with 16 cases in all. The way CFOP is first taught.'}
+              </p>
+            </div>
+          )}
         </Panel>
       </PageSection>
 

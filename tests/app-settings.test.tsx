@@ -6,7 +6,7 @@
 
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { planNextStep } from '@/tutor';
 import { defaultStudentProfile } from '@/lib/studentProfile';
 
@@ -133,4 +133,15 @@ describe('Settings', () => {
     fireEvent.blur(input);
     expect(useTutorStore.getState().profile.name).toBe('Mia');
   });
+
+  it('offers the CFOP last layer only for CFOP and saves it', () => {
+    render(<SettingsView />);
+    expect(screen.queryByRole('radiogroup', { name: 'CFOP last layer' })).toBeNull();
+    fireEvent.click(within(screen.getByRole('radiogroup', { name: 'Method to start with' })).getByRole('radio', { name: 'CFOP' }));
+    const group = screen.getByRole('radiogroup', { name: 'CFOP last layer' });
+    expect(within(group).getByRole('radio', { name: '2-look' }).getAttribute('aria-checked')).toBe('true');
+    fireEvent.click(within(group).getByRole('radio', { name: 'Full OLL and PLL' }));
+    expect(useTutorStore.getState().profile.settings.lastLayer).toBe('full');
+  });
 });
+
