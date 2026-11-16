@@ -13,7 +13,7 @@
  */
 
 import * as THREE from 'three';
-import { CubeColor, Face } from '../cube/types';
+import { CubeColor, CubeState, Face } from '../cube/types';
 import { STICKER_CORE_HEX, STICKER_HEX } from '../lib/tokens';
 
 /** Edge length of a cubie body. The 0.02 gap to the next cubie shows as a dark seam. */
@@ -199,5 +199,65 @@ export class CubieMesh {
   /** Geometries and materials belong to the shared VoxelKit; only the scene graph is released. */
   public dispose(): void {
     this.group.removeFromParent();
+  }
+}
+
+const FACE_DIRECTION = {
+  U: new THREE.Vector3(0, 1, 0),
+  D: new THREE.Vector3(0, -1, 0),
+  F: new THREE.Vector3(0, 0, 1),
+  B: new THREE.Vector3(0, 0, -1),
+  R: new THREE.Vector3(1, 0, 0),
+  L: new THREE.Vector3(-1, 0, 0),
+} as const;
+
+/**
+ * Paints `cubies` (in their current positions and orientations) with a logical state. Tiles are
+ * picked by the direction they face now, so this is correct after any number of turns.
+ */
+export function paintCubies(cubies: readonly CubieMesh[], state: CubeState): void {
+  for (const cubie of cubies) {
+    const pos = cubie.group.position;
+    const x = Math.round(pos.x);
+    const y = Math.round(pos.y);
+    const z = Math.round(pos.z);
+
+    // Tiles are painted by the direction they face now, since turns rotate cubies.
+    // U Face (+Y, y = 1)
+    if (y === 1) {
+      const col = x + 1;
+      const row = z + 1;
+      cubie.setColorFacing(FACE_DIRECTION.U, state.U[row * 3 + col]);
+    }
+    // D Face (-Y, y = -1)
+    if (y === -1) {
+      const col = x + 1;
+      const row = 1 - z;
+      cubie.setColorFacing(FACE_DIRECTION.D, state.D[row * 3 + col]);
+    }
+    // F Face (+Z, z = 1)
+    if (z === 1) {
+      const col = x + 1;
+      const row = 1 - y;
+      cubie.setColorFacing(FACE_DIRECTION.F, state.F[row * 3 + col]);
+    }
+    // B Face (-Z, z = -1)
+    if (z === -1) {
+      const col = 1 - x;
+      const row = 1 - y;
+      cubie.setColorFacing(FACE_DIRECTION.B, state.B[row * 3 + col]);
+    }
+    // R Face (+X, x = 1)
+    if (x === 1) {
+      const col = 1 - z;
+      const row = 1 - y;
+      cubie.setColorFacing(FACE_DIRECTION.R, state.R[row * 3 + col]);
+    }
+    // L Face (-X, x = -1)
+    if (x === -1) {
+      const col = z + 1;
+      const row = 1 - y;
+      cubie.setColorFacing(FACE_DIRECTION.L, state.L[row * 3 + col]);
+    }
   }
 }
