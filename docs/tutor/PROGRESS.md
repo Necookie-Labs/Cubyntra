@@ -77,7 +77,7 @@ Checklist for `docs/tutor/GOAL.md`. Tick an item only when it is done and tested
 - [x] Manifest, icons, wake lock
 - [x] Student profile and resume (`data/student.json`)
 - [x] Error states (camera denied, coach offline/capped, cube unreadable, planning/worker failure); service-worker caching not done, setup notes in `docs/DEVELOPMENT.md` §6
-- [ ] Phase gate passed and pushed
+- [x] Phase gate passed and pushed
 
 ## Phase 8: Sync
 - [x] State-only sync; photo relay removed
