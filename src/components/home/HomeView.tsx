@@ -15,8 +15,8 @@ import { ArrowRight, GraduationCap, ScanLine, Shuffle, Smartphone, Target, Timer
 import { BlockButton, Chip, Panel, ProgressBlocks, cx } from '@/components/ui';
 import { BlockLink } from '@/components/shell/BlockLink';
 import { PageContainer, PageHeader, PageSection } from '@/components/shell/Page';
-import { useTutorStore } from '@/stores/useTutorStore';
-import { METHOD_IDS, METHOD_INFO } from '@/app-shell/methodInfo';
+import { methodOptionsFor, useTutorStore } from '@/stores/useTutorStore';
+import { METHOD_IDS, METHOD_INFO, methodStages } from '@/app-shell/methodInfo';
 import { useStageProgress } from '@/app-shell/useStageProgress';
 import { demoCube } from '@/app-shell/demoCube';
 import { summarizeProgress } from '@/app-shell/progressSummary';
@@ -82,10 +82,13 @@ function GraduationCard() {
 function ContinueCard() {
   const solve = useTutorStore((s) => s.profile.currentSolve);
   const abandonSolve = useTutorStore((s) => s.abandonSolve);
-  const progress = useStageProgress(solve?.state ?? null, solve?.method ?? null);
+  const lastLayer = useTutorStore((s) => s.profile.settings.lastLayer);
+  const options = solve ? methodOptionsFor(solve.method, { lastLayer }) : undefined;
+  const progress = useStageProgress(solve?.state ?? null, solve?.method ?? null, options);
   if (!solve) return null;
   const info = METHOD_INFO[solve.method];
-  const stageName = progress && !progress.done ? info.stages[progress.stageIndex]?.name : null;
+  const stages = methodStages(solve.method, options?.lastLayer);
+  const stageName = progress && !progress.done ? stages[progress.stageIndex]?.name : null;
 
   return (
     <Panel as="section" aria-labelledby="continue-title" className="vx-place flex flex-col gap-4 p-6 pb-7">
@@ -101,8 +104,8 @@ function ContinueCard() {
       </div>
       {progress && (
         <ProgressBlocks
-          total={info.stages.length}
-          done={progress.done ? info.stages.length : progress.stageIndex}
+          total={stages.length}
+          done={progress.done ? stages.length : progress.stageIndex}
           label={`${info.name} stages done`}
         />
       )}

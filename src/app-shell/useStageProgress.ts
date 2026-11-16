@@ -10,16 +10,21 @@
 
 import { useEffect, useState } from 'react';
 import type { CubeState } from '@/cube/types';
-import type { MethodId, TutorProgress } from '@/tutor/types';
+import type { MethodId, MethodOptions, TutorProgress } from '@/tutor/types';
 import { tutorProgressInWorker } from '@/solver/client';
 
-export function useStageProgress(state: CubeState | null, method: MethodId | null): TutorProgress | null {
+export function useStageProgress(
+  state: CubeState | null,
+  method: MethodId | null,
+  options?: MethodOptions
+): TutorProgress | null {
+  const lastLayer = options?.lastLayer;
   const [result, setResult] = useState<{ key: unknown; progress: TutorProgress } | null>(null);
 
   useEffect(() => {
     if (!state || !method) return;
     let live = true;
-    tutorProgressInWorker(state, method)
+    tutorProgressInWorker(state, method, lastLayer ? { lastLayer } : undefined)
       .then((progress) => {
         if (live) setResult({ key: state, progress });
       })
@@ -29,7 +34,7 @@ export function useStageProgress(state: CubeState | null, method: MethodId | nul
     return () => {
       live = false;
     };
-  }, [state, method]);
+  }, [state, method, lastLayer]);
 
   return result && result.key === state ? result.progress : null;
 }
