@@ -32,13 +32,13 @@ Checklist for `docs/tutor/GOAL.md`. Tick an item only when it is done and tested
 - [x] Phase gate passed and pushed
 
 ## Phase 3: Tutor engine
-- [ ] Step-plan types and method framework
-- [ ] Beginner's method: all stages
-- [ ] CFOP cross
-- [ ] CFOP F2L (41 cases)
-- [ ] CFOP 2-look OLL and PLL
-- [ ] 10,000-scramble tests for both methods
-- [ ] ADR-012
+- [x] Step-plan types and method framework
+- [x] Beginner's method: all stages
+- [x] CFOP cross
+- [x] CFOP F2L (41 cases)
+- [x] CFOP 2-look OLL and PLL
+- [x] 10,000-scramble tests for both methods
+- [x] ADR-012
 - [ ] Phase gate passed and pushed
 
 ## Phase 4: Teaching twin
