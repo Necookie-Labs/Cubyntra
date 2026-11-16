@@ -58,7 +58,7 @@ Checklist for `docs/tutor/GOAL.md`. Tick an item only when it is done and tested
 - [x] Rescan and replan path; manual fallback (`src/tutor/recovery.ts`, `confirmManually`, `applyTileEdits`; buttons pending in the UI)
 - [x] Injected-mistake tests (≥ 95% top diagnosis): 1821 / 1821 on synthetic photos, see `docs/tutor/CHECKPOINTS.md`
 - [x] ADR-013
-- [ ] Phase gate passed and pushed
+- [x] Phase gate passed and pushed
 
 ## Phase 6: Claude coach
 - [x] `/api/coach` with streaming, Haiku 5.5, cached system prompt
