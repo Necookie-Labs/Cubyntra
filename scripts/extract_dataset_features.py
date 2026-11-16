@@ -1,16 +1,38 @@
 """
 Cubyntra - Extract Empirical 18-Dim Features from Kaggle Rubik's Cube Images
 Necookie Labs (c) 2026
+
+Usage: python scripts/extract_dataset_features.py <path/to/rubix-cube.zip>
+   (or set CUBYNTRA_DATASET_ZIP and run without arguments)
 """
 
 import zipfile
 import io
 import json
+import os
+import sys
 from PIL import Image
 import numpy as np
 
-ZIP_PATH = r"C:\Users\dheyn\Downloads\rubix-cube.zip"
-OUTPUT_JSON = r"src\vision\ml\datasetFeatures.json"
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DATASET_ENV = "CUBYNTRA_DATASET_ZIP"
+OUTPUT_JSON = os.path.join(REPO_ROOT, "src", "vision", "ml", "datasetFeatures.json")
+
+
+def resolve_dataset_path():
+    """Dataset zip from the first argument or the CUBYNTRA_DATASET_ZIP environment variable."""
+    path = sys.argv[1] if len(sys.argv) > 1 else os.environ.get(DATASET_ENV)
+    if not path or path in ("-h", "--help"):
+        script = os.path.basename(__file__)
+        print(f"Usage: python scripts/{script} <path/to/rubix-cube.zip>", file=sys.stderr)
+        print(f"   or: set {DATASET_ENV}=<path/to/rubix-cube.zip> and run without arguments.", file=sys.stderr)
+        print("Dataset: https://www.kaggle.com/datasets/bjoernjostein/rubix-cube", file=sys.stderr)
+        sys.exit(2)
+    if not os.path.isfile(path):
+        print(f"Dataset zip file not found: {path}", file=sys.stderr)
+        sys.exit(1)
+    return path
+
 
 def extract_features_from_image(im):
     """
@@ -128,8 +150,9 @@ def extract_features_from_image(im):
     ]
 
 def main():
-    print(f"Extracting empirical features from {ZIP_PATH}...")
-    zf = zipfile.ZipFile(ZIP_PATH)
+    zip_path = resolve_dataset_path()
+    print(f"Extracting empirical features from {zip_path}...")
+    zf = zipfile.ZipFile(zip_path)
     all_files = [f for f in zf.namelist() if f.startswith('training/training/images/') and f.endswith('.jpg')]
     
     dataset_features = []

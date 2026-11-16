@@ -4,17 +4,38 @@ Necookie Labs (c) 2026
 
 Extracts empirical color profiles, gamut boundaries, and training samples from:
 https://www.kaggle.com/datasets/bjoernjostein/rubix-cube (rubix-cube.zip)
+
+Usage: python scripts/train_dataset_model.py <path/to/rubix-cube.zip>
+   (or set CUBYNTRA_DATASET_ZIP and run without arguments)
 """
 
 import zipfile
 import io
 import json
 import os
+import sys
 from PIL import Image
 import numpy as np
 
-ZIP_PATH = r"C:\Users\dheyn\Downloads\rubix-cube.zip"
-OUTPUT_JSON = r"src\vision\ml\datasetColorProfile.json"
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DATASET_ENV = "CUBYNTRA_DATASET_ZIP"
+OUTPUT_JSON = os.path.join(REPO_ROOT, "src", "vision", "ml", "datasetColorProfile.json")
+
+
+def resolve_dataset_path():
+    """Dataset zip from the first argument or the CUBYNTRA_DATASET_ZIP environment variable."""
+    path = sys.argv[1] if len(sys.argv) > 1 else os.environ.get(DATASET_ENV)
+    if not path or path in ("-h", "--help"):
+        script = os.path.basename(__file__)
+        print(f"Usage: python scripts/{script} <path/to/rubix-cube.zip>", file=sys.stderr)
+        print(f"   or: set {DATASET_ENV}=<path/to/rubix-cube.zip> and run without arguments.", file=sys.stderr)
+        print("Dataset: https://www.kaggle.com/datasets/bjoernjostein/rubix-cube", file=sys.stderr)
+        sys.exit(2)
+    if not os.path.isfile(path):
+        print(f"Dataset zip file not found: {path}", file=sys.stderr)
+        sys.exit(1)
+    return path
+
 
 def rgb_to_lab(r, g, b):
     # sRGB to linear
@@ -57,12 +78,9 @@ def rgb_to_hsv(r, g, b):
     v = cmax * 100
     return h, s, v
 
-def process_dataset():
-    print(f"Opening dataset from: {ZIP_PATH}")
-    if not os.path.exists(ZIP_PATH):
-        raise FileNotFoundError(f"Dataset zip file not found at {ZIP_PATH}")
-        
-    zf = zipfile.ZipFile(ZIP_PATH)
+def process_dataset(zip_path):
+    print(f"Opening dataset from: {zip_path}")
+    zf = zipfile.ZipFile(zip_path)
     all_files = [f for f in zf.namelist() if f.startswith('training/training/images/') and f.endswith('.jpg')]
     print(f"Found {len(all_files)} images in dataset. Processing a representative sample of 300 images...")
     
@@ -149,4 +167,4 @@ def process_dataset():
     print(f"Saved empirical color profiles to {OUTPUT_JSON}")
 
 if __name__ == "__main__":
-    process_dataset()
+    process_dataset(resolve_dataset_path())

@@ -80,6 +80,13 @@ To ground the vision pipeline in real physical measurements rather than theoreti
 ### 2.2 Empirical Color Extraction Pipeline
 A high-throughput Python analysis pipeline (`scripts/train_dataset_model.py`) was executed over 300 Kaggle dataset images, isolating centered 3x3 sticker regions across more than 175,000 individual authentic sticker pixels.
 
+Both dataset scripts take the path to the downloaded `rubix-cube.zip` as their first argument (or from the `CUBYNTRA_DATASET_ZIP` environment variable) and write their JSON output into `src/vision/ml/` relative to the repository:
+
+```bash
+python scripts/train_dataset_model.py path/to/rubix-cube.zip        # -> datasetColorProfile.json
+python scripts/extract_dataset_features.py path/to/rubix-cube.zip   # -> datasetFeatures.json
+```
+
 For each color class $c \in \{\text{white}, \text{yellow}, \text{green}, \text{blue}, \text{red}, \text{orange}\}$, the pipeline computed:
 1. Mean sRGB and standard deviation vector $(\mu_{\text{RGB}}, \sigma_{\text{RGB}})$.
 2. Conversion to D65 standard illuminant CIELAB coordinates $(L^*, a^*, b^*)$.
