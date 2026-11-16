@@ -19,7 +19,7 @@ import { MobilePairingModal } from '@/components/sync/MobilePairingModal';
 import { CompanionScanPanel } from '@/components/sync/CompanionScanPanel';
 import { ScanReview } from '@/components/review/ScanReview';
 import { CompanionSyncProvider, useCompanion } from '@/sync/CompanionSyncProvider';
-import { Camera, Sparkles, Shield, Cpu, Layers, Smartphone, QrCode } from 'lucide-react';
+import { Camera, Sparkles, Shield, Cpu, Layers, Smartphone } from 'lucide-react';
 
 /**
  * 'auto': opened by "Scan with Phone"; steps aside once the phone connects.

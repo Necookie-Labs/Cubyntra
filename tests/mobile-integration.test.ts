@@ -11,7 +11,6 @@ import { validateCubeState } from '../src/cube/validator';
 import { solveCube } from '../src/solver/solver';
 import { CubeState, Face, FaceStickers } from '../src/cube/types';
 import { buildDynamicPalette, classifyWithDynamicPalette } from '../src/vision/dynamicCalibration';
-import { resolve54StickerInvariant, StickerCostProfile } from '../src/vision/invariantSolver';
 
 describe('Mobile Companion End-to-End Solve Pipeline', () => {
   const sessionId = 'mob-test-e2e';

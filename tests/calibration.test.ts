@@ -13,7 +13,7 @@ import {
   solveHungarian,
   StickerCostProfile,
 } from '../src/vision/invariantSolver';
-import { COLORS, CANONICAL_CENTER_COLORS, FACES } from '../src/cube/constants';
+import { COLORS } from '../src/cube/constants';
 import { CubeColor } from '../src/cube/types';
 
 describe('Dynamic Center-Sticker Calibration Engine', () => {

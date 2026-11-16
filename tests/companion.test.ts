@@ -5,7 +5,6 @@
 
 import { describe, it, expect } from 'vitest';
 import { SCAN_SEQUENCE, CANONICAL_CENTER_COLORS, FACES } from '../src/cube/constants';
-import { Face } from '../src/cube/types';
 
 describe('Companion Scan Sequence Protocol', () => {
   it('covers exactly all 6 canonical faces without omission or duplicates', () => {

@@ -67,6 +67,8 @@ describe('SessionManager Sync Engine', () => {
 
   it('records captured faces and marks complete when all 6 faces are submitted', () => {
     const session = sessionManager.createSession('test-complete');
+    expect(session.id).toBe('test-complete');
+    expect(session.isComplete).toBe(false);
 
     FACES.forEach((face, index) => {
       const payload: CapturedFacePayload = {
