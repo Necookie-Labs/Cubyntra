@@ -180,7 +180,7 @@ describe('placeholder screens', () => {
   });
 
   it('Progress shows the real counts from the profile', () => {
-    useTutorStore.setState({ profile: { ...defaultStudentProfile(), stats: { solvesCompleted: 2, stepsCompleted: 31, checkpointsPassed: 29, lastSolveAt: null } } });
+    useTutorStore.setState({ profile: { ...defaultStudentProfile(), stats: { ...defaultStudentProfile().stats, solvesCompleted: 2, stepsCompleted: 31, checkpointsPassed: 29 } } });
     render(<ProgressView />);
     expect(screen.getByText('31')).toBeTruthy();
     expect(screen.getByText('Coming soon')).toBeTruthy();
