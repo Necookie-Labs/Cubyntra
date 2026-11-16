@@ -2,103 +2,111 @@
 
 **Product**: Cubyntra  
 **Organization**: Necookie Labs  
-**Status**: Implemented  
+**Status**: Implemented (2.0.0)  
 **Scope**: End-to-End System Data Lifecycle
 
 ---
 
-## 1. System-Wide Data Flow Pipeline
+## 1. System-Wide Data Flow
 
 ```mermaid
 flowchart TD
-    subgraph Client Video Stream
-        CAM[Webcam / Phone Camera] -->|WebRTC 30-60 FPS| VID[HTML5 Video Element]
-        VID -->|Draw Frame| CVS[Off-Screen Canvas]
+    subgraph Capture [Capture: the tab that owns the camera]
+        CAM[Webcam or phone camera] -->|getUserMedia| VID[video element]
+        VID -->|draw the reticle square| CVS[canvas]
+        CVS -->|9 tiles: inner 40%, 15% trimmed mean| PIX[tile RGB means]
+        PIX --> LAB[HSV + CIELAB, classifyColor, ML cube check]
+        LAB --> Q{capture checks hold?}
+        Q -- no --> CVS
+        Q -- yes --> SAMPLES[StickerSample x 9; frame discarded]
     end
 
-    subgraph Computer Vision Pipeline
-        CVS -->|Sample 9 Circular Regions| PIX[Raw RGB Pixel Averages]
-        PIX -->|Color Space Transform| LAB[CIELAB & HSV Coordinates]
-        LAB -->|Delta-E Minimum Distance| CLS[Classified Facelet Colors]
-        CLS -->|Temporal Stability Queue| STB{10 Consecutive Frames?}
-        STB -- No --> CVS
-        STB -- Yes --> LCK[Face Locked & Captured]
+    subgraph Scan [Scan: useCubyntraStore]
+        SAMPLES -->|webcam: ingestFaceSamples| RES[resolveCubeColors: 54 tiles]
+        SAMPLES -->|phone: face-scanned message| RES
+        RES --> REV[review net, tile fixes]
+        REV --> VAL{validateCubeState}
+        VAL -- invalid --> REV
+        VAL -- valid --> CS[CubeState + student palette]
     end
 
-    subgraph Domain State & Invariants
-        LCK -->|Aggregate 6 Faces| CS[CubeState Domain Model]
-        CS -->|Run Invariant Check| VAL{Validation Engine}
-        VAL -- Invalid --> ERR[Error Recovery Modal & Diagnostics]
-        ERR -->|Manual Override| CS
-        VAL -- Valid --> STR[54-Character Facelet String]
+    subgraph Solve [Guided solve: useTutorStore]
+        CS --> PLAN[tutor.plan in the worker]
+        PLAN --> STEP[StepPlan]
+        STEP --> TWIN[teaching twin: PlaybackController]
+        STEP --> FACTS[coach facts JSON] --> COACH[/api/coach/]
+        TWIN --> CHECK[checkpoint face read with the palette]
+        CHECK --> ADAPT[checkpointAdapter]
+        ADAPT -->|match: cube = expectedState| PLAN
+        ADAPT -->|mismatch: corrective plan or rescan| PLAN
     end
 
-    subgraph Solver Engine
-        STR -->|Kociemba Two-Phase| SOLV[Herbert Kociemba Engine]
-        SOLV -->|Raw HTM String| PRS[Move Sequence Parser]
-        PRS -->|Simulate on Model| VRF{Solution Verified?}
-        VRF -- Fail --> ERR
-        VRF -- Success --> RES[Structured SolveResult]
-    end
-
-    subgraph Interactive Visualizer
-        RES -->|Dispatch to Store| ZST[Zustand Store]
-        ZST -->|Active Move Step| UI[Move Tape & Step Controls]
-        ZST -->|Trigger Layer Rotation| T3D[Three.js 3D Digital Twin]
-        T3D -->|Zero-Drift Snap| SCRN[Rendered Canvas Display]
-    end
+    STEP -.->|profile ops| PROF[(data/student.json)]
 ```
 
 ---
 
 ## 2. Computer Vision Data Flow
 
-1. **Frame Capture**: Off-screen `HTMLCanvasElement` renders current video frame every `requestAnimationFrame` tick.
-2. **Normalized Grid Sampling**: 9 coordinates $(u_i, v_j) \in [0, 1] \times [0, 1]$ mapped to canvas pixel dimensions. Circular kernel radius $R = 8\text{px}$ averages interior pixels to eliminate sensor noise.
-3. **Perceptual Classification**:
-   $$E_{\text{distance}} = \sqrt{(L_1 - L_2)^2 + (a_1 - a_2)^2 + (b_1 - b_2)^2}$$
-   Reference swatches are calibrated to standard competition cube shades.
-4. **Temporal Stability Queue**: A sliding window of size $N = 10$. If all 9 sample cells yield identical classifications across $N$ consecutive frames, the face state transitions from `UNSTABLE` to `LOCKED`.
+1. **Frame capture**: the reticle square is mapped into camera pixels (`mapElementRectToVideo`,
+   or, on the webcam scanner, the centered `calculateROIBounds` square, 65% of the shorter side) and drawn into a canvas
+   on every `requestAnimationFrame` tick.
+2. **Tile sampling** (`sampleGridFromContext`): the square is split 3×3; the inner 40% of each
+   cell is read and averaged with a 15% trimmed mean per channel to drop glare and borders.
+3. **Classification** (`classifyColor`): CIELAB ΔE to reference colors (or calibrated centers)
+   plus HSV rules and dataset gamut gating; the ML detector rejects frames that are not a cube.
+4. **Stability / capture**: the webcam scanner locks a face after 8 consecutive matching frames
+   (`TemporalStabilityBuffer`); the phone shoots once every capture check has held for 600 ms.
+5. **Resolution** (`resolveCubeColors`): the six centers calibrate the palette, an assignment
+   enforces nine tiles per color, and quarter-turned faces are repaired.
+6. **Checkpoint read** (`readFaceFromContext`, `classifyFaceWithPalette`): one face, classified
+   with the student's palette after a per-photo lighting correction; glare tiles count as not seen.
+
+Pixels stop at step 2: from there on only tile means and colors exist. Details in
+[COMPUTER_VISION.md](COMPUTER_VISION.md).
 
 ---
 
-## 3. Mathematical State Validation Flow
+## 3. State Validation Flow
 
-The 6-face data structure undergoes four sequential verification filters:
+`validateCubeState` (`src/cube/validator.ts`) first normalizes the orientation, then checks:
 
 ```
-Raw Face Captures [U, D, F, B, L, R]
-               │
-               ▼
-[ 1. Cardinality Filter ] ── Fail ──► Reject (Sticker count != 9 per color)
-               │ Pass
-               ▼
-[ 2. Physical Piece Integrity ] ── Fail ──► Reject (Impossible edge/corner pairs)
-               │ Pass
-               ▼
-[ 3. Permutation Parity ] ── Fail ──► Reject (Odd edge/corner swap parity)
-               │ Pass
-               ▼
-[ 4. Group Orientation Parity ] ── Fail ──► Reject (Edge flip != 0 mod 2, Twist != 0 mod 3)
-               │ Pass
-               ▼
-Output Validated 54-Facelet String
+Resolved 54 tiles
+     │
+     ▼
+[ 1. Counts and centers ] ── fail ──► review (nine of each color, six distinct centers)
+     │
+     ▼
+[ 2. Piece integrity ] ── fail ──► review (no impossible edge or corner colorings)
+     │
+     ▼
+[ 3. Orientation parity ] ── fail ──► review (edge flips ≡ 0 mod 2, corner twists ≡ 0 mod 3)
+     │
+     ▼
+[ 4. Permutation parity ] ── fail ──► review (corner and edge parities equal)
+     │
+     ▼
+Valid CubeState → palette saved → guided solve starts
 ```
 
 ---
 
 ## 4. State Management & 3D Synchronization
 
-The centralized Zustand store (`src/stores/useCubyntraStore.ts`) broadcasts state updates to both DOM components and the Three.js rendering loop:
-
-- **State Dispatches**:
-  - `captureFace(face, grid)`: Advances scanner step, updates face cache.
-  - `solveCurrentState()`: Invokes solver, stores move array, resets playback counter to 0.
-  - `nextStep()` / `prevStep()`: Updates `currentStepIndex`, triggering Three.js layer animations.
-- **Three.js Synchronization**:
-  - The 3D engine subscribes to `currentStepIndex`.
-  - When the index increments, the engine isolates the target slice, attaches cubies to the pivot group, interpolates rotation by $90^\circ$ or $180^\circ$, reparents to scene, and snaps transforms to exact integer coordinates.
-  - Directional 3D arrows update position and rotation sense immediately.
+- **Scan store** (`src/stores/useCubyntraStore.ts`): `startScanning` / `startCompanionScan`,
+  `ingestFaceSamples(face, samples)`, `setReviewSticker`, `confirmReview` (valid cube only; it
+  also solves the cube with Kociemba in the worker). `originalScrambleState` is what the tutor
+  starts from.
+- **Tutor store** (`src/stores/useTutorStore.ts`): `startSolve(state, method)` → `loadPlan`
+  (worker) → `beginCheckpoint` → `submitObservation` → `advance` / `replayStep` /
+  `continueFromDiagnosis` / `replanFromRescan`. Every change to the profile is a `ProfileOp`.
+- **Twin**: `TeachingTwin` loads each plan into a `PlaybackController` (`src/three/playback.ts`),
+  which computes the state after each move (`statesAlong`) and asks the engine to animate each
+  turn to that exact target state. The engine groups the turning cubies under a pivot, rotates,
+  re-parents and snaps positions and orientations to integers, then repaints from the logical
+  state. Spotlight, slot outline, arrows and the "after" preview follow the playback index
+  (`src/twin/teaching.ts`).
 
 ---
 
@@ -123,10 +131,12 @@ sequenceDiagram
     end
     D->>D: resolve 54 tiles: center calibration, 9-per-color assignment, orientation repair
     D->>D: review net: student checks flagged tiles against the cube in hand
-    D->>S: scan-control confirmed, cube-state, step (solution)
-    S-->>P: "Solving on your computer" + remote controls
+    D->>S: scan-control confirmed
+    D->>D: /solve: tutor plans the step in the worker
+    D->>S: step (method, stepIndex, planId, algorithm), cube-state, grip
+    S-->>P: phone step card: move chips, next move in words, playback, "Solve on this phone"
     P->>S: playback play / pause / seek (either device, last writer wins by seq)
-    D->>D: Kociemba solve, animated playback on the 3D twin
+    D->>S: checkpoint-result after each check (a solve on the phone sends its own)
 ```
 
 - No photo leaves the phone. The relay holds only the latest state messages, in memory, until the
@@ -137,7 +147,7 @@ sequenceDiagram
 
 ---
 
-## 6. Guided Solve and Profile Flow (Phase 7)
+## 6. Guided Solve and Profile Flow
 
 ```mermaid
 flowchart TD
