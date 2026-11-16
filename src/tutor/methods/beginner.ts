@@ -129,6 +129,41 @@ function planDaisy(view: CubeState): StepDraft {
 }
 
 // ---------------------------------------------------------------------------------------------
+// 2. White cross (from the daisy)
+// ---------------------------------------------------------------------------------------------
+
+/** A top turn moves stickers from the front to the left, then back, then right. */
+const TOP_TURN_ORDER: readonly Face[] = ['F', 'L', 'B', 'R'];
+
+function planWhiteCross(view: CubeState): StepDraft {
+  const cheapest = new Cheapest();
+  for (const side of SIDES) {
+    if (isPieceSolved(view, [FIRST, side])) continue;
+    const edge = findEdge(view, [FIRST, side]);
+    if (edge.stickers[0].face !== 'U') throw new TutorPlanError(`White-${side} edge is not a petal`);
+    const target = faceOfColor(view, side);
+    const quarters = (TOP_TURN_ORDER.indexOf(target) - TOP_TURN_ORDER.indexOf(edge.stickers[1].face) + 4) % 4;
+    const setupMoves = faceTurns('U', quarters);
+    cheapest.offer(setupMoves.length, () => ({
+      caseId: 'white-cross-petal',
+      caseName: 'Send a petal home',
+      setupMoves,
+      algorithm: faceTurns(target, 2),
+      highlightPieces: [edgeRef(FIRST, side)],
+      targetSlot: edgeRef(FIRST, side),
+      facts: {
+        goal: `Move the white-${side} petal down to the white face, under the ${side} center.`,
+        lookFor: `Find the petal whose side sticker is ${side}. Turn the top until that sticker sits above the ${side} center.`,
+        why: 'A half turn of that side carries the petal straight down to the white face without moving the other petals.',
+      },
+    }));
+  }
+  const draft = cheapest.get();
+  if (!draft) throw new TutorPlanError('White cross has no petal left to place');
+  return draft;
+}
+
+// ---------------------------------------------------------------------------------------------
 // Detectors. Each one includes every earlier stage; all of them count a cube that is part-way
 // through the last stage as having finished the stages before it.
 // ---------------------------------------------------------------------------------------------
@@ -153,6 +188,15 @@ const STAGES: StageDefinition[] = [
     progress: daisyCount,
     plan: planDaisy,
     check: { prefer: ['U'] },
+  },
+  {
+    id: 'white-cross',
+    name: 'White cross',
+    top: LAST,
+    isComplete: whiteCrossDone,
+    progress: (view) => SIDES.filter((side) => isPieceSolved(view, [FIRST, side])).length,
+    plan: planWhiteCross,
+    check: { prefer: ['F', 'R', 'L', 'B', 'D'] },
   },
 ];
 
