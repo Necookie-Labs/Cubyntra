@@ -3,8 +3,9 @@
  * Necookie Labs (c) 2026
  *
  * One small square per case of a trainer set, filled by how well the case is known: an empty
- * well (never drilled), a leaf tint (drilling), solid leaf (learned: box 3 or more) and solid
- * leaf with a dark base (box 5). The state is also in each tile's name, never color alone.
+ * well (never drilled), half full (drilling), full leaf (learned: box 3 or more) and full leaf
+ * with a dark base (box 5). The fill level shows the state without relying on color, and each
+ * tile's name says it in words.
  * With `onSelect` the tiles are buttons that pick the case to drill.
  */
 
@@ -27,6 +28,11 @@ const LEVEL_CLASS: Record<CaseLevel, string> = {
   learned: 'bg-leaf border-line',
   solid: 'bg-leaf border-line shadow-[inset_0_-3px_0_0_var(--vx-leaf-edge)]',
 };
+
+/** A drilling tile is filled halfway: the fill level, not only its tint, tells it from learned. */
+function Fill({ level }: { level: CaseLevel }) {
+  return level === 'drilling' ? <span aria-hidden data-fill="half" className="block h-1/2 w-full bg-leaf" /> : null;
+}
 
 export const LEVEL_WORD: Record<CaseLevel, string> = {
   new: 'not drilled yet',
@@ -55,7 +61,7 @@ export function CaseTiles({ cases, cards, label, currentId, onSelect, size = 'md
         const level = caseLevel(cards[c.id]);
         const name = `${c.name}: ${LEVEL_WORD[level]}`;
         const tile = cx(
-          'block border-2',
+          'flex flex-col justify-end border-2',
           box,
           LEVEL_CLASS[level],
           currentId === c.id && 'outline-2 outline-offset-1 outline-ink'
@@ -70,9 +76,13 @@ export function CaseTiles({ cases, cards, label, currentId, onSelect, size = 'md
                 aria-current={currentId === c.id ? 'true' : undefined}
                 className={cx(tile, 'hover:-translate-y-px')}
                 onClick={() => onSelect(c.id)}
-              />
+              >
+                <Fill level={level} />
+              </button>
             ) : (
-              <span role="img" aria-label={name} title={name} className={tile} />
+              <span role="img" aria-label={name} title={name} className={tile}>
+                <Fill level={level} />
+              </span>
             )}
           </li>
         );
@@ -87,7 +97,9 @@ export function CaseLegend({ className }: { className?: string }) {
     <ul aria-label="Key" className={cx('flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted', className)}>
       {(Object.keys(LEVEL_CLASS) as CaseLevel[]).map((level) => (
         <li key={level} className="flex items-center gap-1.5">
-          <span aria-hidden className={cx('block h-3 w-3 border-2', LEVEL_CLASS[level])} />
+          <span aria-hidden className={cx('flex h-3 w-3 flex-col justify-end border-2', LEVEL_CLASS[level])}>
+            <Fill level={level} />
+          </span>
           {LEVEL_WORD[level]}
         </li>
       ))}

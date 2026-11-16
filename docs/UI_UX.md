@@ -189,9 +189,10 @@ install button, iOS "Share → Add to Home Screen" hint, or "Installed").
   *Check it* (Got it / Missed it, or Check with the camera, the same checkpoint sheet as the solve
   screen with "Case solved" and "Next case"). A camera mismatch shows "Not solved yet." with the
   likely mistake, Check again and Count it as missed.
-- **Case grid**: one square per case of the set or group: empty well (not drilled yet), leaf tint
-  (drilling), solid leaf (learned) and leaf with a dark base (known well), with a key; each square
-  is a button that drills that case next, and its name says the state.
+- **Case grid**: one square per case of the set or group: empty well (not drilled yet), half full
+  (drilling), solid leaf (learned) and leaf with a dark base (known well), with a key; the fill
+  level tells the states apart without color. Each square is a button (44px on phones) that drills
+  that case next, and its name says the state.
 - Missed cases come back within two drills (Leitner boxes, `docs/tutor/METHODS.md` §10.3).
 
 ### 3.7 Timer (`/timer`)
