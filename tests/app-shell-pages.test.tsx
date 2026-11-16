@@ -10,6 +10,7 @@ import { act, cleanup, fireEvent, render, screen, within } from '@testing-librar
 import { planNextStep } from '@/tutor';
 import { defaultStudentProfile } from '@/lib/studentProfile';
 import { sampleProfile } from './helpers/studentProfile';
+import { METHOD_INFO } from '@/app-shell/methodInfo';
 
 const nav = vi.hoisted(() => ({ pathname: '/', push: vi.fn(), refresh: vi.fn() }));
 vi.mock('next/navigation', () => ({
@@ -166,6 +167,57 @@ describe('Home', () => {
     expect(screen.getByRole('link', { name: 'Continue' }).getAttribute('href')).toBe('/solve');
     expect(screen.getByText('Working on: First two layers')).toBeTruthy();
     expect(screen.queryByRole('link', { name: 'Scan my cube' })).toBeNull();
+  });
+});
+
+describe('Home graduation and glance', () => {
+  const mastered = (method: string, ids: readonly { id: string }[]) =>
+    Object.fromEntries(ids.map((s) => [`${method}/${s.id}`, [0, 0, 0] as (0 | 1 | 2 | 3)[]]));
+
+  it('shows real progress numbers and no "Soon" labels', () => {
+    const base = defaultStudentProfile();
+    useTutorStore.setState({
+      profile: {
+        ...base,
+        stats: { ...base.stats, solvesCompleted: 4, stages: { 'beginner/daisy': [0, 0, 0] } },
+        trainer: { turn: 2, set: null, cards: { 'oll-01': { box: 3, due: 5, seen: 2, missed: 0 } } },
+      },
+    });
+    render(<HomeView />);
+    const progress = screen.getByRole('region', { name: 'Progress' });
+    expect(within(progress).getByText('1/15')).toBeTruthy();
+    expect(within(progress).getByText('Cases learned').previousElementSibling?.textContent).toBe('1');
+    expect(within(progress).getByText('Solves').previousElementSibling?.textContent).toBe('4');
+    expect(screen.queryByText('Soon')).toBeNull();
+  });
+
+  it('suggests CFOP once the beginner method is mastered, and switches on request', () => {
+    const base = defaultStudentProfile();
+    useTutorStore.setState({
+      profile: { ...base, stats: { ...base.stats, stages: mastered('beginner', METHOD_INFO.beginner.stages) } },
+    });
+    render(<HomeView />);
+    expect(screen.getByRole('heading', { name: 'Ready for CFOP' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Switch to CFOP' }));
+    expect(useTutorStore.getState().profile.settings).toMatchObject({ methodDefault: 'cfop', lastLayer: '2-look' });
+    expect(screen.queryByRole('heading', { name: 'Ready for CFOP' })).toBeNull();
+  });
+
+  it('suggests the full last layer once 2-look is mastered on CFOP, and can be put off', () => {
+    const base = defaultStudentProfile();
+    const twoLook = ['oll-edges', 'oll-corners', 'pll-corners', 'pll-edges'].map((id) => ({ id }));
+    useTutorStore.setState({
+      profile: {
+        ...base,
+        settings: { ...base.settings, methodDefault: 'cfop' },
+        stats: { ...base.stats, stages: mastered('cfop', twoLook) },
+      },
+    });
+    render(<HomeView />);
+    expect(screen.getByRole('heading', { name: 'Ready for the full last layer' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Not yet' }));
+    expect(screen.queryByRole('heading', { name: 'Ready for the full last layer' })).toBeNull();
+    expect(useTutorStore.getState().profile.settings.lastLayer).toBe('2-look');
   });
 });
 

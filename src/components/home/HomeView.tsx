@@ -5,12 +5,13 @@
  * Necookie Labs (c) 2026
  *
  * Continue the solve in progress, pick a method, glance at progress. One primary action per
- * state: "Continue" when a solve is saved, otherwise "Scan my cube".
+ * state: "Continue" when a solve is saved, otherwise "Scan my cube". Once a method is mastered
+ * a graduation card suggests the next one (`graduationSuggestion` in src/learn/mastery.ts).
  */
 
-import React from 'react';
+import React, { useState, useSyncExternalStore } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, ScanLine, Shuffle, Smartphone, Target, Timer } from 'lucide-react';
+import { ArrowRight, GraduationCap, ScanLine, Shuffle, Smartphone, Target, Timer } from 'lucide-react';
 import { BlockButton, Chip, Panel, ProgressBlocks, cx } from '@/components/ui';
 import { BlockLink } from '@/components/shell/BlockLink';
 import { PageContainer, PageHeader, PageSection } from '@/components/shell/Page';
@@ -18,7 +19,65 @@ import { useTutorStore } from '@/stores/useTutorStore';
 import { METHOD_IDS, METHOD_INFO } from '@/app-shell/methodInfo';
 import { useStageProgress } from '@/app-shell/useStageProgress';
 import { demoCube } from '@/app-shell/demoCube';
+import { summarizeProgress } from '@/app-shell/progressSummary';
+import { graduationSuggestion, localDay, type GraduationSuggestion } from '@/learn/mastery';
 import type { MethodId } from '@/tutor/types';
+
+const noSubscription = () => () => {};
+const readToday = () => localDay(new Date());
+
+const GRADUATION: Record<Exclude<GraduationSuggestion, null>, { title: string; body: string; action: string }> = {
+  'try-cfop': {
+    title: 'Ready for CFOP',
+    body: 'You have mastered every stage of the beginner’s method. CFOP solves the cube in fewer moves. You start with the 2-look last layer: four short steps you mostly know already.',
+    action: 'Switch to CFOP',
+  },
+  'full-last-layer': {
+    title: 'Ready for the full last layer',
+    body: 'You have mastered the 2-look last layer. The full version finishes the cube in two steps instead of four, with 57 OLL and 21 PLL cases to learn. Practise them in the trainer as you go.',
+    action: 'Use the full last layer',
+  },
+};
+
+function GraduationCard() {
+  const settings = useTutorStore((s) => s.profile.settings);
+  const stages = useTutorStore((s) => s.profile.stats.stages);
+  const updateSettings = useTutorStore((s) => s.updateSettings);
+  const [dismissed, setDismissed] = useState<GraduationSuggestion>(null);
+  const suggestion = graduationSuggestion({ stages, methodDefault: settings.methodDefault, lastLayer: settings.lastLayer });
+  if (!suggestion || dismissed === suggestion) return null;
+  const text = GRADUATION[suggestion];
+
+  const accept = () =>
+    updateSettings(suggestion === 'try-cfop' ? { methodDefault: 'cfop', lastLayer: '2-look' } : { lastLayer: 'full' });
+
+  return (
+    <Panel as="section" aria-labelledby="graduation-title" className="vx-place flex flex-col gap-4 p-6 pb-7 sm:flex-row sm:items-start">
+      <span aria-hidden data-variant="primary" className="vx-block flex h-12 w-12 shrink-0 items-center justify-center pb-1">
+        <GraduationCap className="h-6 w-6" />
+      </span>
+      <div className="flex flex-col gap-3">
+        <h2 id="graduation-title" className="text-2xl leading-tight text-ink">
+          {text.title}
+        </h2>
+        <p className="max-w-prose text-sm leading-relaxed text-muted">{text.body}</p>
+        <div className="flex flex-wrap items-center gap-3">
+          <BlockButton variant="primary" onClick={accept}>
+            {text.action}
+          </BlockButton>
+          {suggestion === 'full-last-layer' && (
+            <BlockLink href="/trainer" icon={<Target aria-hidden className="h-4 w-4" />}>
+              Open the trainer
+            </BlockLink>
+          )}
+          <BlockButton variant="ghost" onClick={() => setDismissed(suggestion)}>
+            Not yet
+          </BlockButton>
+        </div>
+      </div>
+    </Panel>
+  );
+}
 
 function ContinueCard() {
   const solve = useTutorStore((s) => s.profile.currentSolve);
@@ -104,7 +163,7 @@ function MethodPicker() {
   );
 }
 
-function Stat({ value, label }: { value: number; label: string }) {
+function Stat({ value, label }: { value: React.ReactNode; label: string }) {
   return (
     <div className="vx-well flex flex-col gap-1 p-3">
       <span className="font-display text-3xl leading-none text-ink">{value}</span>
@@ -114,15 +173,17 @@ function Stat({ value, label }: { value: number; label: string }) {
 }
 
 const PRACTICE = [
-  { href: '/trainer', label: 'Trainer', blurb: 'Drill the cases you miss.', Icon: Target, soon: true },
-  { href: '/timer', label: 'Timer', blurb: 'Time solves with inspection.', Icon: Timer, soon: true },
-  { href: '/pair', label: 'Pair phone', blurb: 'Use your phone as the camera.', Icon: Smartphone, soon: false },
+  { href: '/trainer', label: 'Trainer', blurb: 'Drill the cases you miss.', Icon: Target },
+  { href: '/timer', label: 'Timer', blurb: 'Time solves with inspection.', Icon: Timer },
+  { href: '/pair', label: 'Pair phone', blurb: 'Use your phone as the camera.', Icon: Smartphone },
 ] as const;
 
 export function HomeView() {
   const router = useRouter();
   const name = useTutorStore((s) => s.profile.name);
-  const stats = useTutorStore((s) => s.profile.stats);
+  const profile = useTutorStore((s) => s.profile);
+  const today = useSyncExternalStore(noSubscription, readToday, () => null);
+  const summary = summarizeProgress(profile, today);
   const hasSolve = useTutorStore((s) => s.profile.currentSolve !== null);
   const method = useTutorStore((s) => s.profile.settings.methodDefault);
   const startSolve = useTutorStore((s) => s.startSolve);
@@ -141,6 +202,8 @@ export function HomeView() {
       />
 
       <ContinueCard />
+
+      <GraduationCard />
 
       <PageSection title="Method" aside={<span className="text-xs text-muted">You can switch any time</span>}>
         <MethodPicker />
@@ -164,16 +227,17 @@ export function HomeView() {
           </BlockLink>
         }
       >
-        <div className="grid grid-cols-3 gap-3">
-          <Stat value={stats.stepsCompleted} label="Steps done" />
-          <Stat value={stats.checkpointsPassed} label="Checks passed" />
-          <Stat value={stats.solvesCompleted} label="Solves" />
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <Stat value={`${summary.blocks}/${summary.totalBlocks}`} label="Stages mastered" />
+          <Stat value={summary.streak ?? 0} label={summary.streak === 1 ? 'Day in a row' : 'Days in a row'} />
+          <Stat value={summary.casesLearned} label="Cases learned" />
+          <Stat value={profile.stats.solvesCompleted} label="Solves" />
         </div>
       </PageSection>
 
       <PageSection title="More">
         <ul className="grid gap-3 sm:grid-cols-3">
-          {PRACTICE.map(({ href, label, blurb, Icon, soon }) => (
+          {PRACTICE.map(({ href, label, blurb, Icon }) => (
             <li key={href}>
               <BlockLink
                 href={href}
@@ -181,10 +245,7 @@ export function HomeView() {
                 icon={<Icon aria-hidden className="h-5 w-5 shrink-0" />}
               >
                 <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                  <span className="flex items-center justify-between gap-2 text-sm">
-                    {label}
-                    {soon && <Chip>Soon</Chip>}
-                  </span>
+                  <span className="text-sm">{label}</span>
                   <span className="text-xs font-normal text-muted">{blurb}</span>
                 </span>
               </BlockLink>

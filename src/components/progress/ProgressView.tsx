@@ -17,7 +17,6 @@ import { METHOD_INFO } from '@/app-shell/methodInfo';
 import {
   MASTERY_NEEDED,
   MASTERY_WINDOW,
-  currentStreak,
   localDay,
   longestStreak,
   recentDays,
@@ -27,6 +26,7 @@ import {
 } from '@/learn/mastery';
 import { setProgress } from '@/learn/leitner';
 import { TRAINER_SETS } from '@/learn/trainerSets';
+import { cfopWorldStages, summarizeProgress } from '@/app-shell/progressSummary';
 import type { HintUse } from '@/learn/types';
 import type { MethodId } from '@/tutor/types';
 import { BlockLink } from '@/components/shell/BlockLink';
@@ -34,12 +34,6 @@ import { PageContainer, PageHeader, PageSection } from '@/components/shell/Page'
 import { CaseTiles } from '@/components/learn/CaseTiles';
 import { Chip, Panel, cx } from '@/components/ui';
 import { VoxelWorld, type Biome, type WorldStage } from './VoxelWorld';
-
-/** CFOP's full last-layer stages, shown on the CFOP island once that setting is used. */
-const FULL_LAST_LAYER = [
-  { id: 'oll', name: 'Yellow top in one look' },
-  { id: 'pll', name: 'Top layer in one look' },
-];
 
 const noSubscription = () => () => {};
 const readToday = () => localDay(new Date());
@@ -150,27 +144,21 @@ function Summary({ value, label }: { value: React.ReactNode; label: string }) {
 export function ProgressView() {
   const stats = useTutorStore((s) => s.profile.stats);
   const cards = useTutorStore((s) => s.profile.trainer.cards);
-  const lastLayer = useTutorStore((s) => s.profile.settings.lastLayer);
+  const profile = useTutorStore((s) => s.profile);
   const today = useSyncExternalStore(noSubscription, readToday, () => null);
 
   const records = stats.stages;
-  const showFull = lastLayer === 'full' || FULL_LAST_LAYER.some((s) => records[stageKey('cfop', s.id)]?.length);
-  const cfopStages = showFull ? [...METHOD_INFO.cfop.stages, ...FULL_LAST_LAYER] : METHOD_INFO.cfop.stages;
-  const allStages = [
-    ...METHOD_INFO.beginner.stages.map((s) => stageKey('beginner', s.id)),
-    ...cfopStages.map((s) => stageKey('cfop', s.id)),
-  ];
-  const blocks = allStages.filter((key) => stageStatus(records[key]) === 'mastered').length;
-  const streak = today ? currentStreak(stats.activeDays, today) : 0;
-  const learned = TRAINER_SETS.reduce((sum, set) => sum + setProgress({ turn: 0, cards, set: null }, set.cases.map((c) => c.id)).learned, 0);
-  const caseTotal = TRAINER_SETS.reduce((sum, set) => sum + set.cases.length, 0);
+  const cfopStages = cfopWorldStages(profile);
+  const summary = summarizeProgress(profile, today);
+  const streak = summary.streak ?? 0;
+  const learned = summary.casesLearned;
 
   return (
     <PageContainer width="xl" className="gap-10">
       <PageHeader title="Progress" lede="A block for every stage you master. Everything is saved on this laptop." />
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Summary value={`${blocks}/${allStages.length}`} label="Blocks placed" />
+        <Summary value={`${summary.blocks}/${summary.totalBlocks}`} label="Blocks placed" />
         <Summary value={streak} label={streak === 1 ? 'Day in a row' : 'Days in a row'} />
         <Summary value={learned} label="Cases learned" />
         <Summary value={stats.solvesCompleted} label="Solves" />
@@ -215,7 +203,7 @@ export function ProgressView() {
         }
       >
         <p className="text-sm text-muted">
-          {learned} of {caseTotal} cases learned. A case is learned once you get it right twice in a row in the trainer.
+          {learned} of {summary.caseTotal} cases learned. A case is learned once you get it right twice in a row in the trainer.
         </p>
         <ul className="grid gap-3 md:grid-cols-2">
           {TRAINER_SETS.map((set) => {
