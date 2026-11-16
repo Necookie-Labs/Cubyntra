@@ -338,11 +338,18 @@ function yellowCrossShape(view: CubeState): number {
 
 function planYellowCross(view: CubeState): StepDraft {
   const shape = yellowCrossShape(view);
-  let best: { shape: number; setup: Move[] } | null = null;
+  // Several holds can reach the same shape. Prefer the one taught everywhere: the L at the
+  // back-left, which leaves the line running left to right, ready for the next round.
+  const taughtHold = (s: CubeState) => {
+    const up = [1, 3, 5, 7].filter((i) => s.U[i] === LAST).join();
+    return yellowCrossShape(s) === 1 ? up === '1,3' : yellowCrossShape(s) === 2 ? up === '3,5' : true;
+  };
+  let best: { score: number; setup: Move[] } | null = null;
   for (let quarters = 0; quarters < 4; quarters++) {
     const setup = faceTurns('U', quarters);
-    const reached = yellowCrossShape(applyMoves(view, [...setup, ...alg(YELLOW_CROSS)]));
-    if (!best || reached > best.shape) best = { shape: reached, setup };
+    const ready = applyMoves(view, setup);
+    const score = yellowCrossShape(applyMoves(ready, alg(YELLOW_CROSS))) * 2 + Number(taughtHold(ready));
+    if (!best || score > best.score) best = { score, setup };
   }
   const name = CROSS_SHAPES[shape];
   const lookFor = {
@@ -406,25 +413,33 @@ function planYellowEdges(view: CubeState): StepDraft {
       },
     };
   }
-  let best: { reached: number; setup: Move[] } | null = null;
-  for (let quarters = 0; quarters < 4; quarters++) {
-    const setup = faceTurns('U', quarters);
-    const reached = yellowEdgeProgress(applyMoves(view, [...setup, ...alg(EDGE_SWAP)]));
-    if (!best || reached > best.reached) best = { reached, setup };
+  // As taught: turn the top until two edges match their centers (nearest turn first), then turn
+  // the whole cube to hold them where the algorithm needs them.
+  let best: { reached: number; cost: number; setup: Move[] } | null = null;
+  for (const quarters of [0, 1, 3, 2]) {
+    if (solvedLastEdges(applyMoves(view, faceTurns('U', quarters))) !== 2) continue;
+    for (let turns = 0; turns < 4; turns++) {
+      const setup = [...rotations('y', turns), ...faceTurns('U', quarters)];
+      const reached = yellowEdgeProgress(applyMoves(view, [...setup, ...alg(EDGE_SWAP)]));
+      if (!best || reached > best.reached || (reached === best.reached && setup.length < best.cost)) {
+        best = { reached, cost: setup.length, setup };
+      }
+    }
   }
+  if (!best) throw new TutorPlanError('No top turn makes two yellow edges match');
   const neighbours = now === 1;
   return {
     caseId: neighbours ? 'yellow-edges-adjacent' : 'yellow-edges-opposite',
     caseName: neighbours ? 'Two neighbouring edges match' : 'Two opposite edges match',
-    setupMoves: best!.setup,
+    setupMoves: best.setup,
     algorithm: [...alg(EDGE_SWAP)],
     highlightPieces: lastLayerEdgeRefs(),
     facts: {
       goal: 'Get the yellow edges into the right order around the top.',
       lookFor: neighbours
         ? 'Turn the top until two yellow edges match their centers. They are next to each other: hold them at the back and the right.'
-        : 'Turn the top until two yellow edges match their centers. They are across from each other, so one round is needed to bring two matching edges side by side.',
-      why: 'The algorithm swaps the front and left yellow edges and keeps the yellow cross.',
+        : 'Turn the top until two yellow edges match their centers. They are across from each other, so hold the cube any way round: one round brings two matching edges side by side.',
+      why: 'The algorithm swaps the front and left yellow edges, keeps the yellow cross, and ends with a top turn that lines everything up.',
     },
   };
 }

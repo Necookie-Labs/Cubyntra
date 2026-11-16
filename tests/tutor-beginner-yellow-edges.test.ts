@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CubeState } from '../src/cube/types';
-import { formatAlgorithm } from '../src/cube/transforms';
+import { applyMoves, formatAlgorithm } from '../src/cube/transforms';
 import { currentStageIn } from '../src/tutor/engine';
 import { orientedLastEdges, solvedLastEdges } from '../src/tutor/helpers';
 import { BEGINNER_METHOD } from '../src/tutor/methods/beginner';
@@ -24,9 +24,13 @@ describe("beginner's yellow edges", () => {
   });
 
   it('turns the top to hold the matching pair at the back and the right', () => {
-    const plan = checkedPlan(BEGINNER_METHOD, before(`U' ${SWAP}`));
+    // Seen from another side and with the top a turn away: one cube turn and one top turn.
+    const plan = checkedPlan(BEGINNER_METHOD, before(`y U' ${SWAP}`));
     expect(plan.caseId).toBe('yellow-edges-adjacent');
-    expect(formatAlgorithm(plan.setupMoves)).toBe("U'");
+    expect(formatAlgorithm(plan.setupMoves)).toBe("y U'");
+    const ready = applyMoves(plan.startState, plan.setupMoves);
+    expect((["B", "R", "F", "L"] as const).map((f) => ready[f][1] === ready[f][4])).toEqual([true, true, false, false]);
+    expect(edgesDone(plan.expectedState)).toBe(true);
   });
 
   it('needs two rounds when the matching edges are across from each other', () => {
