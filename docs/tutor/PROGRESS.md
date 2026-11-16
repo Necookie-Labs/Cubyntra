@@ -50,7 +50,7 @@ Checklist for `docs/tutor/GOAL.md`. Tick an item only when it is done and tested
 - [x] Solver/tutor in a Web Worker
 - [x] WebGL context-loss recovery
 - [x] Tests (twin colors match the logical state after each playback step and `expectedState` after each tutor step)
-- [ ] Phase gate passed and pushed
+- [x] Phase gate passed and pushed
 
 ## Phase 5: Checkpoint checks
 - [ ] Partial-face verification with the student's palette
