@@ -92,7 +92,7 @@ Checklist for `docs/tutor/GOAL.md`. Tick an item only when it is done and tested
 - [x] Progress world (`/progress`: flat isometric SVG islands per method with a block per stage mastered, streak and four-week calendar, algorithm collection; mastered = 3 of the newest 5 completions without a level-3 hint; stage hints recorded by `useTutorStore`; graduation card on Home and the CFOP last-layer setting in Settings; profile v2 with a v1 migration)
 - [x] Phone side of a solve (`/solve` on a paired phone syncs as `mobile` and sends grip and checkpoint results; `/companion` after a scan shows the guided-solve step with "Solve on this phone")
 - [x] Full OLL 57 / PLL 21 (engine side: `cases/oll.ts`, `cases/pll.ts`, `lastLayer: 'full'` setting, 10,000-scramble soak: 62.3 turns average; coach case notes for every new id; trainer sets for both)
-- [ ] Phase gate passed and pushed
+- [x] Phase gate passed and pushed
 
 ## Phase 10: Finish
 - [ ] Accessibility pass
