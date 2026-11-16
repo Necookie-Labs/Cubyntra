@@ -5,7 +5,7 @@
 **Product**: Cubyntra  
 **Organization**: Necookie Labs  
 **Date**: September 26, 2026  
-**Status**: Verified & Synchronized with Production Codebase  
+**Status**: Implemented; test counts updated 2026-11-17 (2.0.0)  
 
 ---
 
@@ -301,11 +301,12 @@ At under $3\text{ ms}$ total execution time, the entire ML and computer vision p
 ## 8. Verification & Quality Assurance
 
 The implementation is verified by an extensive test suite:
-- `tests/ml-detector.test.ts`: 10 automated test suites verifying Fitzpatrick skin tone detection, non-cube background rejection, neural network forward inference, and stability buffer gating.
-- `tests/vision.test.ts`: 14 automated test suites verifying primary color conversions, CIELAB accuracy, empirical Kaggle dataset profiles, skin tone rejection across phototypes I–VI, background wall/clothing rejection, and stability contamination checks.
-- `tests/cube.test.ts`, `tests/solver.test.ts`, `tests/integration.test.ts`: Full end-to-end regression validation ensuring mathematical cube invariants and Kociemba solver execution remain pristine.
+- `tests/ml-detector.test.ts`: 10 tests verifying Fitzpatrick skin tone detection, non-cube background rejection, neural network forward inference, and stability buffer gating.
+- `tests/vision.test.ts`: 14 tests verifying primary color conversions, CIELAB accuracy, empirical Kaggle dataset profiles, skin tone rejection across phototypes I–VI, background wall/clothing rejection, and stability contamination checks.
+- `tests/feature-extractor.test.ts`: 2 tests, including parity of the edge-gradient feature with the Python formula in `scripts/extract_dataset_features.py`.
+- `tests/color-boundary.test.ts`: 4 tests pinning the red/orange hue split against the dataset means.
 
-All 48 tests pass with 100% code integrity.
+These suites pass as part of the full suite (1,353 tests; see [TESTING.md](TESTING.md)). The Python scripts take the dataset path as an argument and are not run by the test suite.
 
 ---
 
