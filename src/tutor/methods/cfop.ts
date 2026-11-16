@@ -462,5 +462,6 @@ export const CFOP_METHOD: MethodDefinition = {
 export const CFOP_FULL_METHOD: MethodDefinition = {
   id: 'cfop',
   name: 'CFOP (full last layer)',
+  options: { lastLayer: 'full' },
   stages: [CROSS_STAGE, F2L_STAGE, ...FULL_STAGES, AUF_STAGE],
 };

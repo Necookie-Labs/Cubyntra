@@ -14,6 +14,18 @@ import { Grip } from '../cube/grip';
 
 export type MethodId = 'beginner' | 'cfop';
 
+/** How CFOP solves the last layer: four small steps (2-look) or one OLL and one PLL step. */
+export type LastLayerMode = '2-look' | 'full';
+
+/**
+ * Learner settings that change how a method is taught. Every field is optional and leaving it
+ * out means its default, so `{}` is always the method as a beginner first meets it.
+ */
+export interface MethodOptions {
+  /** CFOP only (ignored by the beginner's method). Default `'2-look'`. */
+  lastLayer?: LastLayerMode;
+}
+
 /** A piece named by its colors (1 = center, 2 = edge, 3 = corner), wherever it currently sits. */
 export interface PieceRef {
   kind: 'center' | 'edge' | 'corner';
@@ -56,6 +68,11 @@ export interface StepDraft {
 /** One small, teachable step: line something up, then do one algorithm. */
 export interface StepPlan extends StepDraft {
   method: MethodId;
+  /**
+   * The learner settings the plan was made with, present only when they differ from the
+   * defaults. Pass them along when planning again from this step.
+   */
+  options?: MethodOptions;
   /** Stage id, e.g. `white-cross` or `f2l`. */
   stage: string;
   stageName: string;
@@ -104,6 +121,8 @@ export interface StageDefinition {
 export interface MethodDefinition {
   id: MethodId;
   name: string;
+  /** Set on a variant of a method: the learner settings that select it. */
+  options?: MethodOptions;
   stages: StageDefinition[];
 }
 
