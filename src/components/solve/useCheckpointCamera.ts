@@ -21,7 +21,8 @@ export const RETICLE_SHARE = 0.65;
 export type CameraStatus = 'off' | 'starting' | 'live' | 'denied' | 'error';
 
 export interface CheckpointCamera {
-  videoRef: React.RefObject<HTMLVideoElement | null>;
+  /** Callback ref for the sheet's video element: the camera starts once it is mounted. */
+  videoRef: (element: HTMLVideoElement | null) => void;
   status: CameraStatus;
   error: string | null;
   retry: () => void;
@@ -30,29 +31,34 @@ export interface CheckpointCamera {
 }
 
 export function useCheckpointCamera(enabled: boolean, palette: StudentPalette | null): CheckpointCamera {
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
+  const videoElRef = useRef<HTMLVideoElement | null>(null);
+  // The element itself is state, so the camera starts when the sheet's video mounts (however
+  // late) and restarts if it is replaced.
+  const [video, setVideo] = useState<HTMLVideoElement | null>(null);
+  const videoRef = useCallback((element: HTMLVideoElement | null) => {
+    videoElRef.current = element;
+    setVideo(element);
+  }, []);
   const [status, setStatus] = useState<CameraStatus>('off');
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled || !video) return;
     let cancelled = false;
+    let stream: MediaStream | null = null;
+    const closing = new AbortController();
     const start = async () => {
-      // The video element mounts with the sheet; wait a frame for it.
-      await new Promise((r) => requestAnimationFrame(() => r(null)));
-      const video = videoRef.current;
-      if (cancelled || !video) return;
       setStatus('starting');
       setError(null);
       try {
-        const result = await initializeCameraStream(video, { facingMode: 'environment' });
+        // Times out (and stops any stream) rather than waiting forever.
+        const result = await initializeCameraStream(video, { facingMode: 'environment', signal: closing.signal });
         if (cancelled) {
           terminateCameraStream(result.stream);
           return;
         }
-        streamRef.current = result.stream;
+        stream = result.stream;
         setStatus('live');
       } catch (err) {
         if (cancelled) return;
@@ -64,14 +70,16 @@ export function useCheckpointCamera(enabled: boolean, palette: StudentPalette | 
     void start();
     return () => {
       cancelled = true;
-      terminateCameraStream(streamRef.current);
-      streamRef.current = null;
+      closing.abort();
+      terminateCameraStream(stream);
+      stream = null;
+      if (video.srcObject) video.srcObject = null;
       setStatus('off');
     };
-  }, [enabled, attempt]);
+  }, [enabled, video, attempt]);
 
   const capture = useCallback((): FaceReading | null => {
-    const video = videoRef.current;
+    const video = videoElRef.current;
     if (!video || video.readyState < 2) return null;
     const width = video.videoWidth || 640;
     const height = video.videoHeight || 480;

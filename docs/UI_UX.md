@@ -174,6 +174,10 @@ lighting and glare tips with Scan again and Use a demo cube.
     step / Fix it from here (when the diagnosis is confident) / Rescan the cube / It actually
     matches.
   - No camera (blocked or failed): how to allow it, Try again, or "It matches" (check by eye).
+    The camera starts once the sheet's video element is mounted (a callback ref), and never
+    waits forever: no stream within 30 s (time to answer the permission prompt) or no first
+    frame within 10 s is the failed state with Try again (`initializeCameraStream`, also used by
+    the scan and phone cameras). Closing the sheet stops the tracks, even mid-start.
 - **Other states:** loading ("Planning the next step"), no solve in progress (Scan / Demo cube),
   planning failed (Try again / Scan again), solved (Solve another / Home).
 - The screen stays awake while a solve is open (Screen Wake Lock, re-taken when the page is

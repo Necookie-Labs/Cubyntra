@@ -9,6 +9,80 @@ export interface CameraOptions {
   facingMode?: 'user' | 'environment';
   idealWidth?: number;
   idealHeight?: number;
+  /** How long to wait for the camera (and the browser's permission prompt) to give a stream. */
+  streamTimeoutMs?: number;
+  /** How long to wait for the first frame's size once the stream is attached. */
+  metadataTimeoutMs?: number;
+  /** Aborting (the screen closed) stops the camera at once, even while it is starting. */
+  signal?: AbortSignal;
+}
+
+/** Long enough to read and answer the browser's permission prompt. */
+export const STREAM_TIMEOUT_MS = 30_000;
+/** A working camera reports its frame size within a second or two. */
+export const METADATA_TIMEOUT_MS = 10_000;
+
+export const CAMERA_TIMEOUT_MESSAGE =
+  'The camera did not start in time. Close other apps or tabs that use the camera, then try again.';
+
+const abortError = () => new DOMException('The camera was closed while it was starting.', 'AbortError');
+
+/**
+ * Rejects with the timeout message if `promise` has not settled after `ms`, or with an
+ * AbortError once `signal` aborts. A value that arrives after either goes to `onLate`.
+ */
+function withTimeout<T>(promise: Promise<T>, ms: number, signal?: AbortSignal, onLate?: (value: T) => void): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    let done = false;
+    const finish = () => {
+      done = true;
+      clearTimeout(timer);
+      signal?.removeEventListener('abort', onAbort);
+    };
+    const onAbort = () => {
+      if (done) return;
+      finish();
+      reject(abortError());
+    };
+    const timer = setTimeout(() => {
+      if (done) return;
+      finish();
+      reject(new Error(CAMERA_TIMEOUT_MESSAGE));
+    }, ms);
+    if (signal?.aborted) onAbort();
+    else signal?.addEventListener('abort', onAbort);
+    promise.then(
+      (value) => {
+        if (done) onLate?.(value);
+        else {
+          finish();
+          resolve(value);
+        }
+      },
+      (error) => {
+        if (done) return;
+        finish();
+        reject(error);
+      }
+    );
+  });
+}
+
+/** Resolves once the video knows its frame size (HAVE_METADATA). */
+function metadataReady(video: HTMLVideoElement): Promise<void> {
+  return new Promise<void>((resolve) => {
+    if (video.readyState >= 1) {
+      resolve();
+      return;
+    }
+    const ready = () => {
+      video.removeEventListener('loadedmetadata', ready);
+      video.removeEventListener('loadeddata', ready);
+      resolve();
+    };
+    video.addEventListener('loadedmetadata', ready);
+    video.addEventListener('loadeddata', ready);
+  });
 }
 
 export interface CameraResult {
@@ -18,7 +92,9 @@ export interface CameraResult {
 }
 
 /**
- * Requests camera permission and attaches the media stream to a video element.
+ * Requests camera permission and attaches the media stream to a video element. Never hangs:
+ * no stream within `streamTimeoutMs`, or no frame size within `metadataTimeoutMs`, rejects with
+ * `CAMERA_TIMEOUT_MESSAGE`, and any stream obtained is stopped (also one that arrives late).
  */
 export async function initializeCameraStream(
   videoElement: HTMLVideoElement,
@@ -34,45 +110,51 @@ export async function initializeCameraStream(
     throw new Error('Camera access is not supported by your current browser.');
   }
 
-  const { facingMode = 'environment', idealWidth = 1280, idealHeight = 720 } = options;
+  const {
+    facingMode = 'environment',
+    idealWidth = 1280,
+    idealHeight = 720,
+    streamTimeoutMs = STREAM_TIMEOUT_MS,
+    metadataTimeoutMs = METADATA_TIMEOUT_MS,
+    signal,
+  } = options;
+  const mediaDevices = navigator.mediaDevices;
 
-  let stream: MediaStream;
-
-  try {
-    // Attempt with ideal constraints (prefers rear environment camera on mobile)
-    stream = await navigator.mediaDevices.getUserMedia({
-      video: {
-        facingMode: { ideal: facingMode },
-        width: { ideal: idealWidth },
-        height: { ideal: idealHeight },
-      },
-      audio: false,
-    });
-  } catch {
-    // Fallback: request unconstrained video if initial constraints failed
+  const request = async (): Promise<MediaStream> => {
     try {
-      stream = await navigator.mediaDevices.getUserMedia({
-        video: true,
+      // Attempt with ideal constraints (prefers rear environment camera on mobile)
+      return await mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: facingMode },
+          width: { ideal: idealWidth },
+          height: { ideal: idealHeight },
+        },
         audio: false,
       });
-    } catch (fallbackErr) {
-      throw formatCameraError(fallbackErr);
+    } catch {
+      // Fallback: request unconstrained video if initial constraints failed
+      try {
+        return await mediaDevices.getUserMedia({ video: true, audio: false });
+      } catch (fallbackErr) {
+        throw formatCameraError(fallbackErr);
+      }
     }
-  }
+  };
+
+  // A stream that arrives after the timeout is stopped at once, so the camera light goes off.
+  const stream = await withTimeout(request(), streamTimeoutMs, signal, terminateCameraStream);
 
   videoElement.srcObject = stream;
   videoElement.setAttribute('playsinline', 'true'); // Required for iOS Safari
   videoElement.muted = true;
 
-  await new Promise<void>((resolve) => {
-    if (videoElement.readyState >= 2) {
-      resolve();
-    } else {
-      videoElement.onloadedmetadata = () => {
-        resolve();
-      };
-    }
-  });
+  try {
+    await withTimeout(metadataReady(videoElement), metadataTimeoutMs, signal);
+  } catch (error) {
+    terminateCameraStream(stream);
+    videoElement.srcObject = null;
+    throw error;
+  }
 
   await videoElement.play().catch(() => {
     // Auto-play was prevented; video will start on user interaction
