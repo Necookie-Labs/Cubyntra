@@ -52,14 +52,15 @@ Rather than rudimentary BoxGeometry cubes, Cubyntra constructs cubies using prec
 ### 3.1 Grouping and Detaching Mechanics
 Directly rotating individual cubies along world axes creates non-affine shearing when rotations are compounded. Cubyntra solves this via temporary dynamic grouping:
 
-1. **Selection**: Identify the 9 cubies whose current rounded world coordinate matches the target slice:
-   - For `U`: all cubies where $\text{round}(y) = +1$.
-   - For `R`: all cubies where $\text{round}(x) = +1$.
-   - For `F`: all cubies where $\text{round}(z) = +1$.
-2. **Parenting**: A pivot `THREE.Group` is a child of the cube group, reset to identity before each turn. Each of the 9 cubies is moved into it with `pivotGroup.attach(cubie)`. Because the pivot shares the cube group's frame, the turning layer keeps the cube's orbit rotation and idle bob. (A pivot parented to the scene made the layer detach and turn about a world axis whenever the view was orbited.)
+1. **Selection**: `moveLayers(move)` (`src/cube/transforms.ts`) reduces every move to an axis, the layers along it, and a signed number of quarter turns. The engine selects the cubies whose rounded coordinate on that axis is one of those layers:
+   - Face turn `U`: $\text{round}(y) = +1$ (9 cubies).
+   - Wide turn `r`: $\text{round}(x) \in \{+1, 0\}$ (18 cubies).
+   - Slice `M`: $\text{round}(x) = 0$ (9 cubies, including two centers).
+   - Rotation `y`: all 27 cubies.
+2. **Parenting**: A pivot `THREE.Group` is a child of the cube group, reset to identity before each turn. Each selected cubie is moved into it with `pivotGroup.attach(cubie)`. Because the pivot shares the cube group's frame, the turning layer keeps the cube's orbit rotation and idle bob. (A pivot parented to the scene made the layer detach and turn about a world axis whenever the view was orbited.)
 3. **Interpolated Turn**: The pivot's rotation is advanced inside the single render loop, never a separate `requestAnimationFrame` chain, using the frame's clamped delta (at most 100 ms) and a cubic ease-in-out:
    $$\theta(t) = \theta_{\text{target}} \cdot \text{ease}(t / T)$$
-   Half turns take 1.5x as long as quarter turns.
+   $\theta_{\text{target}}$ is the move's signed quarter turns times $\pi/2$ about the $+$axis (right-hand rule), so the same code turns faces, wide layers, slices and the whole cube. Half turns take 1.5x as long as quarter turns.
 4. **Detaching**: At $\theta_{\text{target}}$ each cubie is moved back with `rootCubeGroup.attach(cubie)`.
 5. **Orthonormal Snapping**:
    - Position is rounded to the integer grid.
@@ -71,7 +72,7 @@ Directly rotating individual cubies along world axes creates non-affine shearing
 - `requestSync(state)` repaints immediately when idle. While turns are queued it stores the state and applies it once the queue drains, so colors never jump to a post-move state mid-turn.
 - `SolveControls` plays a solution as an async loop: advance the store, await the turn, rest, repeat. At 1x a turn takes 300 ms plus a 250 ms rest, and both scale with speed. Next and Previous animate too; Previous plays the inverse turn.
 
-Verified in `tests/three-motion.test.ts` by driving the real engine frame by frame and reading the state back from cubie geometry and from material colors.
+Verified in `tests/three-motion.test.ts` by driving the real engine frame by frame and reading the state back from cubie geometry and from material colors, for every face, wide, slice and rotation move and for queued mixed sequences (and their inverses) at 144 Hz.
 
 ---
 
@@ -89,6 +90,11 @@ To guide users through solving moves physically, Cubyntra renders animated 3D di
 - **Geometry**: Circular arc (`THREE.EllipseCurve`, radius 1.15) extruded with `THREE.TubeGeometry`, terminating in a conical arrow tip (`THREE.ConeGeometry`) aligned with the direction of travel. A quarter turn sweeps about 0.55π, a half turn about 0.95π.
 - **Dynamic Placement**: `orientToFace` places the arc 1.75 units from the cube centre along the face's outward normal and rotates it so its local $+Z$ axis points out of the face. The arc's local XY plane is therefore always seen from outside the cube.
 - **Rotation Sense**: Seen from outside the face, the arc sweeps **clockwise** for `X` and `X2` (half turns are drawn clockwise, matching `applyMove`, which performs them as two clockwise quarters) and **counter-clockwise** for `X'`. Because local $+Z$ is the outward normal, clockwise means a decreasing angle: the curve ends at `start - sweep` with `aClockwise = true`. `tests/arrows.test.ts` measures the signed sweep of the arc in world space around each face's outward normal for all six faces.
+- **Other move kinds**: the arc is placed and swept by the face the move follows (`moveReferenceFace`).
+  - Wide turns are drawn exactly like their face.
+  - Slices (`M E S`) get a ring of radius 2.3 in the slice's own plane through the cube centre, clear of the cube's edges ($1.5\sqrt{2} \approx 2.12$), sweeping like L, D or F.
+  - Whole-cube rotations (`x y z`) get the widest, thickest ring (radius 2.6, tube 0.08) around the middle of the cube, sweeping like R, U or F.
+  `tests/arrows.test.ts` checks the plane, radius and sweep direction of each.
 - **Style**: A flat, unlit `MeshBasicMaterial` (no pulsing or emissive animation).
 
 ---
