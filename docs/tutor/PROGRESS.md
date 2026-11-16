@@ -84,7 +84,7 @@ Checklist for `docs/tutor/GOAL.md`. Tick an item only when it is done and tested
 - [x] Pairing secret and typed code
 - [x] Two-way playback control (solver playback; `grip` and `checkpoint-result` are relayed but not consumed until the Phase 7 tutor screens)
 - [x] ADR-015 and privacy docs
-- [ ] Phase gate passed and pushed
+- [x] Phase gate passed and pushed
 
 ## Phase 9: Learning features
 - [ ] Algorithm trainer
