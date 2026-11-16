@@ -15,16 +15,25 @@ coach only explains these plans; it never chooses moves.
 
 ```ts
 type MethodId = 'beginner' | 'cfop';
+interface MethodOptions { lastLayer?: '2-look' | 'full' }   // learner settings; {} = defaults
 
-planNextStep(state: CubeState, method: MethodId, grip?: Grip, stepIndex?: number): StepPlan | null
-currentStage(state: CubeState, method: MethodId): StageDefinition | null
-progress(state: CubeState, method: MethodId): TutorProgress
-runGuidedSolve(state: CubeState, method: MethodId, grip?: Grip): GuidedSolve
-getMethod(method: MethodId): MethodDefinition
-METHODS: Record<MethodId, MethodDefinition>
-CASE_IDS: Record<MethodId, Record<stageId, string[]>>   // every caseId a plan can carry
-caseIdsOf(method: MethodId): string[]
+planNextStep(state: CubeState, method: MethodId, grip?: Grip, stepIndex?: number, options?: MethodOptions): StepPlan | null
+currentStage(state: CubeState, method: MethodId, options?: MethodOptions): StageDefinition | null
+progress(state: CubeState, method: MethodId, options?: MethodOptions): TutorProgress
+runGuidedSolve(state: CubeState, method: MethodId, grip?: Grip, options?: MethodOptions): GuidedSolve
+getMethod(method: MethodId, options?: MethodOptions): MethodDefinition
+METHODS: Record<MethodId, MethodDefinition>              // each method as taught by default
+CASE_IDS: Record<MethodId, Record<stageId, string[]>>   // every caseId a default plan can carry
+CFOP_FULL_CASE_IDS: Record<stageId, string[]>           // the same for CFOP with lastLayer 'full'
+caseIdsByStage(method: MethodId, options?: MethodOptions): Record<stageId, string[]>
+caseIdsOf(method: MethodId, options?: MethodOptions): string[]
+allCaseIds(): string[]                                   // every id of every variant, each once
 ```
+
+- `options` are learner settings. The only one is `lastLayer` for CFOP: `'2-look'` (default) or
+  `'full'` (section 5.1). Leaving it out, passing `{}` or passing `'2-look'` all give exactly the
+  same plans as before the setting existed. The beginner's method ignores it. An unknown value
+  throws `TutorPlanError`.
 
 - `planNextStep` returns `null` for a solved cube (in any orientation) and throws
   `TutorPlanError` when the cube cannot be held in `grip` or a plan fails its replay check.
@@ -41,6 +50,7 @@ caseIdsOf(method: MethodId): string[]
 ```ts
 interface StepPlan {
   method: MethodId;
+  options?: MethodOptions;  // present only for non-default settings, e.g. { lastLayer: 'full' }
   stage: string;            // stage id, e.g. 'white-cross', 'f2l'
   stageName: string;
   stageIndex: number;
@@ -66,6 +76,11 @@ All moves are relative to the grip at the moment they are made: `R` is whatever 
 student's right. `facts.repeat` is set when the algorithm is one short sequence done several
 times ("do R' D' R D three times").
 
+`options` travels with the plan so that whatever plans the next step from it (the recovery
+functions in `recovery.ts`, the solve screen) stays on the same variant: stage indexes and
+progress values of the 2-look and full variants are not comparable. `resumeFrom` reads
+`plan.options` itself; `replanFromScan` takes the options as its last argument.
+
 ### 1.2 Methods are data
 
 A method is an ordered list of stages (`MethodDefinition.stages`). Each stage has:
@@ -89,9 +104,10 @@ The current stage is the first one whose detector is false.
 | `engine.ts` | Stage lookup, progress, regrips, replay and advance check, checkpoint, guided solve |
 | `api.ts`, `index.ts` | The same by method id; public exports |
 | `methods/beginner.ts`, `methods/orientCorners.ts` | Beginner's stages and the last-stage detector |
-| `methods/cfop.ts` | CFOP stages, F2L recognition index |
+| `methods/cfop.ts` | CFOP stages (2-look and full last layer), F2L recognition index |
 | `cases/f2l.ts`, `cases/oll2look.ts`, `cases/pll2look.ts` | Case tables |
-| `caseIds.ts` | Every case id by method and stage |
+| `cases/oll.ts`, `cases/pll.ts` | Full last-layer tables: 57 OLL and 21 PLL cases |
+| `caseIds.ts` | Every case id by method, variant and stage |
 | `crossSearch.ts`, `edgeCoords.ts` | Cross distance table and edge-position search |
 | `helpers.ts` | Move lists, piece references, last-layer checks |
 
@@ -188,9 +204,10 @@ Notes:
 
 ---
 
-## 5. CFOP (2-look last layer)
+## 5. CFOP
 
-White is on the bottom from start to finish.
+White is on the bottom from start to finish. The last layer is 2-look by default; section 5.1
+describes the full last layer.
 
 | # | Stage id | What happens | Case ids |
 |---|---|---|---|
@@ -215,6 +232,43 @@ F2L details:
   chosen and its stuck piece is taken out of the foreign slot with `R U R'`, `R U' R'` or
   `R U2 R'` after a top turn, whichever raises progress most (so nothing useful is pushed back
   in). In the soak run no solve needed more than 13 steps in total.
+
+### 5.1 Full last layer (`lastLayer: 'full'`)
+
+A learner who knows the 2-look last layer can switch CFOP to the full one:
+
+```ts
+planNextStep(state, 'cfop', grip, stepIndex, { lastLayer: 'full' });
+runGuidedSolve(state, 'cfop', grip, { lastLayer: 'full' });
+// in a worker: client.request('tutor.plan', { state, method: 'cfop', options: { lastLayer: 'full' } })
+```
+
+The method id stays `cfop`; `getMethod('cfop', { lastLayer: 'full' })` returns the variant
+`CFOP_FULL_METHOD`. Cross, F2L and the final turn are the very same stage objects, so the first
+two layers are planned identically. The four 2-look stages are replaced by two:
+
+| # | Stage id | What happens | Case ids |
+|---|---|---|---|
+| 1 | `cross` | As in 2-look. | `cross` |
+| 2 | `f2l` | As in 2-look. | `f2l-01` … `f2l-41`, `f2l-extract-corner`, `f2l-extract-edge` |
+| 3 | `oll` | The whole top yellow in one algorithm (skipped when it already is). | `oll-01` … `oll-57` |
+| 4 | `pll` | Every top piece in order in one algorithm (skipped when already right). | `pll-aa`, `pll-ab`, `pll-e`, `pll-f`, `pll-ga` … `pll-gd`, `pll-h`, `pll-ja`, `pll-jb`, `pll-na`, `pll-nb`, `pll-ra`, `pll-rb`, `pll-t`, `pll-ua`, `pll-ub`, `pll-v`, `pll-y`, `pll-z` |
+| 5 | `auf` | One turn of the top, if needed. | `auf-u`, `auf-u2`, `auf-u'` |
+
+- **Recognition** works like the 2-look stages: each table algorithm is tried after each of the
+  four top turns and the first that finishes the stage is planned. An OLL algorithm turns the
+  whole top yellow from exactly one yellow pattern, and a PLL algorithm solves exactly one
+  arrangement (give or take top turns), so the entry found is the case the cube shows. The line-up
+  turn is the only setup move; `facts.lookFor` is the case's `recognition`, which describes the
+  cube after that turn.
+- **Case ids** do not overlap with the 2-look ids (`oll-edges-*`, `oll-corners-*`,
+  `pll-corners-*`, `pll-edges-*`), so an id always names one algorithm. Sune is `oll-27` here and
+  `oll-corners-sune` in 2-look. `caseIdsOf('cfop', { lastLayer: 'full' })` lists the variant's
+  ids; `allCaseIds()` lists every id of every variant (what the coach and the trainer need).
+- **No regrips inside an algorithm.** Every table algorithm is free of `x`, `y`, `z`, like every
+  other step. Where the usual fingertrick version of a case starts with a rotation (A perms, E
+  perm, V perm), the table holds a rotation-free version of the same case.
+- **Plans carry the setting** as `plan.options`, and recovery keeps it (section 1.1).
 
 ---
 
@@ -329,6 +383,115 @@ from this key (`describeF2LPosition`), and the tests rebuild every key by undoin
 | `pll-edges-h` | H perm | `M2 U M2 U2 M2 U M2` | No side of the top layer is a solid bar. Every edge has the color of the corners on the opposite side. |
 | `pll-edges-z` | Z perm | `M' U M2 U M2 U M' U2 M2 U'` | No side of the top layer is a solid bar. The front edge has the color of the left corners and the back edge the color of the right corners. |
 
+### 7.4 Full OLL (57 cases, `cases/oll.ts`)
+
+Each entry has `id`, `number` (1–57, the standard numbering), `name` (`OLL n (nickname)`),
+`group`, `pattern`, `recognition` and `algorithm`. `pattern` is the case's definition: the 21
+last-layer stickers seen from above when the algorithm starts, `x` for yellow, as five rows
+(shown below with spaces between rows; the source joins them with `|`): the back side (left to
+right), three rows of left sticker + top face + right sticker, the front side (left to right).
+`recognition` is the group's shape followed by where every yellow sticker is, e.g. for `oll-27`:
+"A yellow cross on top. Yellow on top: the cross and the front-left corner. Yellow on the sides:
+front (right), right (back), back (left)."
+
+Groups: Dot (1–4, 17–20), Square (5, 6), Small lightning bolt (7, 8, 11, 12), Fish (9, 10, 35,
+37), Knight move (13–16), Cross (21–27), Corners oriented (28, 57), Awkward (29, 30, 41, 42),
+P shapes (31, 32, 43, 44), T shapes (33, 45), C shapes (34, 46), W shapes (36, 38), Big lightning
+bolt (39, 40), Small L (47–50, 53, 54), Line (51, 52, 55, 56).
+
+| Id | Name | Group | Pattern | Algorithm |
+|---|---|---|---|---|
+| `oll-01` | OLL 1 (Runway) | Dot | `.x. x...x x.x.x x...x .x.` | `R U2 R2 F R F' U2 R' F R F'` |
+| `oll-02` | OLL 2 (Zamboni) | Dot | `.xx x.... x.x.x x.... .xx` | `F R U R' U' F' f R U R' U' f'` |
+| `oll-03` | OLL 3 (Anti-Mouse) | Dot | `xx. ....x x.x.x x..x. .x.` | `f R U R' U' f' U' F R U R' U' F'` |
+| `oll-04` | OLL 4 (Mouse) | Dot | `.x. x..x. x.x.x ....x xx.` | `f R U R' U' f' U F R U R' U' F'` |
+| `oll-05` | OLL 5 (Lefty Square) | Square | `xx. ....x x.xx. x.xx. ...` | `r' U2 R U R' U r` |
+| `oll-06` | OLL 6 (Righty Square) | Square | `... x.xx. x.xx. ....x xx.` | `r U2 R' U' R U' r'` |
+| `oll-07` | OLL 7 (Fat Sune) | Small lightning bolt | `x.. ..x.x .xx.x .x... .xx` | `r U R' U R U2 r'` |
+| `oll-08` | OLL 8 (Fat Anti-Sune) | Small lightning bolt | `.xx .x... .xx.x ..x.x x..` | `r' U' R U' R' U2 r` |
+| `oll-09` | OLL 9 (Kite) | Fish | `..x x.x.. .xx.x ...x. xx.` | `R U R' U' R' F R2 U R' U' F'` |
+| `oll-10` | OLL 10 (Anti-Kite) | Fish | `xx. ...x. .xx.x x.x.. ..x` | `R U R' U R' F R F' R U2 R'` |
+| `oll-11` | OLL 11 (Downstairs) | Small lightning bolt | `x.. ..xx. .xx.x x.... .xx` | `r U R' U R' F R F' R U2 r'` |
+| `oll-12` | OLL 12 (Upstairs) | Small lightning bolt | `..x .xx.. x.xx. ....x xx.` | `M' R' U' R U' R' U2 R U' R r'` |
+| `oll-13` | OLL 13 (Gun) | Knight move | `xx. ....x .xxx. .x... .xx` | `F U R U' R2 F' R U R U' R'` |
+| `oll-14` | OLL 14 (Anti-Gun) | Knight move | `.xx x.... .xxx. ...x. xx.` | `R' F R U R' F' R F U' F'` |
+| `oll-15` | OLL 15 (Squeegee) | Knight move | `xx. ....x .xxx. x..x. .x.` | `r' U' r R' U' R U r' U r` |
+| `oll-16` | OLL 16 (Anti-Squeegee) | Knight move | `.x. x..x. .xxx. ....x xx.` | `r U r' R U R' U' r U' r'` |
+| `oll-17` | OLL 17 (Slash) | Dot | `.xx .x... x.x.x x..x. .x.` | `R U R' U R' F R F' U2 R' F R F'` |
+| `oll-18` | OLL 18 (Crown) | Dot | `.x. .x.x. x.x.x ..... xxx` | `r U R' U R U2 r2 U' R U' R' U2 r` |
+| `oll-19` | OLL 19 (Bunny) | Dot | `.x. .x.x. x.x.x x...x .x.` | `r' R U R U R' U' M' R' F R F'` |
+| `oll-20` | OLL 20 (Checkers) | Dot | `.x. .x.x. x.x.x .x.x. .x.` | `r U R' U' M2 U R U' R' U' M'` |
+| `oll-21` | OLL 21 (Double Sune) | Cross | `x.x ..x.. .xxx. ..x.. x.x` | `R U2 R' U' R U R' U' R U' R'` |
+| `oll-22` | OLL 22 (Pi) | Cross | `..x x.x.. .xxx. x.x.. ..x` | `R U2 R2 U' R2 U' R2 U2 R` |
+| `oll-23` | OLL 23 (Headlights) | Cross | `x.x ..x.. .xxx. .xxx. ...` | `R2 D' R U2 R' D R U2 R` |
+| `oll-24` | OLL 24 (Chameleon) | Cross | `x.. ..xx. .xxx. ..xx. x..` | `r U R' U' r' F R F'` |
+| `oll-25` | OLL 25 (Bowtie) | Cross | `... x.xx. .xxx. .xx.. ..x` | `F' r U R' U' r' F R` |
+| `oll-26` | OLL 26 (Anti-Sune) | Cross | `... x.xx. .xxx. ..x.x x..` | `R U2 R' U' R U' R'` |
+| `oll-27` | OLL 27 (Sune) | Cross | `x.. ..x.x .xxx. .xx.. ..x` | `R U R' U R U2 R'` |
+| `oll-28` | OLL 28 (Stealth) | Corners oriented | `... .xxx. .xx.x .x.x. .x.` | `r U R' U' r' R U R U' R'` |
+| `oll-29` | OLL 29 (Spotted Chameleon) | Awkward | `x.. ..xx. .xx.x ...x. xx.` | `R U R' U' R U' R' F' U' F R U R'` |
+| `oll-30` | OLL 30 (Anti-Spotted Chameleon) | Awkward | `... x.x.x .xx.x .x.x. .x.` | `F R' F R2 U' R' U' R U R' F2` |
+| `oll-31` | OLL 31 (Couch) | P shapes | `x.. ..xx. x.xx. ...x. xx.` | `R' U' F U R U' R' F' R` |
+| `oll-32` | OLL 32 (Anti-Couch) | P shapes | `..x .xx.. .xx.x .x... .xx` | `L U F' U' L' U L F L'` |
+| `oll-33` | OLL 33 (Key) | T shapes | `xx. ...x. .xxx. ...x. xx.` | `R U R' U' R' F R F'` |
+| `oll-34` | OLL 34 (City) | C shapes | `.x. x...x .xxx. .x.x. .x.` | `R U R2 U' R' F R U R U' F'` |
+| `oll-35` | OLL 35 (Fish Salad) | Fish | `.x. .x..x x.xx. ..xx. x..` | `R U2 R2 F R F' R U2 R'` |
+| `oll-36` | OLL 36 (Wario) | W shapes | `..x .xx.. x.xx. x..x. .x.` | `L' U' L U' L' U L U L F' L' F` |
+| `oll-37` | OLL 37 (Mounted Fish) | Fish | `... .xx.x .xx.x ...x. xx.` | `F R' F' R U R U' R'` |
+| `oll-38` | OLL 38 (Mario) | W shapes | `x.. ..xx. .xx.x .x..x .x.` | `R U R' U R U' R' U' R' F R F'` |
+| `oll-39` | OLL 39 (Fung) | Big lightning bolt | `xx. ...x. .xxx. .x..x .x.` | `L F' L' U' L U F U' L'` |
+| `oll-40` | OLL 40 (Anti-Fung) | Big lightning bolt | `.xx .x... .xxx. x..x. .x.` | `R' F R U R' U' F' U R` |
+| `oll-41` | OLL 41 (Awkward Fish) | Awkward | `x.x ..x.. .xx.x .x.x. .x.` | `R U R' U R U2 R' F R U R' U' F'` |
+| `oll-42` | OLL 42 (Lefty Awkward Fish) | Awkward | `.x. .x.x. .xx.x ..x.. x.x` | `R' U' R U' R' U2 R F R U R' U' F'` |
+| `oll-43` | OLL 43 (Anti-P) | P shapes | `... x.xx. x.xx. x..x. .x.` | `F' U' L' U L F` |
+| `oll-44` | OLL 44 (P) | P shapes | `... .xx.x .xx.x .x..x .x.` | `F U R U' R' F'` |
+| `oll-45` | OLL 45 (Suit Up) | T shapes | `.x. x..x. .xxx. x..x. .x.` | `F R U R' U' F'` |
+| `oll-46` | OLL 46 (Seein' Headlights) | C shapes | `... .xx.x x.x.x .xx.x ...` | `R' U' R' F R F' U R` |
+| `oll-47` | OLL 47 (Anti-Breakneck) | Small L | `x.. ..x.x x.xx. ....x xx.` | `R' U' R' F R F' R' F R F' U R` |
+| `oll-48` | OLL 48 (Breakneck) | Small L | `..x x.x.. .xx.x x.... .xx` | `F R U R' U' R U R' U' F'` |
+| `oll-49` | OLL 49 (Right Back Squeezy) | Small L | `..x x.x.. x.xx. x.... .xx` | `r U' r2 U r2 U r2 U' r` |
+| `oll-50` | OLL 50 (Right Front Squeezy) | Small L | `.xx x.... x.xx. x.x.. ..x` | `r' U r2 U' r2 U' r2 U r'` |
+| `oll-51` | OLL 51 (Bottlecap) | Line | `xx. ....x .xxx. ....x xx.` | `F U R U' R' U R U' R' F'` |
+| `oll-52` | OLL 52 (Rice Cooker) | Line | `x.. ..x.x x.x.x ..x.x x..` | `R U R' U R U' B U' B' R'` |
+| `oll-53` | OLL 53 (Frying Pan) | Small L | `x.x ..x.. x.xx. ..... xxx` | `l' U2 L U L' U' L U L' U l` |
+| `oll-54` | OLL 54 (Anti-Frying Pan) | Small L | `x.x ..x.. .xx.x ..... xxx` | `r U2 R' U' R U R' U' R U' r'` |
+| `oll-55` | OLL 55 (Highway) | Line | `xxx ..... .xxx. ..... xxx` | `R' F R U R U' R2 F' R2 U' R' U R U R'` |
+| `oll-56` | OLL 56 (Streetlights) | Line | `.x. x...x .xxx. x...x .x.` | `r' U' r U' R' U R U' R' U R r' U r` |
+| `oll-57` | OLL 57 (Mummy) | Corners oriented | `.x. .x.x. .xxx. .x.x. .x.` | `R U R' U' M' U R U' r'` |
+
+### 7.5 Full PLL (21 cases, `cases/pll.ts`)
+
+Each entry has `id`, `name`, `group`, `cycles`, `recognition` and `algorithm`. `cycles` is the
+case's definition: what the algorithm does to the top-layer pieces, leaving out any last turn of
+the top. `(UFR UBR)` means the front-right corner goes to the back-right and the other comes
+back; `(UF UR UL)` sends front to right, right to left, left to front. `recognition` says what
+the top row of each side shows (a solid bar, headlights, a block of two, three different colors)
+and never mentions the centers, because the top may be a turn away from them.
+
+| Id | Name | Group | Cycles | Algorithm |
+|---|---|---|---|---|
+| `pll-aa` | Aa perm | Corners only | `(UBL UBR UFR)` | `R' F R' B2 R F' R' B2 R2` |
+| `pll-ab` | Ab perm | Corners only | `(UBL UFR UBR)` | `R2 B2 R F R' B2 R F' R` |
+| `pll-e` | E perm | Corners only | `(UBL UFL) (UBR UFR)` | `R B' R' F R B R' F' R B R' F R B' R' F'` |
+| `pll-f` | F perm | Adjacent corner swap | `(UB UF) (UBR UFR)` | `R' U' F' R U R' U' R' F R2 U' R' U' R U R' U R` |
+| `pll-ga` | Ga perm | G perms | `(UB UL UR) (UBL UBR UFL)` | `R2 U R' U R' U' R U' R2 U' D R' U R D'` |
+| `pll-gb` | Gb perm | G perms | `(UBL UBR UFL) (UF UR UL)` | `R' U' R U D' R2 U R' U R U' R U' R2 D` |
+| `pll-gc` | Gc perm | G perms | `(UB UF UR) (UBL UBR UFL)` | `R2 U' R U' R U R' U R2 U D' R U' R' D` |
+| `pll-gd` | Gd perm | G perms | `(UB UL UF) (UBL UBR UFL)` | `R U R' U' D R2 U' R U' R' U R' U R2 D'` |
+| `pll-h` | H perm | Edges only | `(UB UF) (UL UR)` | `M2 U M2 U2 M2 U M2` |
+| `pll-ja` | Ja perm | Adjacent corner swap | `(UB UL) (UBL UBR)` | `R' U L' U2 R U' R' U2 R L` |
+| `pll-jb` | Jb perm | Adjacent corner swap | `(UBR UFR) (UF UR)` | `R U R' F' R U R' U' R' F R2 U' R'` |
+| `pll-na` | Na perm | Diagonal corner swap | `(UBR UFL) (UL UR)` | `R U R' U R U R' F' R U R' U' R' F R2 U' R' U2 R U' R'` |
+| `pll-nb` | Nb perm | Diagonal corner swap | `(UBL UFR) (UL UR)` | `R' U R U' R' F' U' F R U R' F R' F' R U' R` |
+| `pll-ra` | Ra perm | Adjacent corner swap | `(UB UL) (UBR UFR)` | `R U' R' U' R U R D R' U' R D' R' U2 R'` |
+| `pll-rb` | Rb perm | Adjacent corner swap | `(UBR UFR) (UF UL)` | `R2 F R U R U' R' F' R U2 R' U2 R` |
+| `pll-t` | T perm | Adjacent corner swap | `(UBR UFR) (UL UR)` | `R U R' U' R' F R2 U' R' U' R U R' F'` |
+| `pll-ua` | Ua perm | Edges only | `(UF UR UL)` | `R U' R U R U R U' R' U' R2` |
+| `pll-ub` | Ub perm | Edges only | `(UF UL UR)` | `R2 U R U R' U' R' U' R' U R'` |
+| `pll-v` | V perm | Diagonal corner swap | `(UB UR) (UBL UFR)` | `R' U R' U' R D' R' D R' U D' R2 U' R2 D R2` |
+| `pll-y` | Y perm | Diagonal corner swap | `(UB UL) (UBL UFR)` | `F R U' R' U' R U R' F' R U R' U' R' F R F'` |
+| `pll-z` | Z perm | Edges only | `(UB UR) (UF UL)` | `M' U M2 U M2 U M' U2 M2` |
+
 ---
 
 ## 8. Tests and measured results
@@ -337,6 +500,9 @@ from this key (`describeF2LPosition`), and the tests rebuild every key by undoin
 |---|---|
 | `tests/tutor-edge-coords.test.ts`, `tutor-cross-search.test.ts` | Move table agrees with the cube engine; cross search is optimal and never exceeds 8 turns |
 | `tests/tutor-f2l-cases.test.ts`, `tutor-last-layer-cases.test.ts` | Every table algorithm does what its entry says; the 41 F2L cases are distinct and complete |
+| `tests/tutor-oll-cases.test.ts`, `tutor-pll-cases.test.ts` | Full last-layer tables (see "Full last-layer tables" below) |
+| `tests/tutor-cfop-full-last-layer.test.ts` | Every one of the 57 + 21 cases is set up directly and recognised, from every side |
+| `tests/tutor-full-last-layer-coach.test.ts` | Full last-layer plans pass the coach's facts parser and move guardrail |
 | `tests/tutor-engine.test.ts` | Replay, advance check (a plan that does not advance throws), regrips, checkpoint, loop guard |
 | `tests/tutor-cfop-*.test.ts`, `tutor-beginner-*.test.ts`, `tutor-orient-corners.test.ts` | Each stage with hand-made cubes (a case is set up by undoing its algorithm) |
 | `tests/tutor-beginner-facts.test.ts`, `tutor-cfop-facts.test.ts` | After the setup moves, the cube looks the way `facts.lookFor` and the case recognition say |
@@ -348,12 +514,44 @@ scramble and both methods it checks that the solve finishes, that every step sta
 previous state, replays exactly to `expectedState`, raises progress and never goes back a stage,
 and that the set of case ids seen equals `CASE_IDS` exactly (every table case is triggered).
 
-- `npm test` runs **1,000** scrambles per method (about 4 s).
-- `npm run test:tutor-soak` runs **10,000** per method (about 40 s) and prints the report below.
+CFOP runs twice, with the 2-look and with the full last layer (`cfop-full`). For the full run the
+suite also checks that the cross and F2L turns equal the 2-look run's, that no solve has more
+than one `oll`, one `pll` and one `auf` step, and that every case id seen is in the tables. A
+1-in-216 case can be missing from 1,000 random scrambles, so "every case is triggered" is
+asserted for `cfop-full` only at soak size; the default suite proves it another way (below).
 
-### 8.1 Soak results (10,000 scrambles per method, seed 2026, 2026-11-17)
+- `npm test` runs **1,000** scrambles per method and variant (about 7 s).
+- `npm run test:tutor-soak` runs **10,000** each (about 95 s) and prints the report below.
 
-All 20,000 solves completed; every step advanced; every case id was triggered.
+**Full last-layer tables.** The table tests do not take the tables' word for anything:
+
+- *Each algorithm does its case.* Undoing an OLL algorithm on a solved cube gives exactly the
+  entry's `pattern`, and the algorithm turns the top yellow from that pattern with the top pieces
+  in two different orders. A PLL algorithm does exactly the entry's `cycles` (up to a last top
+  turn) and solves its case from every side.
+- *Each case is the one its number or name says.* A hand-written sheet in the test lists, per OLL
+  number, which yellow edges are on top (none / two adjacent / a line / all) and how many yellow
+  corners; per PLL name, what moves (corner 3-cycle, adjacent or diagonal corner swap, two corner
+  swaps; edge 3-cycle, adjacent or opposite edge swap, two swaps). Patterns and cycles must agree.
+- *Recognition text is true.* A test helper reads the yellow stickers (OLL) or the bars,
+  headlights and blocks (PLL) off the cube, and the entry's `recognition` must end with exactly
+  that description.
+- *Complete and without duplicates.* All yellow patterns a last layer can show are enumerated by
+  search from the solved cube using only the 2-look algorithms: 216 patterns, 58 up to turns of
+  the top; the table covers each exactly once except the finished top. Likewise all 288
+  arrangements of a yellow top fall into 22 classes up to top turns before and after; the PLL
+  table covers each exactly once except the solved one.
+- *The planner finds each case.* `tutor-cfop-full-last-layer.test.ts` sets up every OLL case
+  after each top turn on a randomly chosen (seeded) arrangement of the top pieces, and every PLL
+  case with each of the 16 combinations of top turns before and after; the plan must carry that
+  case's id, algorithm and recognition, and the cube after the line-up turn must show the entry's
+  pattern. Every OLL case is also solved to the end on all 21 arrangements (1,197 solves, at most
+  three steps each).
+
+### 8.1 Soak results (10,000 scrambles per method and variant, seed 2026, 2026-11-17)
+
+All 30,000 solves completed; every step advanced; every case id was triggered (for the full last
+layer: all 125 ids, including each of the 57 OLL and 21 PLL cases).
 Turns are layer turns (regrips are not counted).
 
 **Beginner's method** — average **155.8** turns, maximum **231**; average 21.6 steps, maximum 29.
@@ -381,6 +579,20 @@ Turns are layer turns (regrips are not counted).
 | `pll-edges` | 10.1 | 12 |
 | `auf` | 0.7 | 1 |
 
+**CFOP (full last layer)** — average **62.3** turns, maximum **87**; average 8.2 steps, maximum 11.
+The same scrambles as the 2-look run, so cross and F2L are identical; the last layer takes 25.3
+turns on average instead of 38.6.
+
+| Stage | Average turns | Maximum turns |
+|---|---:|---:|
+| `cross` | 5.8 | 8 |
+| `f2l` | 31.2 | 54 |
+| `oll` | 10.6 | 16 |
+| `pll` | 14.0 | 21 |
+| `auf` | 0.7 | 1 |
+
+Stage turns include the line-up turn of the top before the algorithm.
+
 ---
 
 ## 9. Known limits
@@ -392,4 +604,9 @@ Turns are layer turns (regrips are not counted).
   only; there are no left-slot or back-slot variants.
 - The engine assumes the standard color scheme and a physically valid cube; validate a scan with
   `validateCubeState` before planning.
-- Full OLL (57) and PLL (21) arrive in Phase 9 and will plug into the same last-layer planner.
+- The full last-layer tables hold one rotation-free algorithm per case. Some (A perms, E perm)
+  use back-face turns where speedcubers would regrip; alternative algorithms per case and
+  left-handed mirrors are not offered.
+- OLL nicknames follow common algorithm sheets; several cases have more than one nickname in use.
+- The coach has no case notes of its own for `oll-01` … `oll-57` and `pll-aa` … `pll-z`, nor stage
+  notes for `oll` and `pll`, yet; its templates fall back to the plan's facts, which is tested.
