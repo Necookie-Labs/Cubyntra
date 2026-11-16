@@ -24,7 +24,7 @@ export { PLL_CASES } from './cases/pll';
 export type { PllCase, PllGroup } from './cases/pll';
 export { crossDistance, solveCross } from './crossSearch';
 export { countTurns } from './helpers';
-export { CASE_IDS, caseIdsOf } from './caseIds';
+export { CASE_IDS, CFOP_FULL_CASE_IDS, allCaseIds, caseIdsByStage, caseIdsOf } from './caseIds';
 export {
   MIN_STICKER_CONFIDENCE,
   applyTileEdits,

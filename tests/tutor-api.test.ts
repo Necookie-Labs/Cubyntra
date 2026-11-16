@@ -4,9 +4,12 @@ import { describe, expect, it } from 'vitest';
 import { applyMoves, isCubeSolved, parseAlgorithm } from '../src/cube/transforms';
 import {
   CASE_IDS,
+  CFOP_FULL_CASE_IDS,
   METHODS,
   MethodId,
   TutorPlanError,
+  allCaseIds,
+  caseIdsByStage,
   caseIdsOf,
   countTurns,
   currentStage,
@@ -82,6 +85,34 @@ describe('tutor public API', () => {
     }
     expect(caseIdsOf('cfop')).toHaveLength(1 + 43 + 3 + 7 + 2 + 4 + 3);
     expect(caseIdsOf('beginner')).toHaveLength(22);
+  });
+
+  it('lists the full last-layer case ids under the lastLayer setting, and leaves the default alone', () => {
+    const FULL = { lastLayer: 'full' } as const;
+    expect(caseIdsByStage('cfop')).toBe(CASE_IDS.cfop);
+    expect(caseIdsByStage('cfop', { lastLayer: '2-look' })).toBe(CASE_IDS.cfop);
+    expect(caseIdsByStage('cfop', FULL)).toBe(CFOP_FULL_CASE_IDS);
+    expect(caseIdsByStage('beginner', FULL)).toBe(CASE_IDS.beginner);
+
+    expect(Object.keys(CFOP_FULL_CASE_IDS)).toEqual(getMethod('cfop', FULL).stages.map((s) => s.id));
+    expect(CFOP_FULL_CASE_IDS.oll).toHaveLength(57);
+    expect(CFOP_FULL_CASE_IDS.oll[0]).toBe('oll-01');
+    expect(CFOP_FULL_CASE_IDS.oll[56]).toBe('oll-57');
+    expect(CFOP_FULL_CASE_IDS.pll).toHaveLength(21);
+    expect(CFOP_FULL_CASE_IDS.pll).toContain('pll-ga');
+    for (const stage of ['cross', 'f2l', 'auf']) expect(CFOP_FULL_CASE_IDS[stage]).toBe(CASE_IDS.cfop[stage]);
+
+    const full = caseIdsOf('cfop', FULL);
+    expect(full).toHaveLength(1 + 43 + 57 + 21 + 3);
+    expect(new Set(full).size).toBe(full.length);
+    // No id means one thing in the 2-look tables and another in the full ones.
+    const twoLookOnly = caseIdsOf('cfop').filter((id) => !CASE_IDS.cfop.cross.includes(id) && !CASE_IDS.cfop.f2l.includes(id) && !CASE_IDS.cfop.auf.includes(id));
+    expect(twoLookOnly.filter((id) => full.includes(id))).toEqual([]);
+
+    const all = allCaseIds();
+    expect(new Set(all).size).toBe(all.length);
+    expect(all).toHaveLength(22 + 63 + 57 + 21);
+    for (const id of [...caseIdsOf('beginner'), ...caseIdsOf('cfop'), ...full]) expect(all).toContain(id);
   });
 });
 
