@@ -238,3 +238,41 @@ interface CubyntraStore {
 Each open event stream's 15 s keep-alive also refreshes the session (`touch`), so a connected pairing never expires while idle; sessions idle for 30 minutes are removed by `purgeExpired`. When a session no longer exists its stream is closed, and the desktop shows "Pairing ended" with a New QR code button.
 
 Photos are kept in a map separate from `SessionState`, so session snapshots and `STATE_SYNC` never contain pixels. Request bodies are parsed by the pure functions in `src/sync/validation.ts`.
+
+---
+
+## 7. Coach API (`src/coach/`, `src/app/api/coach/`)
+
+See [ADR-014](ADR/014-claude-coach.md). Protected routes need the header `x-cubyntra-token`
+(the per-install app secret from `src/lib/localAuth.ts`).
+
+| Route | Auth | Body | Result |
+|:---|:---|:---|:---|
+| `POST /api/coach` | token, 30/min | `{ facts: CoachFacts }`, at most 8 KB | `text/event-stream`: `delta` → `{ text }`, `replace` → `{ text, reason }`, `done` → `{ source: 'live' \| 'template', mode, reason?, notice? }`. `400` bad body, `401` bad token, `413` too large, `429` rate limited (`Retry-After`). |
+| `GET /api/coach/status` | token | – | `{ mode: 'live' \| 'mock' \| 'capped', monthSpendUsd, capUsd, month }` |
+| `GET /api/auth/token` | loopback Host only | – | `{ token }`, or `403` from any other host. |
+
+```typescript
+// Facts (src/coach/facts.ts)
+buildCoachFacts(plan: StepPlan, hintLevel: 1 | 2 | 3, attempts?: AttemptRecord[], diagnosis?: CoachDiagnosis): CoachFacts
+parseCoachFacts(input: unknown): { ok: true; value: CoachFacts } | { ok: false; error: string }
+
+// What the Phase 5 checkpoint builder fills (src/coach/types.ts)
+interface CoachDiagnosis { likelyMistakes: { kind: MistakeKind; moveIndex?: number; confidence?: number }[] }
+type MistakeKind = 'wrong-direction' | 'skipped-move' | 'doubled-move' | 'wrong-face' | 'wrong-grip' | 'other'
+interface AttemptRecord { result: 'matched' | 'mismatch' | 'unsure'; mistakes?: MistakeKind[] }
+
+// Client hook (src/coach/useCoach.ts)
+useCoach({ plan, token, attempts?, diagnosis?, endpoint? }): {
+  text, status: 'idle' | 'loading' | 'streaming' | 'done' | 'error', hintLevel, source, mode,
+  reason, notice, error, requestHint(level: 1 | 2 | 3): void, cancel(): void
+}
+
+// Guardrail and templates
+checkReplyMoves(text: string, allowed: Set<string>, names?: string[]): { ok, tokens, offending }
+templateText(facts: CoachFacts): string
+
+// Server only (src/lib/localAuth.ts)
+getAppSecret(): string          // creates data/app-secret on first use
+getPairingToken(): string       // the value to put in the phone pairing QR (Phase 8)
+```
