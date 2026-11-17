@@ -4,7 +4,7 @@
  * Cubyntra - Settings
  * Necookie Labs (c) 2026
  *
- * Name, default method (and CFOP's last layer), how moves and stickers are shown, theme and motion, the coach's mode
+ * Name, default method (and CFOP's last layer), how moves and stickers are shown, theme and motion, the voice, the coach's mode
  * and spend this month, and installing the app on a phone. Every change saves to the
  * student's profile on the laptop.
  */
@@ -21,6 +21,7 @@ import { MAX_NAME_LENGTH, type ThemeSetting } from '@/lib/studentProfile';
 import { THEME_CHANGE_EVENT, readThemePreference, setThemePreference, type ThemePreference } from '@/lib/theme';
 import type { CoachMode } from '@/coach/types';
 import type { LastLayerMode, MethodId } from '@/tutor/types';
+import { VoiceSettings } from './VoiceSettings';
 
 function subscribeTheme(onChange: () => void) {
   window.addEventListener(THEME_CHANGE_EVENT, onChange);
@@ -279,6 +280,10 @@ export function SettingsView() {
             onChange={(reducedMotion) => updateSettings({ reducedMotion })}
           />
         </Panel>
+      </PageSection>
+
+      <PageSection title="Voice">
+        <VoiceSettings />
       </PageSection>
 
       <PageSection title="Coach">
