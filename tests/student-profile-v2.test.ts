@@ -28,9 +28,9 @@ function v1Profile() {
 }
 
 describe('student profile v2', () => {
-  it('is version 2 with the learning fields empty by default', () => {
+  it('is the current version with the learning fields empty by default', () => {
     const profile = defaultStudentProfile();
-    expect(STUDENT_PROFILE_VERSION).toBe(2);
+    expect(STUDENT_PROFILE_VERSION).toBe(3);
     expect(profile.settings.lastLayer).toBe('2-look');
     expect(profile.stats.stages).toEqual({});
     expect(profile.stats.activeDays).toEqual([]);
@@ -42,7 +42,7 @@ describe('student profile v2', () => {
     const parsed = parseStudentProfile(v1Profile());
     expect(parsed.ok).toBe(true);
     if (!parsed.ok) return;
-    expect(parsed.profile.version).toBe(2);
+    expect(parsed.profile.version).toBe(STUDENT_PROFILE_VERSION);
     expect(parsed.profile.name).toBe('Sam');
     expect(parsed.profile.settings).toEqual({
       methodDefault: 'cfop',
@@ -51,6 +51,9 @@ describe('student profile v2', () => {
       reducedMotion: false,
       theme: 'dark',
       lastLayer: '2-look',
+      voiceMode: 'off',
+      voiceRate: 1,
+      voiceMoves: 'words',
     });
     expect(parsed.profile.stats).toEqual({ ...v1Profile().stats, stages: {}, activeDays: [] });
     expect(parsed.profile.trainer).toEqual({ turn: 0, cards: {}, set: null });
@@ -67,7 +70,7 @@ describe('student profile v2', () => {
     expect(migrateProfileV1('x')).toBe('x');
     const v2 = defaultStudentProfile();
     expect(migrateProfileV1(v2)).toBe(v2);
-    expect(parseStudentProfile({ ...v1Profile(), version: 3 }).ok).toBe(false);
+    expect(parseStudentProfile({ ...v1Profile(), version: 4 }).ok).toBe(false);
   });
 
   it('still rejects a broken v1 profile after migration', () => {

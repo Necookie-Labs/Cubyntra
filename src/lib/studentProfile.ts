@@ -13,6 +13,9 @@
  * read (`migrateProfileV1`), so an existing `data/student.json` keeps working. Two optional
  * version 2 fields came later and need no migration: an `id` on each timer solve (given to older
  * solves when read) and `closedSolveStartedAt` (see `profileOps.ts`).
+ *
+ * Version 3 added the voice settings (`voiceMode`, `voiceRate`, `voiceMoves`, ADR-016). A version
+ * 2 profile is migrated when read (`migrateProfileV2`): voice off, normal speed, moves in words.
  */
 
 import type { CubeColor, CubeState, Face } from '../cube/types';
@@ -38,7 +41,7 @@ import {
   type TrainerState,
 } from '../learn/types';
 
-export const STUDENT_PROFILE_VERSION = 2;
+export const STUDENT_PROFILE_VERSION = 3;
 /** Largest body `/api/student` accepts and the largest file it writes. */
 export const MAX_STUDENT_BYTES = 128 * 1024;
 export const MAX_NAME_LENGTH = 40;
@@ -55,6 +58,15 @@ const MAX_SCRAMBLE_LENGTH = 200;
 
 export type ThemeSetting = 'light' | 'dark' | 'system';
 
+/** Who speaks (ADR-016): nobody, the browser's built-in voice, or ElevenLabs through the laptop. */
+export type VoiceMode = 'off' | 'device' | 'elevenlabs';
+export const VOICE_MODES: readonly VoiceMode[] = ['off', 'device', 'elevenlabs'];
+/** How moves are spoken: "turn the right side up" or "R prime" style. */
+export type VoiceMoves = 'words' | 'notation';
+/** Speaking speeds offered in Settings (1 = the voice's normal pace). */
+export const VOICE_RATES = [0.75, 1, 1.25] as const;
+export type VoiceRate = (typeof VOICE_RATES)[number];
+
 export interface StudentSettings {
   /** Method picked on the home screen unless the student chooses another. */
   methodDefault: MethodId;
@@ -67,6 +79,12 @@ export interface StudentSettings {
   theme: ThemeSetting;
   /** CFOP only: the last layer in four steps (`2-look`) or in one OLL and one PLL step (`full`). */
   lastLayer: LastLayerMode;
+  /** Voice tutoring: off, the device voice or ElevenLabs (falls back to the device voice). */
+  voiceMode: VoiceMode;
+  /** Speaking speed. */
+  voiceRate: VoiceRate;
+  /** Moves spoken as plain-language names or as notation ("R prime"). */
+  voiceMoves: VoiceMoves;
 }
 
 /** A guided solve that has started and not finished. */
@@ -123,6 +141,9 @@ export const DEFAULT_SETTINGS: StudentSettings = {
   reducedMotion: false,
   theme: 'system',
   lastLayer: '2-look',
+  voiceMode: 'off',
+  voiceRate: 1,
+  voiceMoves: 'words',
 };
 
 export function defaultStats(): StudentStats {
@@ -172,6 +193,16 @@ export function migrateProfileV1(input: unknown): unknown {
   };
 }
 
+/**
+ * Brings a version 2 profile up to version 3: the voice settings get their defaults (off, normal
+ * speed, moves in words). Anything that is not a version 2 object is returned as is.
+ */
+export function migrateProfileV2(input: unknown): unknown {
+  if (!isRecord(input) || input.version !== 2) return input;
+  const voice = { voiceMode: DEFAULT_SETTINGS.voiceMode, voiceRate: DEFAULT_SETTINGS.voiceRate, voiceMoves: DEFAULT_SETTINGS.voiceMoves };
+  return { ...input, version: 3, settings: isRecord(input.settings) ? { ...voice, ...input.settings } : input.settings };
+}
+
 class SchemaError extends Error {}
 
 function need(condition: unknown, message: string): asserts condition {
@@ -186,6 +217,9 @@ function parseSettings(v: unknown): StudentSettings {
   }
   need(v.theme === 'light' || v.theme === 'dark' || v.theme === 'system', 'settings.theme must be light, dark or system');
   need(v.lastLayer === '2-look' || v.lastLayer === 'full', 'settings.lastLayer must be 2-look or full');
+  need((VOICE_MODES as readonly unknown[]).includes(v.voiceMode), 'settings.voiceMode must be off, device or elevenlabs');
+  need((VOICE_RATES as readonly unknown[]).includes(v.voiceRate), `settings.voiceRate must be one of ${VOICE_RATES.join(', ')}`);
+  need(v.voiceMoves === 'words' || v.voiceMoves === 'notation', 'settings.voiceMoves must be words or notation');
   return {
     methodDefault: v.methodDefault,
     plainLanguage: v.plainLanguage as boolean,
@@ -193,6 +227,9 @@ function parseSettings(v: unknown): StudentSettings {
     reducedMotion: v.reducedMotion as boolean,
     theme: v.theme,
     lastLayer: v.lastLayer,
+    voiceMode: v.voiceMode as VoiceMode,
+    voiceRate: v.voiceRate as VoiceRate,
+    voiceMoves: v.voiceMoves,
   };
 }
 
@@ -328,12 +365,12 @@ function parseTimer(v: unknown): TimerState {
 }
 
 /**
- * Validates a profile (parsed JSON). A version 1 profile is migrated first. Unknown fields are
+ * Validates a profile (parsed JSON). A version 1 or 2 profile is migrated first. Unknown fields are
  * dropped; anything malformed is an error.
  */
 export function parseStudentProfile(raw: unknown): ProfileParse {
   try {
-    const input = migrateProfileV1(raw);
+    const input = migrateProfileV2(migrateProfileV1(raw));
     need(isRecord(input), 'the profile must be an object');
     need(input.version === STUDENT_PROFILE_VERSION, `version must be ${STUDENT_PROFILE_VERSION}`);
     need(typeof input.name === 'string' && input.name.length <= MAX_NAME_LENGTH, `name must be at most ${MAX_NAME_LENGTH} characters`);
