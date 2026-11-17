@@ -97,7 +97,7 @@ export function CoachPanel({
         )}
       </div>
 
-      <div role="group" aria-label="Hints" className="grid grid-cols-1 gap-2 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
+      <div role="group" aria-label="Hints" className="grid grid-cols-1 gap-2 sm:grid-cols-3 lg:grid-cols-1">
         {HINTS.map(({ level, label, Icon }) => (
           <BlockButton
             key={level}
