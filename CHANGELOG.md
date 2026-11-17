@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Voice tutoring** ([ADR-016](docs/ADR/016-voice-tutoring.md)): the tutor speaks. Settings → Voice picks Off (default), the device voice (browser speech, free and offline) or ElevenLabs (Flash v2.5, a stock voice, through the laptop), the speed, and moves in words ("turn the right side up") or as letters ("R prime"), with a Test voice button. On the solve screen a speaker button in the coach panel turns it on and off; the twin's moves are named as they play, new stages are introduced, checkpoint results are spoken, and finished coach replies are read with the device voice (only after the move guardrail), with "Read with ElevenLabs" in ElevenLabs mode. A new step interrupts; nothing plays before the first tap; when paired only the device driving the solve speaks.
+- **`POST /api/voice`** and **`GET /api/voice/status`**: token, 4 KB body cap, 60 requests a minute; only `{ text, kind? }` is accepted and only text reaches ElevenLabs. Any failure, a missing key or the cap falls back to the device voice.
+- **Phrase bank** (`src/voice/phrases.ts`): every move in both styles, stage intros and checkpoint lines (142 lines, 3,118 characters), cached as `data/voice/<hash>.mp3` and served without spending credits; `npm run voice:prewarm` shows the cost and makes them all with `--yes`.
+- **Credit cap**: characters counted per month in `data/voice-usage.json` (Flash 0.5 credit per character), default 20,000 credits (`ELEVENLABS_MONTHLY_CREDIT_CAP`), checked before each call against the lower of the cap and the account's real balance; a notice at 80%.
+
+### Changed
+- Student profile schema v3 (`voiceMode`, `voiceRate`, `voiceMoves`); version 2 profiles are migrated on read.
+- `SegmentedControl` options can be disabled.
+
 ## [2.0.0] - 2026-11-17
 
 The tutor rebuild: Cubyntra changes from a scanner and solver into a local, single-student cube
