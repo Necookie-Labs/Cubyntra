@@ -146,7 +146,8 @@ describe('following the paired device', () => {
 
   it("saves the step as the other device's solve, so neither overwrites the other", async () => {
     const other = planNextStep(scramble, 'cfop', { top: 'yellow', front: 'red' }, 4)!;
-    const startedAt = '2026-11-17T09:00:00.000Z';
+    // Later than any solve this file opens or closes, whatever today's date is.
+    const startedAt = new Date(Date.now() + 3_600_000).toISOString();
     await store().followRemoteStep({ state: other.startState, method: 'cfop', stepIndex: 4, solveStartedAt: startedAt });
     await flushTutorSaves();
     expect(store().solveStartedAt).toBe(startedAt);
