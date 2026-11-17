@@ -306,7 +306,7 @@ The implementation is verified by an extensive test suite:
 - `tests/feature-extractor.test.ts`: 2 tests, including parity of the edge-gradient feature with the Python formula in `scripts/extract_dataset_features.py`.
 - `tests/color-boundary.test.ts`: 4 tests pinning the red/orange hue split against the dataset means.
 
-These suites pass as part of the full suite (1,353 tests; see [TESTING.md](TESTING.md)). The Python scripts take the dataset path as an argument and are not run by the test suite.
+These suites pass as part of the full suite (1,633 tests; see [TESTING.md](TESTING.md)). The Python scripts take the dataset path as an argument and are not run by the test suite.
 
 ---
 

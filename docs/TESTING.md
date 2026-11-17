@@ -2,7 +2,7 @@
 
 **Product**: Cubyntra  
 **Organization**: Necookie Labs  
-**Status**: Implemented, 1,353 tests in 147 files passing (2026-11-17)  
+**Status**: Implemented, 1,633 tests in 164 files passing (2026-11-18)  
 **Directory**: `tests/`
 
 ---
@@ -39,7 +39,8 @@ CHECKPOINT_REPORT=report.json npx vitest run tests/checkpoint-synthetic.test.ts
 `vitest.config.mts` maps `@/` to `src/`, raises the timeouts (the first Kociemba solve in each
 worker builds its tables) and excludes `.claude/` worktrees. There is no coverage script.
 `npm run coach:eval` is not a test: it runs only when invoked, and calls Claude only with a key
-([DEVELOPMENT.md](DEVELOPMENT.md) §5.4).
+([DEVELOPMENT.md](DEVELOPMENT.md) §5.4). Nor is `npm run voice:prewarm`, which sends nothing
+without `--yes` (§5.6); the voice tests fake ElevenLabs by stubbing `fetch`.
 
 CI (`.github/workflows/ci.yml`, Node 22) runs lint, typecheck, test and build on pushes and pull
 requests to `main`.
@@ -48,7 +49,7 @@ requests to `main`.
 
 ## 3. Suites
 
-Counts are tests per area as of 2026-11-17 (`npx vitest run --reporter=json`).
+Counts are tests per area as of 2026-11-18 (`npx vitest run --reporter=json`).
 
 | Area | Files | Tests | What they cover |
 |:---|---:|---:|:---|
@@ -58,14 +59,15 @@ Counts are tests per area as of 2026-11-17 (`npx vitest run --reporter=json`).
 | Learning (`learn-*` except `learn-case-tiles`) | 4 | 61 | Trainer sets and drills, Leitner boxes, mastery and streaks, WCA inspection and averages |
 | Vision (`vision*`, `color-boundary`, `calibration`, `capture-quality`, `face-analyzer`, `feature-extractor`, `ml-detector`, `reticle-mapping`, `resolve-colors`) | 12 | 81 | Color spaces, red/orange boundary, ML features (parity with the Python formula) and detector, capture checks, 54-tile resolution, palette, checkpoint read, camera start and timeouts |
 | Solver (`solver*`) | 2 | 14 | Kociemba solves verified by simulation, invalid cubes rejected; the worker protocol, client and fallback |
-| 3D twin (`three-*`, `arrows`, `twin-*`, `cube-visualizer`, `app-solve-twin`) | 17 | 145 | Turn direction and exact snapping, playback controller, grip camera, spotlight, ghost, letters, context loss, arrows on all six faces, teaching-twin mapping and hooks, twin colors equal `expectedState` after each step |
+| 3D twin (`three-*`, `arrows`, `twin-*`, `cube-visualizer`, `app-solve-twin`) | 17 | 146 | Turn direction and exact snapping, playback controller, grip camera, spotlight, ghost, letters, context loss, arrows on all six faces, teaching-twin mapping and hooks, twin colors equal `expectedState` after each step |
 | Coach (`coach-*`) | 11 | 244 | Facts parser, system prompt size and stability, templates and case notes for every id, the move guardrail (tables both ways), the service with a fake SDK (request shape, cap cutoff, fallbacks, usage from stream events), SSE, routes (token, rate limit, body cap), `useCoach` |
-| Sync (`sync-*`, `session-routes`, `paired-phone-routes`, `companion*`, `mobile-integration`, `network`) | 20 | 175 | Session manager, routes and secrets, typed code, pairing storage, message validation, playback and tutor mirroring, phone solve, reconnect, privacy scan, phone capture UI |
-| Profile and local data (`student-*`, `data-dir`, `local-auth`, `app-token`, `read-body-capped`, `route-body-cap`) | 8 | 89 | Profile v2 schema and v1 migration, operation merge, `/api/student`, atomic writes, the app secret and loopback check, streaming body caps |
+| Sync (`sync-*`, `session-routes`, `paired-phone-routes`, `companion*`, `mobile-integration`, `network`) | 20 | 176 | Session manager, routes and secrets, typed code, pairing storage, message validation, playback and tutor mirroring, phone solve, reconnect, privacy scan, phone capture UI |
+| Profile and local data (`student-*`, `data-dir`, `local-auth`, `app-token`, `read-body-capped`, `route-body-cap`) | 9 | 98 | Profile v3 schema and v1 / v2 migrations, operation merge, `/api/student`, atomic writes, the app secret and loopback check, streaming body caps |
 | Scan store (`store-*`, `review-store`, `integration`) | 6 | 27 | Scan flow, review fixes and pending phone faces, resets, seek, errors, solver client |
-| App shell and screens (`app-*` except `app-token` and `app-solve-twin`, `pwa-*`, `wake-lock`) | 11 | 66 | Every shell page renders, scan, solve, trainer, timer, progress, settings, method info, manifest and icons, install prompt, wake lock |
-| Design and accessibility (`design-rules`, `tokens`, `ui-*`, `a11y-*`, `learn-case-tiles`) | 13 | 120 | No gradients / blur / glass / off-token colors, token block, UI kit components, axe audit of every screen, contrast, tap targets, reduced motion |
-| **Total** | **147** | **1,353** | |
+| App shell and screens (`app-*` except `app-token` and `app-solve-twin`, `pwa-*`, `wake-lock`, `method-stages`) | 14 | 83 | Every shell page renders, scan, solve, trainer, timer, progress, settings, method info and stages, manifest and icons, install prompt, wake lock, the Voice settings and the solve screen's voice |
+| Design and accessibility (`design-rules`, `tokens`, `ui-*`, `a11y-*`, `learn-case-tiles`) | 13 | 121 | No gradients / blur / glass / off-token colors, token block, UI kit components, axe audit of every screen, contrast, tap targets, reduced motion |
+| Voice (`voice-*`) | 13 | 251 | Every move spoken in both styles, markdown stripping, guard-failed coach text never spoken, the phrase bank, the speech queue's interruption, the device voice, credits (cap, 80% warning, balance min), the ElevenLabs client and routes with a fake `fetch` (token, body cap, rate limit, cache hit spends nothing, fallbacks), the fallback chain, privacy (text only), one speaker when paired, narration and `useVoice`, the prewarm script |
+| **Total** | **164** | **1,633** | |
 
 Each file is counted in one area (for example `learn-case-tiles` under design, `app-token` under profile);
 the per-file list is the output of `npx vitest run`.

@@ -157,11 +157,12 @@ src/
 ├── twin/        Step plans mapped onto the twin (pieces, slots, playback-driven aids)
 ├── coach/       Claude coach: facts, system prompt, templates, guardrail, spend, useCoach
 ├── sync/        Phone ↔ laptop pairing and state-only sync
+├── voice/       Voice tutoring: speakable text, phrase bank, device voice, ElevenLabs, credit cap
 ├── app-shell/   Shell glue: app token, checkpoint adapter, navigation, wake lock, install
 ├── lib/         Tokens, theme, data dir, app secret, student profile schema, file and ops
 ├── stores/      Zustand: useCubyntraStore (scan) and useTutorStore (guided solve, profile)
 ├── components/  React UI: ui/, shell/, home/, scan/, solve/, trainer/, timer/, progress/ ...
-└── app/         Next.js routes: (app)/ screens, api/ (auth, coach, session, student), manifest
+└── app/         Next.js routes: (app)/ screens, api/ (auth, coach, session, student, voice), manifest
 ```
 
 The logical cube state is the ground truth; the twin only draws it, and every layer turn snaps
