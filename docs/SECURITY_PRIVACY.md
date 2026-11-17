@@ -19,7 +19,8 @@ to trust that their video feed, environment and likeness never leave the device 
 3. **Hardware Stream Teardown**: Camera tracks are stopped (`terminateCameraStream`, `track.stop()`) when the scanner or checkpoint sheet closes or the page unmounts, so the camera light goes off. A stream that arrives after its timeout is stopped at once.
 4. **No Third-Party Analytics Trackers**: No third-party tracking scripts, cookies, or telemetry libraries are bundled. The UI fonts are downloaded at build time by `next/font` and served from the laptop, so the browser never contacts Google.
 5. **The AI coach sends words, never pictures**: when an Anthropic API key is configured, the only thing sent to Anthropic is a small facts JSON about the current step (section 5). No images, video, cube state, names or device details are ever sent. Without a key nothing is sent at all.
-6. **Local data only**: the student profile, the coach usage file and the app secret live in `data/` on the laptop (git-ignored); there are no accounts and no cloud storage.
+6. **The voice sends words, never pictures**: with an ElevenLabs key, only the text of the line being spoken goes to ElevenLabs (section 7). The device voice runs in the browser and sends nothing. No microphone is used.
+7. **Local data only**: the student profile, the coach and voice usage files, cached voice clips and the app secret live in `data/` on the laptop (git-ignored); there are no accounts and no cloud storage.
 
 ---
 
@@ -82,7 +83,7 @@ Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
 X-Content-Type-Options: nosniff
 X-Frame-Options: DENY
 Referrer-Policy: strict-origin-when-cross-origin
-Permissions-Policy: camera=(self), microphone=(), geolocation=()
+Permissions-Policy: camera=(self), microphone=(), geolocation=(), autoplay=(self)
 ```
 *(Notice that `microphone` and `geolocation` are explicitly forbidden by `Permissions-Policy`, while `camera` is restricted exclusively to self).*
 
@@ -152,3 +153,35 @@ forgets them when the session is deleted or expires. Nothing is written to disk.
   `Host: localhost` could create sessions and read the app token.
 - The relay assumes one long-running server process on the laptop. It is not designed for
   hosting on the internet.
+
+---
+
+## 7. Voice and ElevenLabs ([ADR-016](ADR/016-voice-tutoring.md))
+
+Voice is off by default. The **device voice** is the browser's own `speechSynthesis`: it runs on
+the device and sends nothing anywhere (some operating systems' online voices may use their own
+cloud service; that is outside the app). **ElevenLabs** is used only when `ELEVENLABS_API_KEY` is
+in `.env.local` on the laptop and the student chose it.
+
+### 7.1 What is sent to ElevenLabs
+Only from the laptop's server (`src/voice/elevenlabs.ts`):
+- `POST /v1/text-to-speech/{voice_id}` with `{ text, model_id }`: the line being spoken (a
+  phrase-bank line such as "Turn the top to the left", or a coach reply the student asked to hear
+  with "Read with ElevenLabs", which already passed the move guardrail) and `eleven_flash_v2_5`;
+- `GET /v1/user/subscription` with no body, to read the remaining balance (at most every 10
+  minutes).
+
+### 7.2 What is never sent
+Camera frames, photos, sticker colors, the cube state, the student's name, profile or progress,
+device or network details and the app token. The browser sends `/api/voice` only
+`{ text, kind }` (`voiceRequestBody`). The route refuses any other field and any text that looks
+like a data URL or an encoded blob, reads at most 4 KB and needs the app token; tests assert this
+(`tests/voice-privacy.test.ts`). No voice is cloned: the voice is a stock premade voice id.
+
+### 7.3 Local files and access
+- `data/voice-usage.json`: characters, credits and request counts per month (no text).
+- `data/voice/<hash>.mp3`: phrase-bank clips, named by a SHA-256 of model, voice and text. Only
+  phrase-bank lines are stored; coach replies are not.
+- `/api/voice` and `/api/voice/status` require the app token (section 5.3) and are rate limited
+  (60 requests a minute per token).
+- Sound never plays before a user gesture on the page.
