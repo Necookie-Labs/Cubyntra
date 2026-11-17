@@ -98,6 +98,23 @@ Restart `npm run dev`. The key is read only by server code and never sent to the
 built-in templates, with no calls to Anthropic. Spend is tracked per month in
 `data/coach-usage.json`; at the cap the coach switches to templates until the next month.
 
+### Add a voice key (optional)
+The tutor can speak with the browser's own voice (free, offline, no key): choose it in
+Settings → Voice. For a nicer voice, add an ElevenLabs key:
+```bash
+# .env.local
+ELEVENLABS_API_KEY=sk_...
+ELEVENLABS_VOICE_ID=                  # optional; default a stock premade voice
+ELEVENLABS_MONTHLY_CREDIT_CAP=20000   # optional, default 20,000 credits
+```
+Only the text to speak is sent. Fixed lines (move names, stage intros, checkpoint lines) are
+generated once and kept in `data/voice/`; characters are counted per month in
+`data/voice-usage.json`, and at the cap (or the account's real balance, if lower) the device voice
+takes over. See [DEVELOPMENT](docs/DEVELOPMENT.md) §5.6 and
+[ADR-016](docs/ADR/016-voice-tutoring.md).
+
+The test suite never calls Claude, ElevenLabs or the network.
+
 ### Production build on the laptop
 ```bash
 npm run build && npm start   # http://localhost:3000
@@ -115,13 +132,14 @@ npm run build && npm start   # http://localhost:3000
 | `npm run dev:http` | Plain-HTTP dev server (laptop only) |
 | `npm run build` / `npm start` | Production build, then serve it locally |
 | `npm run lint` / `npm run typecheck` | ESLint, `tsc --noEmit` |
-| `npm test` | The Vitest suite: 1,353 tests in 147 files (1,000 tutor scrambles per method) |
+| `npm test` | The Vitest suite: 1,633 tests in 164 files (1,000 tutor scrambles per method) |
 | `npm run test:watch` | Vitest in watch mode |
 | `npm run test:tutor-soak` | The tutor scramble suite at 10,000 fixed-seed scrambles per method and variant (about 95 s) |
 | `npm run coach:eval` | 50 recorded step situations through the coach, report in `data/coach-eval-report.md`; calls Claude only when a key is set |
+| `npm run voice:prewarm` | Shows what the voice phrase bank costs; with `-- --yes` makes the ElevenLabs clips in `data/voice/` |
 | `npm run docs:pdf` | Regenerates the PDFs in `docs/pdf/` from the Markdown docs |
 
-The test suite never calls the Claude API or the network; see [TESTING](docs/TESTING.md).
+The test suite never calls the Claude API, ElevenLabs or the network; see [TESTING](docs/TESTING.md).
 
 ---
 
