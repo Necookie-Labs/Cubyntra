@@ -99,12 +99,12 @@ export const Dialog: React.FC<DialogProps> = ({
         tabIndex={-1}
         onKeyDown={onKeyDown}
         className={cx(
-          'vx-panel vx-place relative flex max-h-[90vh] w-full flex-col gap-4 overflow-y-auto p-6 pb-7 outline-none',
+          'vx-panel vx-place relative flex max-h-[90vh] w-full flex-col gap-4 p-6 pb-7 outline-none',
           WIDTH[size],
           className
         )}
       >
-        <div className="flex items-start gap-3">
+        <div className="flex shrink-0 items-start gap-3">
           {icon && (
             <div aria-hidden className="vx-block flex h-10 w-10 shrink-0 items-center justify-center pb-1" data-variant="primary">
               {icon}
@@ -124,9 +124,12 @@ export const Dialog: React.FC<DialogProps> = ({
             <X className="h-4 w-4" />
           </IconButton>
         </div>
-        {children}
+        {/* Only the body scrolls, so the title and the actions stay in view on a short screen. */}
+        <div data-testid="dialog-body" className="-m-1 flex min-h-0 flex-col gap-4 overflow-y-auto p-1">
+          {children}
+        </div>
         {footer && (
-          <div className="flex flex-wrap items-center justify-end gap-2 border-t-2 border-line-soft pt-4">{footer}</div>
+          <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t-2 border-line-soft pt-4">{footer}</div>
         )}
       </div>
     </div>,

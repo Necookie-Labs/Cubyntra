@@ -66,6 +66,19 @@ describe('Dialog', () => {
     opener.remove();
   });
 
+  it('scrolls only its body, so the actions stay in view on a short screen', () => {
+    render(<Harness />);
+    const { dialog } = openDialog();
+    const body = screen.getByTestId('dialog-body');
+    expect(body.className).toMatch(/\boverflow-y-auto\b/);
+    expect(body.className).toMatch(/\bmin-h-0\b/);
+    expect(dialog.className).not.toMatch(/overflow-y-auto/);
+    const done = screen.getByRole('button', { name: 'Done' });
+    expect(body.contains(done)).toBe(false);
+    expect(dialog.contains(done)).toBe(true);
+    expect(body.contains(screen.getByRole('textbox', { name: 'Code' }))).toBe(true);
+  });
+
   it('closes on Escape and gives focus back to the opener', () => {
     const onClose = vi.fn();
     render(<Harness onClose={onClose} />);
