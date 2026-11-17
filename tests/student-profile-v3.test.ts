@@ -17,8 +17,11 @@ import { sampleProfile } from './helpers/studentProfile';
 /** A version 2 profile as Phase 10 wrote it: no voice settings. */
 function v2Profile() {
   const profile = JSON.parse(JSON.stringify(sampleProfile()));
-  const { voiceMode: _m, voiceRate: _r, voiceMoves: _v, ...settings } = profile.settings;
-  return { ...profile, version: 2, settings: { ...settings, plainLanguage: false } };
+  const settings = { ...profile.settings, plainLanguage: false };
+  delete settings.voiceMode;
+  delete settings.voiceRate;
+  delete settings.voiceMoves;
+  return { ...profile, version: 2, settings };
 }
 
 describe('student profile v3 (voice)', () => {
