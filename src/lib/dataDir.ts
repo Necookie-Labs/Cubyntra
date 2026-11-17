@@ -32,12 +32,12 @@ function tempPathFor(file: string): string {
 }
 
 /**
- * Writes a file so readers never see a half-written version: write a temporary file next to it,
+ * Writes a file (text or bytes) so readers never see a half-written version: write a temporary file next to it,
  * then rename over the target. Creates the directory if needed. On Windows a rename can briefly
  * fail (EPERM, EBUSY) while another handle has the target open, so it is retried after a short,
  * growing wait (`RENAME_BACKOFF_MS`) before giving up.
  */
-export async function writeFileAtomic(file: string, contents: string, mode?: number): Promise<void> {
+export async function writeFileAtomic(file: string, contents: string | Uint8Array, mode?: number): Promise<void> {
   fs.mkdirSync(path.dirname(file), { recursive: true });
   const tmp = tempPathFor(file);
   fs.writeFileSync(tmp, contents, { encoding: 'utf8', mode });
