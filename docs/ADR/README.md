@@ -26,6 +26,7 @@ This directory contains records of key architectural and engineering decisions m
 | [ADR-013](013-checkpoint-verification.md) | Checkpoint Verification, Mistake Diagnosis and Recovery | Accepted | Related: ADR-003, ADR-010, ADR-012 | 2026-11 |
 | [ADR-014](014-claude-coach.md) | Claude Coach: Haiku 5.5 Explanations with a Move Guardrail, Templates and a Spend Cap | Accepted | Related: ADR-001, ADR-012 | 2026-11 |
 | [ADR-015](015-state-only-sync.md) | State-Only Phone ↔ Laptop Sync: Authenticated Pairing, No Pixels Leave the Device | Accepted | Amends ADR-009, ADR-010; restores ADR-001 | 2026-11 |
+| [ADR-016](016-voice-tutoring.md) | Voice Tutoring: Device Voice and ElevenLabs Flash with a Cached Phrase Bank, a Credit Cap and One Speaker | Accepted | Related: ADR-012, ADR-014, ADR-015 | 2026-11 |
 
 The decisions in force for the 2.0 tutor are ADR-001 (as restored), 002–007, 009–010 (as
-amended) and 011–015. The plan they implement is [`docs/tutor/GOAL.md`](../tutor/GOAL.md).
+amended) and 011–016. The plan they implement is [`docs/tutor/GOAL.md`](../tutor/GOAL.md).
