@@ -156,6 +156,17 @@ lighting and glare tips with Scan again and Use a demo cube.
   The reply streams into a polite live region. The highest hint asked for on a stage is saved for
   mastery (Progress). "Templates" or "Cap reached" chips and the
   route's notice show when the coach answers from templates.
+- **Voice** ([ADR-016](ADR/016-voice-tutoring.md)): a speaker button (`IconButton`, name "Voice",
+  `aria-pressed`) in the coach panel's header turns the tutor's voice on (the voice used last, the
+  device voice the first time) and off. While on, the twin's moves are named as they start
+  turning (in words or as letters, per Settings), a step that opens a new stage is introduced,
+  every checkpoint result is spoken (match and praise, show it again, the wrong face and which to
+  show, a mismatch), and each finished coach reply is read with the device voice, only after the
+  move guardrail. In ElevenLabs mode a **Read with ElevenLabs** button reads the reply with
+  ElevenLabs. A new step stops whatever is still being said. Nothing is said before the first
+  tap on the page. When paired, only the device driving the solve speaks; the other shows "Your
+  other device is speaking." The voice repeats what the screen already shows, so nothing is
+  available by ear only.
 - **Checkpoint sheet** (a `Dialog`): a flat mini-cube (unfolded, centers only, in the student's
   grip) outlines the face to show and marks with a bar the edge that goes at the top of the
   picture; the instruction (`showFaceInstruction`) names the grip, the face and how to hold it
@@ -187,7 +198,11 @@ lighting and glare tips with Scan again and Use a demo cube.
 ### 3.5 Settings (`/settings`)
 Name; method to start with; CFOP last layer (2-look or Full OLL and PLL, shown only while CFOP is
 the method; passed to every plan as the tutor's `lastLayer` option); Moves in words; Letters on stickers (with a preview grid); Theme
-(Light / Dark / System); Reduce motion; Coach (Live, Templates only or Monthly cap reached, with
+(Light / Dark / System); Reduce motion; Voice (Off / Device voice / ElevenLabs, with ElevenLabs
+disabled and explained when the laptop has no key; Speed Slow / Normal / Fast; Moves In words /
+As letters; Test voice; with a key, "x of 20,000" ElevenLabs credits this month with a meter,
+the credits left, an "80% used" notice and a "Cap reached" notice when the device voice has taken
+over); Coach (Live, Templates only or Monthly cap reached, with
 "$x of $10.00" spent this month, or Offline: "the built-in notes still work"); Install (Android
 install button, iOS "Share → Add to Home Screen" hint, or "Installed").
 
