@@ -171,6 +171,12 @@ export class SlidingWindowLimiter {
 export const coachRateLimiter = new SlidingWindowLimiter(30, 60_000);
 
 /**
+ * Voice requests: 60 per minute per token. Twice the coach's, because the twin narrates each
+ * move (the browser keeps clips it has fetched, so a step's moves are asked for once).
+ */
+export const voiceRateLimiter = new SlidingWindowLimiter(60, 60_000);
+
+/**
  * Shared guard for token-protected routes: 401 without a valid token, 429 over the rate limit
  * (when a limiter is given), otherwise null.
  */
