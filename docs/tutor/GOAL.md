@@ -166,6 +166,32 @@ Every phase ends with **`npm run lint` (0 errors, 0 warnings), `npm run typechec
 - `docs/tutor/MORNING_REPORT.md`: what was built, test counts, known gaps, what to check by hand
   (real camera, real phone, the look, a live Claude key).
 
+### Phase 11: Voice tutoring (added 2026-11-18, approved by the owner)
+The tutor speaks, so the student can keep their eyes and hands on the cube.
+- **Fallback chain**, chosen in Settings: ElevenLabs → device voice (the browser's built-in
+  speech, free and offline) → off. Any failure, a missing key or the cap drops to the next layer.
+- **Speak only guard-approved text.** Voice reads what the coach panel shows after the move
+  guardrail, never raw model output. Moves are spoken as plain-language names ("turn the right
+  side up"), or "R prime" style for students who chose notation.
+- **ElevenLabs** through a server route on the laptop: key only in `.env.local`
+  (`ELEVENLABS_API_KEY`, optional `ELEVENLABS_VOICE_ID`), Flash model, a stock voice (no cloned
+  voices). Only text is sent, never images or student data.
+- **Phrase bank:** the fixed lines (move names, stage intros, checkpoint and praise lines) are
+  generated once and cached in `data/voice/`, so step narration costs nothing after the first
+  ~2,500 credits. Claude's free-form replies use the device voice unless the student taps
+  "Read with ElevenLabs".
+- **Credit cap:** characters sent are counted in `data/voice-usage.json`; default cap 20,000
+  credits/month (`ELEVENLABS_MONTHLY_CREDIT_CAP`), a warning at 80%, the device voice at the cap.
+  The real remaining balance is read from ElevenLabs when a key is set.
+- **One speaker:** when the phone and laptop are paired, only the device being solved on speaks.
+- **Tests** use a fake ElevenLabs; the build never calls the real service. ADR-016.
+
+### Phase 12: User-flow audit (added 2026-11-18)
+Every route through the app is walked as a student would: first run, demo solve, real scan,
+each checkpoint outcome, resume after reload, solve another, trainer, timer, progress,
+settings, pairing, errors, back/forward navigation, phone and desktop. Rough edges are fixed with
+regression tests; flows are documented in `docs/UI_UX.md`.
+
 ## Execution rules
 1. Work on `feat/tutor`. Never commit to `main`, never force-push, never rewrite pushed history.
 2. **Micro-commits**: one small working change per commit (a function plus its test, one component,
