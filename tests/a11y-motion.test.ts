@@ -7,7 +7,8 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-const css = readFileSync(join(__dirname, '..', 'src', 'app', 'globals.css'), 'utf8');
+// Git may check the file out with CRLF line endings on Windows (core.autocrlf).
+const css = readFileSync(join(__dirname, '..', 'src', 'app', 'globals.css'), 'utf8').replace(/\r\n/g, '\n');
 
 /** The body of the `@media (prefers-reduced-motion: reduce)` block. */
 function mediaBlock(): string {
