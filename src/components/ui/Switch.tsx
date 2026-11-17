@@ -22,12 +22,14 @@ export interface SwitchProps {
 export const Switch: React.FC<SwitchProps> = ({ checked, onChange, label, hint, disabled, className }) => {
   const labelId = useId();
   const hintId = useId();
+  const switchId = useId();
   return (
     <div className={cx('flex items-center justify-between gap-4', className)}>
       <div className="min-w-0">
-        <div id={labelId} className="text-sm font-bold text-ink">
+        {/* A real label: clicking the words toggles the switch, as people expect. */}
+        <label id={labelId} htmlFor={switchId} className={cx('block text-sm font-bold text-ink', !disabled && 'cursor-pointer')}>
           {label}
-        </div>
+        </label>
         {hint && (
           <div id={hintId} className="mt-0.5 text-xs text-muted">
             {hint}
@@ -35,6 +37,7 @@ export const Switch: React.FC<SwitchProps> = ({ checked, onChange, label, hint, 
         )}
       </div>
       <button
+        id={switchId}
         type="button"
         role="switch"
         aria-checked={checked}

@@ -20,6 +20,13 @@ describe('Switch', () => {
     fireEvent.click(control);
     expect(onChange).toHaveBeenCalledWith(true);
   });
+
+  it('toggles when its label words are clicked', () => {
+    const onChange = vi.fn();
+    render(<Switch checked onChange={onChange} label="Reduce motion" />);
+    fireEvent.click(screen.getByText('Reduce motion'));
+    expect(onChange).toHaveBeenCalledWith(false);
+  });
 });
 
 describe('SegmentedControl', () => {
