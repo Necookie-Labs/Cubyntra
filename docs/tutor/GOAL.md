@@ -92,7 +92,7 @@ Every phase ends with **`npm run lint` (0 errors, 0 warnings), `npm run typechec
 
 ### Phase 4: Teaching twin (`src/three`)
 - Camera framed to the grip; regrips animated.
-- Spotlight: plan pieces at full color, others faded to 35%; flat outline on the target slot.
+- Spotlight: plan pieces at full color, others faded (originally specified as 35% opacity; built as a solid wash toward the panel color, because see-through pieces made the cube unreadable); flat outline on the target slot.
 - Controls: play, step forward/back, 0.5× speed, loop. `MoveChips` highlights the current move in
   sync with the animation.
 - Faded "after" preview of the expected state.

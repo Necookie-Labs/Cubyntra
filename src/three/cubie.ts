@@ -14,7 +14,7 @@
 
 import * as THREE from 'three';
 import { CubeColor, CubeState, Face } from '../cube/types';
-import { STICKER_CORE_HEX, STICKER_HEX, STICKER_LETTER_INK } from '../lib/tokens';
+import { FADE_WASH, FADE_WASH_HEX, STICKER_CORE_HEX, STICKER_HEX, STICKER_LETTER_INK } from '../lib/tokens';
 
 /** Edge length of a cubie body. The 0.02 gap to the next cubie shows as a dark seam. */
 export const CUBIE_SIZE = 0.98;
@@ -23,6 +23,9 @@ export const TILE_SIZE = 0.82;
 export const TILE_DEPTH = 0.05;
 /** Opacity of cubies outside the spotlight (GOAL Phase 4: 35%). */
 export const FADED_OPACITY = 0.35;
+// Faded pieces stay solid, washed toward the panel cream: see-through pieces stacked the
+// whole cube into muddy layers. The amounts live with the other color tokens.
+export { FADE_WASH, FADE_WASH_HEX };
 
 const COLORS: readonly CubeColor[] = ['white', 'yellow', 'red', 'orange', 'blue', 'green'];
 
@@ -79,15 +82,25 @@ export function letterGeometry(color: CubeColor): THREE.BufferGeometry {
 }
 
 export interface VoxelKitOptions {
-  /** Opacity used by `sticker(color, true)` and `bodyMaterial(true)`. */
+  /**
+   * How `sticker(color, true)` and `bodyMaterial(true)` fade: `'wash'` (default) keeps them
+   * solid and pales the color by `FADE_WASH`; `'transparent'` makes them see-through at
+   * `fadedOpacity` (the "after" preview).
+   */
+  fadeStyle?: 'wash' | 'transparent';
+  /** Opacity of faded materials when `fadeStyle` is `'transparent'`. */
   fadedOpacity?: number;
 }
 
-function flatMaterial(hex: string, opacity: number | null): THREE.MeshLambertMaterial {
-  const mat = new THREE.MeshLambertMaterial({ color: new THREE.Color(hex), flatShading: true });
-  if (opacity !== null) {
+type Fade = null | { kind: 'wash'; amount: number } | { kind: 'transparent'; opacity: number };
+
+function flatMaterial(hex: string, fade: Fade): THREE.MeshLambertMaterial {
+  const color = new THREE.Color(hex);
+  if (fade?.kind === 'wash') color.lerp(new THREE.Color(FADE_WASH_HEX), fade.amount);
+  const mat = new THREE.MeshLambertMaterial({ color, flatShading: true });
+  if (fade?.kind === 'transparent') {
     mat.transparent = true;
-    mat.opacity = opacity;
+    mat.opacity = fade.opacity;
     // Faded pieces must not hide the lit pieces behind them.
     mat.depthWrite = false;
   }
@@ -102,6 +115,8 @@ export class VoxelKit {
   public readonly bodyGeometry: THREE.BoxGeometry;
   public readonly tileGeometry: THREE.BoxGeometry;
   public readonly fadedOpacity: number;
+  public readonly fadeStyle: 'wash' | 'transparent';
+  private readonly fade: Fade;
   private readonly body: THREE.MeshLambertMaterial;
   private readonly bodyFaded: THREE.MeshLambertMaterial;
   private readonly stickers = new Map<CubeColor, THREE.MeshLambertMaterial>();
@@ -114,13 +129,18 @@ export class VoxelKit {
 
   constructor(options: VoxelKitOptions = {}) {
     this.fadedOpacity = options.fadedOpacity ?? FADED_OPACITY;
+    this.fadeStyle = options.fadeStyle ?? 'wash';
+    this.fade =
+      this.fadeStyle === 'transparent'
+        ? { kind: 'transparent', opacity: this.fadedOpacity }
+        : { kind: 'wash', amount: FADE_WASH };
     this.bodyGeometry = new THREE.BoxGeometry(CUBIE_SIZE, CUBIE_SIZE, CUBIE_SIZE);
     this.tileGeometry = new THREE.BoxGeometry(TILE_SIZE, TILE_SIZE, TILE_DEPTH);
     this.body = flatMaterial(STICKER_CORE_HEX, null);
-    this.bodyFaded = flatMaterial(STICKER_CORE_HEX, this.fadedOpacity);
+    this.bodyFaded = flatMaterial(STICKER_CORE_HEX, this.fade);
     for (const color of COLORS) {
       this.stickers.set(color, flatMaterial(STICKER_HEX[color], null));
-      this.stickersFaded.set(color, flatMaterial(STICKER_HEX[color], this.fadedOpacity));
+      this.stickersFaded.set(color, flatMaterial(STICKER_HEX[color], this.fade));
     }
   }
 
@@ -148,8 +168,8 @@ export class VoxelKit {
    */
   public letterMaterial(color: CubeColor, faded = false): THREE.MeshLambertMaterial {
     this.letterMaterials ??= {
-      core: { plain: flatMaterial(STICKER_CORE_HEX, null), faded: flatMaterial(STICKER_CORE_HEX, this.fadedOpacity) },
-      white: { plain: flatMaterial(STICKER_HEX.white, null), faded: flatMaterial(STICKER_HEX.white, this.fadedOpacity) },
+      core: { plain: flatMaterial(STICKER_CORE_HEX, null), faded: flatMaterial(STICKER_CORE_HEX, this.fade) },
+      white: { plain: flatMaterial(STICKER_HEX.white, null), faded: flatMaterial(STICKER_HEX.white, this.fade) },
     };
     const ink = this.letterMaterials[STICKER_LETTER_INK[color]];
     return faded ? ink.faded : ink.plain;

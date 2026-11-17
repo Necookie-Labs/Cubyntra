@@ -26,7 +26,7 @@ type Coord = -1 | 0 | 1;
 
 export class GhostCube {
   public readonly group = new THREE.Group();
-  private readonly kit = new VoxelKit({ fadedOpacity: GHOST_OPACITY });
+  private readonly kit = new VoxelKit({ fadeStyle: 'transparent', fadedOpacity: GHOST_OPACITY });
   private readonly cubies: CubieMesh[] = [];
   private state: CubeState | null = null;
 

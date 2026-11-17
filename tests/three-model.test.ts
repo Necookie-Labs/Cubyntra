@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import * as THREE from 'three';
-import { CubieMesh, VoxelKit, CUBIE_SIZE, FADED_OPACITY } from '../src/three/cubie';
+import { CubieMesh, VoxelKit, CUBIE_SIZE, FADED_OPACITY, FADE_WASH, FADE_WASH_HEX } from '../src/three/cubie';
 import { STICKER_CORE_HEX, STICKER_HEX } from '../src/lib/tokens';
 import type { CubeColor } from '../src/cube/types';
 
@@ -62,17 +62,30 @@ describe('voxel cubies (ADR-011)', () => {
     expect((cubie.group.children[1] as THREE.Mesh).material).toBe(kit.sticker('blue'));
   });
 
-  it('fades body and tiles to 35% and back, keeping tile colors', () => {
+  it('fades body and tiles to solid washed-out colors and back, keeping tile colors', () => {
     const kit = new VoxelKit();
     const cubie = new CubieMesh({ x: 1, y: 1, z: 0 }, kit);
     cubie.setStickerColor('U', 'red');
     cubie.setFaded(true);
     const faded = cubie.group.children.map((c) => (c as THREE.Mesh).material as THREE.Material);
-    expect(faded.every((m) => m.transparent && m.opacity === FADED_OPACITY)).toBe(true);
+    // Solid, so the cube never turns into see-through layers.
+    expect(faded.every((m) => !m.transparent && m.opacity === 1 && m.depthWrite)).toBe(true);
     expect(faded).toContain(kit.sticker('red', true));
+    const washed = new THREE.Color(STICKER_HEX.red).lerp(new THREE.Color(FADE_WASH_HEX), FADE_WASH);
+    expect((kit.sticker('red', true) as THREE.MeshLambertMaterial).color.getHex()).toBe(washed.getHex());
+    expect((kit.sticker('red', true) as THREE.MeshLambertMaterial).color.getHex()).not.toBe(
+      (kit.sticker('red') as THREE.MeshLambertMaterial).color.getHex()
+    );
     cubie.setFaded(false);
     expect(cubie.group.children.map((c) => (c as THREE.Mesh).material)).toContain(kit.sticker('red'));
     expect(cubie.isFaded()).toBe(false);
+  });
+
+  it('can still fade see-through, for the "after" preview', () => {
+    const kit = new VoxelKit({ fadeStyle: 'transparent' });
+    const m = kit.sticker('red', true);
+    expect(m.transparent).toBe(true);
+    expect(m.opacity).toBe(FADED_OPACITY);
   });
 
   it('disposes every shared geometry and material exactly once', () => {

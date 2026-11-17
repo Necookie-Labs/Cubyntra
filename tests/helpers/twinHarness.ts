@@ -14,7 +14,7 @@ import type { CubeColor, CubeState, Face } from '../../src/cube/types';
 import { CANONICAL_CENTER_COLORS, createSolvedCubeState } from '../../src/cube/constants';
 import type { CubieMesh } from '../../src/three/cubie';
 import type { CubeEngine } from '../../src/three/engine';
-import { STICKER_HEX } from '../../src/lib/tokens';
+import { FADE_WASH, FADE_WASH_HEX, STICKER_HEX } from '../../src/lib/tokens';
 
 /** `three` with a renderer that draws nothing. */
 export function withFakeRenderer<T extends object>(actual: T): T {
@@ -155,9 +155,39 @@ export function readStateFromGeometry(engine: CubeEngine): CubeState {
   return state;
 }
 
-const COLOR_BY_HEX = Object.fromEntries(
-  (Object.entries(STICKER_HEX) as [CubeColor, string][]).map(([color, hex]) => [hex.slice(1).toLowerCase(), color])
-) as Record<string, CubeColor>;
+// A tile reads as its color whether it is lit (plain) or spotlit away (washed toward the panel),
+// matched to the nearest of those twelve colors. Computed without THREE: tests that mock 'three'
+// with this helper load it before 'three' exists, and a value use of THREE here would keep the
+// import alive and run the mock against a half-loaded helper. The wash mirrors THREE.Color.lerp,
+// which mixes in linear light.
+const toLinear = (c: number) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+const toSrgb = (c: number) => (c <= 0.0031308 ? c * 12.92 : 1.055 * c ** (1 / 2.4) - 0.055);
+function rgbOf(hex: string): [number, number, number] {
+  const n = parseInt(hex.replace('#', ''), 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+function washed(hex: string): [number, number, number] {
+  const from = rgbOf(hex).map((v) => toLinear(v / 255));
+  const to = rgbOf(FADE_WASH_HEX).map((v) => toLinear(v / 255));
+  return from.map((v, i) => Math.round(toSrgb(v + (to[i] - v) * FADE_WASH) * 255)) as [number, number, number];
+}
+let palette: { color: CubeColor; rgb: [number, number, number] }[] | null = null;
+function colorOfHex(hex: string): CubeColor {
+  palette ??= (Object.entries(STICKER_HEX) as [CubeColor, string][]).flatMap(([color, sticker]) => [
+    { color, rgb: rgbOf(sticker) },
+    { color, rgb: washed(sticker) },
+  ]);
+  const rgb = rgbOf(hex);
+  let best = palette[0];
+  let bestDistance = Infinity;
+  for (const entry of palette) {
+    const distance = entry.rgb.reduce((sum, v, i) => sum + (v - rgb[i]) ** 2, 0);
+    if (distance < bestDistance) [best, bestDistance] = [entry, distance];
+  }
+  // Anything further than a rounding step from every known color is a real painting bug.
+  expect(bestDistance, `tile color #${hex} is not a sticker color`).toBeLessThanOrEqual(12);
+  return best.color;
+}
 
 /** What the viewer sees: each tile's material color, placed by where it faces now. */
 export function readStateFromMaterials(engine: CubeEngine): CubeState {
@@ -167,7 +197,7 @@ export function readStateFromMaterials(engine: CubeEngine): CubeState {
     for (const tile of tiles(cubie)) {
       const facing = FACE_BY_NORMAL[axisKey(tile.position.clone().normalize().applyQuaternion(cubie.group.quaternion))];
       const material = (tile as THREE.Mesh).material as THREE.MeshLambertMaterial;
-      state[facing][stickerIndex(facing, x, y, z)] = COLOR_BY_HEX[material.color.getHexString()];
+      state[facing][stickerIndex(facing, x, y, z)] = colorOfHex(material.color.getHexString());
     }
   }
   return state;

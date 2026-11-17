@@ -24,6 +24,11 @@ export const STICKER_HEX: Readonly<Record<CubeColor, string>> = {
 /** Plastic between the stickers (`--vx-sticker-core`). */
 export const STICKER_CORE_HEX = '#1B2E13';
 
+/** The light neutral that spotlit-away pieces of the twin are washed toward (the panel cream). */
+export const FADE_WASH_HEX = '#F7F3E3';
+/** How far a faded twin piece's colors move toward `FADE_WASH_HEX` (0 = unchanged, 1 = all cream). */
+export const FADE_WASH = 0.7;
+
 /**
  * Ink of the color-blind letter on each sticker: the core color on the light stickers, sticker
  * white on red and blue. Every pair reaches 4.5:1 (tests/a11y-contrast.test.ts).
