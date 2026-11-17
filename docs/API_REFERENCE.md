@@ -439,11 +439,14 @@ parseProfileOps(body): { ok: true; ops; batchId } | { ok: false; error }
 // src/lib/studentProfile.ts (shared; no Node or DOM)
 type HintUse = 0 | 1 | 2 | 3;                     // highest coach hint asked for (src/learn/types.ts)
 interface StudentProfile {
-  version: 2;
+  version: 3;
   name: string;                                   // ≤ 40 characters
   settings: { methodDefault: MethodId; plainLanguage: boolean; stickerLetters: boolean;
               reducedMotion: boolean; theme: 'light' | 'dark' | 'system';
-              lastLayer: '2-look' | 'full' };     // CFOP only; v2
+              lastLayer: '2-look' | 'full';       // CFOP only; v2
+              voiceMode: 'off' | 'device' | 'elevenlabs';  // v3, default 'off' (ADR-016)
+              voiceRate: 0.75 | 1 | 1.25;         // v3, default 1
+              voiceMoves: 'words' | 'notation' };  // v3, default 'words'
   palette: StudentPalette | null;                 // src/vision/palette.ts
   currentSolve: { method: MethodId; state: CubeState; grip: Grip; stepIndex: number;
                   attempts: AttemptRecord[];      // ≤ 20
@@ -460,8 +463,9 @@ interface StudentProfile {
   closedSolveStartedAt?: string;                  // startedAt of the newest finished or abandoned solve
 }
 parseStudentProfile(input: unknown): { ok: true; profile: StudentProfile } | { ok: false; error: string }
-  // a version 1 profile is migrated first (migrateProfileV1); version 3+ is rejected
+  // version 1 and 2 profiles are migrated first (migrateProfileV1, then migrateProfileV2); version 4+ is rejected
 migrateProfileV1(input: unknown): unknown       // v1 -> v2: lastLayer '2-look', no stage records or days, empty trainer and timer
+migrateProfileV2(input: unknown): unknown       // v2 -> v3: voice off, normal speed, moves in words
 defaultStudentProfile(): StudentProfile
 
 // src/lib/studentFile.ts (server only)
@@ -532,3 +536,57 @@ learned) and `cfopWorldStages(profile)`, shared by Home and Progress.
 Sync on the phone (`src/sync/`): `useMobileTutorTarget(creds)` is a `TutorSyncTarget` that posts as
 `mobile` and replays the snapshot's step (`snapshotStepEvents`); `useSolveSyncTarget()` picks the
 laptop's pairing or the phone's; `remoteStepFor(event, ownClientId, lastCube)` is the step to join.
+
+---
+
+## 11. Voice API (`src/voice/`, `src/app/api/voice/`)
+
+See [ADR-016](ADR/016-voice-tutoring.md). Routes need the header `x-cubyntra-token`.
+
+| Route | Auth | Body | Result |
+|:---|:---|:---|:---|
+| `POST /api/voice` | token, 60/min | `{ text: string; kind?: 'phrase' \| 'reply' }` only (≤ 4 KB, read in chunks; text 1-1,200 characters, no data URL or encoded blob; a `phrase` must be a phrase-bank line) | `audio/mpeg` with `X-Voice-Cache: hit \| miss` (a cached phrase costs nothing). `400` bad body or extra field, `401` bad token, `413` too large, `429` rate limited (`Retry-After`); `503 { error, fallback: 'device', reason: 'no-key' \| 'capped' }`; `502 { error, fallback: 'device', reason: 'upstream' }`. |
+| `GET /api/voice/status[?preference=off\|device\|elevenlabs]` | token | – | `VoiceStatus` (below); `preference` defaults to the profile's `voiceMode` |
+
+```typescript
+// src/voice/types.ts
+interface VoiceStatus {
+  mode: 'elevenlabs' | 'device' | 'off';   // what the laptop can give the student's choice now
+  keySet: boolean;                         // ELEVENLABS_API_KEY is set
+  monthCredits: number;                    // counted this UTC month (data/voice-usage.json)
+  capCredits: number;                      // ELEVENLABS_MONTHLY_CREDIT_CAP, default 20,000
+  remaining?: number;                      // with a key: lower of the cap and the account balance, minus use
+  accountRemaining?: number;               // character_limit - character_count from ElevenLabs (cached 10 min)
+  warning: boolean;                        // ≥ 80% of the limit used
+  reason?: 'no-key' | 'capped' | 'chosen' | 'upstream' | 'off';
+  month: string;                           // YYYY-MM
+}
+
+// Text (pure)
+spokenMove(move, style: 'words' | 'notation'): string        // "Turn the right side up" / "R prime"
+speakableText(text, style): string                            // markdown stripped, moves spoken
+coachSpeech({ text, status }, { allowed, names? }, style): string | null  // only final, guard-approved text
+
+// Phrase bank (pure): every move in both styles, stage intros, checkpoint lines
+PHRASES: Phrase[]; LINES; isPhraseText(text); phraseBankCharacters(); movePhrase(move, style)
+showFacePhrase(face); stagePhrase(name); checkpointLines({ status, manual?, askFace?, rotationUnclear?, oneMoreFace?, praiseIndex? })
+narratedMove(prev, next, style): string | null; stageIntro(prevStage, stage, stageName)
+
+// Speaking (browser)
+new SpeechQueue(speaker): say(...items); replace(...items); setStep(key); interrupt(); setSpeaker(s)
+createDeviceSpeaker({ rate?, env? }); pickVoice(voices); isDeviceVoiceAvailable()
+createElevenLabsSpeaker({ token, rate?, endpoint? }); voiceRequestBody(item): { text, kind }
+createVoiceSpeaker({ mode, device, elevenlabs, onFallback? })   // ElevenLabs -> device -> off
+useVoice({ mode, rate, token, enabled? }): { active, say, replace, setStep, interrupt }
+useVoiceStatus(token, preference); useOneSpeaker(target): boolean; new SpeakerArbiter(ownClientId)
+installAudioUnlock(); unlockAudio(); isAudioUnlocked()   // nothing is said before a user gesture
+
+// Server only
+new VoiceUsageTracker(file?, now?): reserve(credits, accountRemaining?); settle(credits, billedChars | null);
+  remaining(accountRemaining?); isCapped(...); isWarning(...); monthCredits(); capCredits()
+creditsFor(characters, model?); CREDITS_PER_CHARACTER   // eleven_flash_v2_5: 0.5
+textToSpeech(text, { apiKey, voiceId, model, signal?, fetchImpl? }): Promise<Uint8Array>
+fetchSubscription(apiKey, fetchImpl?): Promise<{ characterCount, characterLimit, remaining }>
+clipHash(model, voiceId, text); readClip(hash); writeClip(hash, audio)   // data/voice/<hash>.mp3
+parseVoiceRequest(body); speak({ text, kind }, deps?, signal?); voiceStatus(preference, deps?)
+```
