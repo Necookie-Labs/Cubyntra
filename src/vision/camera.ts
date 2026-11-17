@@ -241,24 +241,24 @@ export function formatCameraError(error: unknown): Error {
       case 'NotAllowedError':
       case 'PermissionDeniedError':
         return new Error(
-          'Camera permission was denied. Please allow camera access in your browser address bar to scan the cube.'
+          'The camera is blocked for this page. Allow it from the icon in the address bar, then press Try again.'
         );
       case 'NotFoundError':
       case 'DevicesNotFoundError':
         return new Error(
-          'No camera device was detected on your system. You can still use Mock Scan Mode to explore solutions.'
+          'No camera was found on this device. Plug one in and press Try again, or practise with a demo cube.'
         );
       case 'NotReadableError':
       case 'TrackStartError':
         return new Error(
-          'The camera is currently being used by another application or tab.'
+          'Another app or tab is using the camera. Close it, then press Try again.'
         );
       case 'OverconstrainedError':
         return new Error(
-          'Requested camera resolution or constraints are not supported by your camera hardware.'
+          'This camera cannot give the picture Cubyntra needs. Try another camera.'
         );
       default:
-        return new Error(`Camera initialization error: ${error.message}`);
+        return new Error(`The camera did not start (${error.message}). Press Try again.`);
     }
   }
 

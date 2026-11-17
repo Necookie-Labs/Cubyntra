@@ -228,11 +228,23 @@ describe('useTutorStore', () => {
   });
 
   it('marks the solve finished and clears it from the profile', async () => {
+    await store().startSolve(scramble, 'beginner');
+    useTutorStore.setState({ stepIndex: 5 });
+    planMock.mockResolvedValueOnce(null);
+    await store().loadPlan();
+    expect(store().phase).toBe('solved');
+    expect(store().alreadySolved).toBe(false);
+    expect(store().profile.currentSolve).toBeNull();
+    expect(store().profile.stats.solvesCompleted).toBe(1);
+  });
+
+  it('does not count a cube that was solved before the first step', async () => {
     planMock.mockResolvedValueOnce(null);
     await store().startSolve(scramble, 'beginner');
     expect(store().phase).toBe('solved');
+    expect(store().alreadySolved).toBe(true);
     expect(store().profile.currentSolve).toBeNull();
-    expect(store().profile.stats.solvesCompleted).toBe(1);
+    expect(store().profile.stats.solvesCompleted).toBe(0);
   });
 
   it('keeps working without a token, marking the profile unsaved', async () => {

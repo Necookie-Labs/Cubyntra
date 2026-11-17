@@ -158,6 +158,12 @@ h3 {
   outline-offset: 2px;
 }
 
+/* Headings, dialogs and <main> take focus from code (tabindex="-1") so the next Tab starts in
+   the right place; they are not controls, so they get no ring. */
+[tabindex='-1']:focus-visible {
+  outline: none;
+}
+
 /* Square, flat scrollbars */
 ::-webkit-scrollbar {
   width: 8px;

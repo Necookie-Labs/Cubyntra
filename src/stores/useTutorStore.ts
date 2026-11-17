@@ -82,6 +82,8 @@ export interface TutorStore {
    * this solve. Any other scan (Solve another, Scan my cube) starts a new solve.
    */
   rescanRequested: boolean;
+  /** The cube was already solved when the solve started: nothing was taught or counted. */
+  alreadySolved: boolean;
 
   setToken: (token: string | null) => void;
   loadProfile: () => Promise<void>;
@@ -169,6 +171,7 @@ const SESSION_RESET = {
   errorMessage: null,
   stageHint: 0 as HintUse,
   rescanRequested: false,
+  alreadySolved: false,
 };
 
 /** The learner settings that pick a method's variant (only CFOP's last layer so far). */
@@ -417,7 +420,12 @@ export const useTutorStore = create<TutorStore>((set, get) => {
         // A newer solve may have started while this one planned.
         if (get().cube !== cube) return;
         if (!plan) {
-          finishSolve();
+          if (stepIndex > 0) finishSolve();
+          else {
+            // Scanned (or picked up) already solved: nothing to teach, so no solve is counted.
+            commit(...clearSolveOp());
+            set({ phase: 'solved', plan: null, rescanRequested: false, alreadySolved: true });
+          }
           return;
         }
         set({ plan, phase: 'step' });

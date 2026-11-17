@@ -191,7 +191,10 @@ lighting and glare tips with Scan again and Use a demo cube.
     the scan and phone cameras). Closing the sheet stops the tracks, even mid-start.
 - **Other states:** loading ("Planning the next step", an overlay on the twin, which stays mounted
   from step to step so a solve uses one WebGL context), no solve in progress (Scan / Demo cube),
-  planning failed (Try again / Scan again), solved (Solve another / Home).
+  planning failed (Try again / Scan again), solved (Solve another / Home), and a cube that was
+  already solved when scanned ("Your cube is already solved": Scan again / Home; not counted).
+- **Focus.** When the control in use disappears (Next step, a mismatch, the last step), focus
+  moves to the new step's heading, the "Not quite yet" heading or Solve another.
 - The screen stays awake while a solve is open (Screen Wake Lock, re-taken when the page is
   visible again).
 
@@ -311,8 +314,11 @@ navigation over the viewfinder.
   anywhere (except on another control) or Enter on the focused pad; Escape cancels. The scan
   review recolors the selected tile with 1–6.
 - **Modals.** Sheets and dialogs are `Dialog` (`role="dialog"`, `aria-modal`, labelled and
-  described; focus moves in, Tab is trapped, Escape and the scrim close it, focus returns to the
-  opener). The phone's full-screen first-run coach (`CaptureCoach`) follows the same rules, with
+  described; focus moves in, to the dialog itself when its autofocus button is disabled, Tab is
+  trapped, Escape and the scrim close it, focus returns to the opener). Only the body scrolls,
+  so the title and the actions stay in view. Destructive actions (Discard this solve, Start over
+  on the review) ask first, with the safe choice focused. Headings and panels that take focus
+  from code (`tabindex="-1"`) show no ring. The phone's full-screen first-run coach (`CaptureCoach`) follows the same rules, with
   Escape as Skip.
 - **Announcements.** Polite live regions carry the coach's replies and its "thinking" state,
   checkpoint instructions and results, the trainer's mismatch and session count, move names in
@@ -446,3 +452,82 @@ Every screen has a labeled way forward; the logo and the Home tab always return 
 | Phone after a scan | Play / Pause, Previous / Next move, a move chip, Solve on this phone, Scan another cube |
 | Pairing dialog | Close, Switch to webcam; Try again if the pairing could not be created |
 | Crash / 404 | Try again, Back to home |
+
+## 9. User flows
+
+Each flow below was walked as a student would, on a 390×844 phone and a 1366×900 laptop, with
+headless Edge over the DevTools protocol (Phase 12). Camera paths used a stubbed
+`getUserMedia`: a canvas painting chosen tile colors for real readings, or a rejection for the
+blocked, missing and busy cases. Every rough edge found is fixed with a regression test; the
+list is in `docs/tutor/PROGRESS.md` (Phase 12).
+
+### 9.1 First run (empty `data/`)
+1. Home: "Let’s solve your cube.", the method picker (Beginner's chosen), **Scan my cube** and
+   **Try a demo cube**, a progress glance of zeros and More (Trainer, Timer, Pair phone).
+2. Picking CFOP is saved in the profile at once and is the default on every screen after a reload.
+3. Progress shows "Not started" for every stage and 0 of 142 cases; Trainer opens on the
+   beginner's set with a first case; Timer shows "Your times appear here." Nothing is blank.
+4. `/solve` with no solve: "No solve in progress" with Scan my cube and a demo cube.
+
+### 9.2 Demo solve, end to end (Beginner's, CFOP 2-look, CFOP full)
+1. **Try a demo cube** → `/solve`: stage header, twin, move chips, coach, sticky **I did it**.
+2. Play, Pause, Step back / forward, 0.5×, Loop and any move chip drive the twin; "In words"
+   follows the current move.
+3. Hints 1–3 stream into the coach panel (templates without an API key, with a note saying so).
+4. **I did it** opens the sheet: the mini-cube, how to hold the cube, the camera square. With no
+   camera the square keeps its size with "The camera is blocked" and Try again; the title and
+   the actions (**It matches**, Check this face) stay in view while the body scrolls. Focus is
+   in the sheet even while "Check this face" waits for the camera.
+5. **It matches** → "Block placed" → the next step after 1.8 s or on Next step; focus moves to
+   the new step's heading.
+6. Mismatch (a wrong reading): the sheet closes, **Not quite yet** takes the focus, wrong tiles
+   are marked; tap tiles then "Check with my fixes", or Replay the step / Fix it from here /
+   Rescan the cube / It actually matches.
+7. The last step → **Solved!** with Solve another (focused) and Home; the solve is counted.
+
+### 9.3 Resume and abandon
+1. Reload mid-solve: "Loading your cube", then the same step.
+2. Leave by the nav and come back (or browser back / forward): the same step, nothing replanned.
+3. Home shows **Continue** with the method, step number, "Working on: <stage>" and the stage
+   blocks.
+4. **Discard this solve** asks first ("Keep it" is focused); Discard clears the solve and keeps
+   stats, mastery and streak. `/solve` then offers a new one.
+
+### 9.4 Scan
+1. Six faces in order; leaving mid-scan by the nav and returning keeps the faces already read.
+2. Review: tap a tile and pick a color (or press 1–6); the count chips and the status line say at
+   once whether the cube is real; Confirm & solve is disabled until it is.
+3. **Start over** asks first ("Keep this scan" is focused).
+4. Confirm → `/solve` with the method chosen on Home. A cube that is **already solved** says so
+   ("Scramble it, then scan it again") and is not counted as a solve.
+5. Camera blocked, missing or busy: "The camera didn’t open" with a plain reason and Try again,
+   Use demo cube or Back. The scanner's **Demo cube** button is labelled on phones too.
+
+### 9.5 Trainer, Timer, Progress
+1. Trainer: each set picks a fresh case; Show the name / Show the algorithm / Ask the coach;
+   Got it and Missed it move to the next case and update the session count and case grid;
+   Check with the camera opens the same sheet ("Case solved", Next case). The set is saved.
+2. Timer: tap or Space → 15 s inspection → hold until "Let go to start" → release → tap to stop.
+   Touch, mouse and keyboard behave the same; Escape cancels inspection. +2 and DNF toggle,
+   Delete removes the last solve; history survives a reload.
+3. Progress after solves and drills: blocks placed, streak, cases learned, totals.
+
+### 9.6 Settings
+Name, method, CFOP last layer, Moves in words, Letters on stickers, Theme, Reduce motion: each
+change is saved at once and survives a reload; clicking a switch's words toggles it. Theme is set
+before first paint (no flash) and System follows the OS. Letters show on the twin's stickers;
+Reduce motion sets `data-motion="reduce"` and the twin turns instantly.
+
+### 9.7 Pair and the phone
+1. Pair: the QR code, the six-character code with its expiry, a status chip, the laptop
+   address choice and Unpair.
+2. A wrong, used or expired typed code: "That code is not right, or it has expired."
+3. `/companion` without a pairing explains how to pair, with **Type a code**; a garbled QR link
+   says it is incomplete and an ended pairing says to make a new code. The header and this note
+   stay above the camera's error screen.
+
+### 9.8 Navigation
+Every nav item works on both sizes; browser back / forward through the solve keeps its step;
+deep links (`/solve` with no solve, `/trainer` cold) render their own empty states; an unknown
+path is the 404 with Back to home. No screen scrolls sideways at 390px, and no screen logged a
+console error.

@@ -15,7 +15,7 @@ import { CubeColor, CubeState, Face, ValidationIssue } from '@/cube/types';
 import { COLORS, FACES } from '@/cube/constants';
 import { StickerFlag } from '@/vision/resolveCubeColors';
 import { AlertTriangle, CheckCircle2, Info, RotateCcw, ScanLine, Sparkles } from 'lucide-react';
-import { BlockButton, Chip, cx, stickerColor, stickerLetter, stickerLetterClass } from '@/components/ui';
+import { BlockButton, Chip, Dialog, cx, stickerColor, stickerLetter, stickerLetterClass } from '@/components/ui';
 
 const FACE_LABEL: Record<Face, string> = {
   U: 'Top',
@@ -88,6 +88,7 @@ export const ScanReview: React.FC<ScanReviewProps> = ({ onRescanFace, onConfirme
   const pendingList = useMemo(() => FACES.filter((f) => pendingFaces[f]), [pendingFaces]);
 
   const [selected, setSelected] = useState<{ face: Face; index: number } | null>(null);
+  const [confirmStartOver, setConfirmStartOver] = useState(false);
 
   const counts = useMemo(() => countColors(cubeState), [cubeState]);
   const isValid = validation?.valid === true;
@@ -352,9 +353,33 @@ export const ScanReview: React.FC<ScanReviewProps> = ({ onRescanFace, onConfirme
       </div>
 
       <div className="flex items-center justify-between gap-3">
-        <BlockButton variant="ghost" size="sm" onClick={onStartOver} className="-ml-3">
+        <BlockButton variant="ghost" size="sm" onClick={() => setConfirmStartOver(true)} className="-ml-3">
           Start over
         </BlockButton>
+        {/* One tap used to throw away all six faces and any fixes, next to Confirm. */}
+        <Dialog
+          open={confirmStartOver}
+          onClose={() => setConfirmStartOver(false)}
+          title="Scan all six faces again?"
+          description="This scan and your fixes are cleared. To redo one face, tap a tile and choose Rescan."
+          size="sm"
+          footer={
+            <>
+              <BlockButton variant="ghost" data-autofocus onClick={() => setConfirmStartOver(false)}>
+                Keep this scan
+              </BlockButton>
+              <BlockButton
+                variant="danger"
+                onClick={() => {
+                  setConfirmStartOver(false);
+                  onStartOver();
+                }}
+              >
+                Start over
+              </BlockButton>
+            </>
+          }
+        />
         <BlockButton
           variant="primary"
           size="lg"

@@ -168,6 +168,25 @@ describe('Home', () => {
     expect(screen.getByText('Working on: First two layers')).toBeTruthy();
     expect(screen.queryByRole('link', { name: 'Scan my cube' })).toBeNull();
   });
+
+  it('asks before discarding the saved solve', async () => {
+    useTutorStore.setState({ profile: sampleProfile() });
+    render(<HomeView />);
+    await flush();
+    fireEvent.click(screen.getByRole('button', { name: 'Discard this solve' }));
+    const dialog = screen.getByRole('dialog', { name: 'Discard this solve?' });
+    // The safe choice has the focus; keeping it changes nothing.
+    expect(document.activeElement).toBe(within(dialog).getByRole('button', { name: 'Keep it' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Keep it' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(useTutorStore.getState().profile.currentSolve).not.toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Discard this solve' }));
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Discard' }));
+    await flush();
+    expect(useTutorStore.getState().profile.currentSolve).toBeNull();
+    expect(screen.getByRole('link', { name: 'Scan my cube' })).toBeTruthy();
+  });
 });
 
 describe('Home graduation and glance', () => {

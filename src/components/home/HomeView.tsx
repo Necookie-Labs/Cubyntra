@@ -12,7 +12,7 @@
 import React, { useState, useSyncExternalStore } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowRight, GraduationCap, ScanLine, Shuffle, Smartphone, Target, Timer } from 'lucide-react';
-import { BlockButton, Chip, Panel, ProgressBlocks, cx } from '@/components/ui';
+import { BlockButton, Chip, Dialog, Panel, ProgressBlocks, cx } from '@/components/ui';
 import { BlockLink } from '@/components/shell/BlockLink';
 import { PageContainer, PageHeader, PageSection } from '@/components/shell/Page';
 import { methodOptionsFor, useTutorStore } from '@/stores/useTutorStore';
@@ -85,6 +85,7 @@ function ContinueCard() {
   const lastLayer = useTutorStore((s) => s.profile.settings.lastLayer);
   const options = solve ? methodOptionsFor(solve.method, { lastLayer }) : undefined;
   const progress = useStageProgress(solve?.state ?? null, solve?.method ?? null, options);
+  const [confirming, setConfirming] = useState(false);
   if (!solve) return null;
   const info = METHOD_INFO[solve.method];
   const stages = methodStages(solve.method, options?.lastLayer);
@@ -113,10 +114,34 @@ function ContinueCard() {
         <BlockLink href="/solve" variant="primary" size="lg" icon={<ArrowRight aria-hidden className="h-5 w-5" />}>
           Continue
         </BlockLink>
-        <BlockButton variant="ghost" onClick={abandonSolve}>
+        <BlockButton variant="ghost" onClick={() => setConfirming(true)}>
           Discard this solve
         </BlockButton>
       </div>
+      {/* One click used to throw the saved solve away for good. */}
+      <Dialog
+        open={confirming}
+        onClose={() => setConfirming(false)}
+        title="Discard this solve?"
+        description="Your place in this solve is lost. Your progress, mastery and streak stay."
+        size="sm"
+        footer={
+          <>
+            <BlockButton variant="ghost" data-autofocus onClick={() => setConfirming(false)}>
+              Keep it
+            </BlockButton>
+            <BlockButton
+              variant="danger"
+              onClick={() => {
+                setConfirming(false);
+                abandonSolve();
+              }}
+            >
+              Discard
+            </BlockButton>
+          </>
+        }
+      />
     </Panel>
   );
 }

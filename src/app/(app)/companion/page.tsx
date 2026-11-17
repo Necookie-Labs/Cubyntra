@@ -33,7 +33,10 @@ import { analyzeFaceContext } from '@/vision/faceImageAnalyzer';
 import { useMobileSession } from '@/sync/useMobileSession';
 import { faceScannedFromSamples } from '@/sync/faceSamples';
 import {
+  endPairing,
+  getPairingProblemSnapshot,
   getPairingSnapshot,
+  getServerPairingProblemSnapshot,
   getServerPairingSnapshot,
   setPairing,
   subscribePairing,
@@ -80,6 +83,13 @@ const HINT_STYLE: Record<HintKind, string> = {
   ok: 'bg-leaf text-on-leaf',
 };
 
+/** What the phone says while it is not paired, by why (see `PairingProblem`). */
+const PAIRING_HELP = {
+  none: 'To send the colors to your computer, open Pair phone there and scan its QR code, or type its code.',
+  invalid: 'That pairing link is incomplete. Scan the QR code on your computer again, or type its code.',
+  ended: 'This pairing has ended or expired. On your computer, open Pair phone and make a new code.',
+} as const;
+
 /** localStorage has no change events worth following here; read it once per render. */
 const noSubscription = () => () => {};
 
@@ -91,7 +101,8 @@ function toScreenRect(el: Element) {
 function CompanionScannerContent() {
   const pairing = useSyncExternalStore(subscribePairing, getPairingSnapshot, getServerPairingSnapshot);
   const sessionId = pairing?.sessionId ?? null;
-  const session = useMobileSession(pairing, { onEnded: () => setPairing(null) });
+  const pairingProblem = useSyncExternalStore(subscribePairing, getPairingProblemSnapshot, getServerPairingProblemSnapshot);
+  const session = useMobileSession(pairing, { onEnded: endPairing });
   const [showCodeEntry, setShowCodeEntry] = useState(false);
   // Faces read on this phone, used to calibrate each next face against the centers seen so far.
   const acceptedSamplesRef = useRef<Partial<Record<Face, StickerSample[]>>>({});
@@ -399,7 +410,7 @@ function CompanionScannerContent() {
       {captureFlash > 0 && <div key={captureFlash} className="vx-flash absolute inset-0 z-40 bg-qr-paper pointer-events-none" />}
 
       {/* Top bar: a solid strip, so it reads over any scene */}
-      <header className="relative z-30 shrink-0 flex items-center justify-between gap-3 px-4 pt-[max(0.5rem,env(safe-area-inset-top))] pb-2 bg-panel border-b-2 border-line">
+      <header className="relative z-40 shrink-0 flex items-center justify-between gap-3 px-4 pt-[max(0.5rem,env(safe-area-inset-top))] pb-2 bg-panel border-b-2 border-line">
         {/* The shell's <main> wraps this screen; the viewfinder needs no visible title. */}
         <h1 className="sr-only">Phone camera</h1>
         <div className="flex items-center gap-2 min-w-0">
@@ -435,6 +446,19 @@ function CompanionScannerContent() {
           )}
         </div>
       </header>
+
+      {/* Not paired: say why (a broken or ended link) and how to pair, not just "Not linked". */}
+      {!sessionId && (
+        <div
+          role="status"
+          className="relative z-40 shrink-0 flex items-center justify-between gap-3 px-4 py-2 bg-panel border-b-2 border-line"
+        >
+          <p className="text-xs text-ink">{PAIRING_HELP[pairingProblem ?? 'none']}</p>
+          <BlockButton size="sm" onClick={() => setShowCodeEntry(true)} className="shrink-0">
+            Type a code
+          </BlockButton>
+        </div>
+      )}
 
       {/* Guidance + reticle */}
       {cameraStatus === 'streaming' && !isAllComplete && (

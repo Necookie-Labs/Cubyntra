@@ -58,6 +58,13 @@ export function takePairingFromLocation(win: Win): PairingCredentials | null {
 
 // A tiny external store so React can read the pairing without a hydration mismatch.
 let current: PairingCredentials | null | undefined;
+/**
+ * Why the phone is not paired, when it tried to be: the QR link was cut short or garbled
+ * (`invalid`), or the computer ended or let the pairing expire (`ended`). Lets the phone say so
+ * instead of a bare "Not linked".
+ */
+export type PairingProblem = 'invalid' | 'ended' | null;
+let problem: PairingProblem = null;
 const listeners = new Set<() => void>();
 
 export function subscribePairing(listener: () => void): () => void {
@@ -68,7 +75,11 @@ export function subscribePairing(listener: () => void): () => void {
 }
 
 export function getPairingSnapshot(): PairingCredentials | null {
-  if (current === undefined) current = takePairingFromLocation(window);
+  if (current === undefined) {
+    const hadLink = /(^#|&)(s|k|t)=/.test(window.location.hash);
+    current = takePairingFromLocation(window);
+    if (hadLink && !current) problem = 'invalid';
+  }
   return current;
 }
 
@@ -76,15 +87,32 @@ export function getServerPairingSnapshot(): PairingCredentials | null {
   return null;
 }
 
+export function getPairingProblemSnapshot(): PairingProblem {
+  getPairingSnapshot();
+  return problem;
+}
+
+export function getServerPairingProblemSnapshot(): PairingProblem {
+  return null;
+}
+
 /** Replaces the pairing (after typing a code) or forgets it (`null`, when the session ended). */
 export function setPairing(creds: PairingCredentials | null): void {
   current = creds;
+  if (creds) problem = null;
   savePairing(window, creds);
   for (const listener of [...listeners]) listener();
+}
+
+/** Forgets a pairing the computer ended or let expire, remembering why. */
+export function endPairing(): void {
+  problem = 'ended';
+  setPairing(null);
 }
 
 /** Test helper. */
 export function resetPairingStoreForTests(): void {
   current = undefined;
+  problem = null;
   listeners.clear();
 }
