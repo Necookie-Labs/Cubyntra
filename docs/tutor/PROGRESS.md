@@ -107,7 +107,7 @@ Checklist for `docs/tutor/GOAL.md`. Tick an item only when it is done and tested
 - [x] Credit cap, usage file, remaining-balance check
 - [x] Settings, fallback chain, one speaker when paired
 - [x] ADR-016 and docs
-- [ ] Phase gate passed and pushed
+- [x] Phase gate passed and pushed
 
 ## Phase 12: User-flow audit
 - [ ] Every flow walked on desktop and phone sizes
