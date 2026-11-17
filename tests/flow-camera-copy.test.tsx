@@ -46,5 +46,8 @@ describe('scanner', () => {
     expect(demo.textContent).toContain('Demo cube');
     expect(screen.queryByText(/Use Scramble|No Cube Detected/)).toBeNull();
     expect(screen.getByRole('button', { name: 'No cube in the grid yet' })).toBeTruthy();
+    // Both labelled buttons do not fit one 390px row: the row wraps instead of scrolling sideways.
+    expect(screen.getByTestId('scan-actions').className).toMatch(/\bflex-wrap\b/);
+    expect(screen.getByRole('button', { name: 'No cube in the grid yet' }).className).toMatch(/\bmin-w-0\b/);
   });
 });

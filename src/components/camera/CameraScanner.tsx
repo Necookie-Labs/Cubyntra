@@ -519,13 +519,13 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({ onBack }) => {
         </div>
 
         {/* Manual Capture & Quick Action Buttons */}
-        <div className="flex items-center gap-2 pt-1">
+        <div data-testid="scan-actions" className="flex flex-wrap items-center gap-2 pt-1">
           <BlockButton
             variant="primary"
             onClick={handleCaptureFace}
             disabled={cameraStatus !== 'streaming' || !isCube}
             icon={isFace ? <UserX className="w-4 h-4" /> : <Camera className="w-4 h-4" />}
-            className="flex-1"
+            className="min-w-0 flex-1 basis-56"
           >
             {isCube ? 'Capture this face' : isFace ? 'Show the cube, not a face' : 'No cube in the grid yet'}
           </BlockButton>
