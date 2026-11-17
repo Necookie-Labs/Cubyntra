@@ -74,20 +74,23 @@ export function useVoice({ mode, rate, token, enabled = true, createSpeaker = de
 
   useEffect(() => () => queueRef.current?.interrupt(), []);
 
+  const on = mode !== 'off' && enabled;
   return useMemo<VoiceHandle>(() => {
     const queue = () => queueRef.current!;
+    // Unlock is read when a line comes, so a line said from the unlocking tap itself is heard.
+    const may = () => on && isAudioUnlocked();
     return {
       active,
       say: (...items) => {
-        if (active) queue().say(...items);
+        if (may()) queue().say(...items);
       },
       replace: (...items) => {
-        if (active) queue().replace(...items);
+        if (may()) queue().replace(...items);
       },
       setStep: (key) => {
         queue().setStep(key);
       },
       interrupt: () => queue().interrupt(),
     };
-  }, [active]);
+  }, [active, on]);
 }
