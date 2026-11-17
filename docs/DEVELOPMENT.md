@@ -42,11 +42,12 @@ open https://localhost:3000
 | `npm run start` | Serves compiled production bundle locally |
 | `npm run lint` | Runs ESLint over all TypeScript and React files |
 | `npm run typecheck` | Validates strict TypeScript types across the codebase |
-| `npm run test` | Runs the Vitest suite (1,353 tests in 147 files; 1,000 tutor scrambles per method) |
+| `npm run test` | Runs the Vitest suite (1,633 tests in 164 files; 1,000 tutor scrambles per method) |
 | `npm run test:watch`| Runs Vitest in interactive watch mode |
 | `npm run test:tutor-soak` | Runs the tutor scramble suite at 10,000 scrambles per method and variant (about 95 s) |
 | `npm run docs:pdf` | Compiles documentation into PDF artifacts in `docs/pdf/` |
 | `npm run coach:eval` | Runs 50 real step situations (guided solves of seeded scrambles) through the coach and writes `data/coach-eval-report.md` (calls Claude only with a key; see §5) |
+| `npm run voice:prewarm` | Prints what generating the voice phrase bank would cost; with `-- --yes`, makes the missing ElevenLabs clips in `data/voice/` (see §5.6) |
 
 ---
 
@@ -151,6 +152,56 @@ the situation list only).
   suffix, backticks, brackets, or after do/then/turn/try), so ordinary prose such as "plan B" or
   "the F face" is not mistaken for notation. Add cases to `tests/coach-guard.test.ts` when you
   change it: it has tables both ways.
+
+### 5.6 Voice (device voice and ElevenLabs)
+The tutor can speak ([ADR-016](ADR/016-voice-tutoring.md)): each move as the twin plays it, a
+stage intro, every checkpoint result, and the coach's replies. The student picks **Off**,
+**Device voice** or **ElevenLabs** in Settings → Voice (default Off), plus the speed and whether
+moves are said in words ("turn the right side up") or as letters ("R prime"). The speaker button
+in the solve screen's coach panel turns it on and off. Nothing is said before the first tap on the
+page (browsers block autoplay).
+
+**Device voice** is the browser's own `speechSynthesis`: free, offline, no key, no setup.
+
+**Adding an ElevenLabs key** (optional):
+1. Add to `.env.local` (git-ignored; see `.env.example`):
+   ```bash
+   ELEVENLABS_API_KEY=sk_...
+   ELEVENLABS_VOICE_ID=                  # optional; default a stock premade voice
+   ELEVENLABS_MONTHLY_CREDIT_CAP=20000   # optional, default 20,000 credits
+   ```
+2. Restart `npm run dev`. The key is read only by the server (`src/voice/elevenlabs.ts`) and never
+   sent to the browser. Use a stock voice id; cloned voices are not used.
+3. Settings → Voice now allows ElevenLabs and shows the month's credits. `GET /api/voice/status`
+   (app token) returns `{ mode, keySet, monthCredits, capCredits, remaining?, warning, ... }`.
+
+**Credits math.** ElevenLabs bills by characters of text. Flash v2.5 (`eleven_flash_v2_5`, the
+model used) costs **0.5 credit per character**, half of Multilingual v2 (one table in
+`src/voice/credits.ts`). About **1,000 characters ≈ 1 minute of audio ≈ 500 credits**.
+- The phrase bank (every move in both styles, stage intros, checkpoint and praise lines) is
+  142 lines, 3,118 characters ≈ **1,559 credits**, spent once: each clip is kept in
+  `data/voice/<hash>.mp3` and replayed for free afterwards.
+- Coach replies use the device voice. "Read with ElevenLabs" sends that one reply (often 300-700
+  characters, 150-350 credits) and does not keep it.
+
+**Prewarming the bank.** `npm run voice:prewarm` prints the number of lines, characters and
+credits it would send and how many are cached already, and sends nothing. Run
+`npm run voice:prewarm -- --yes` to make the missing clips in one go (it stops at the cap).
+Without prewarming, each clip is made the first time it is needed. Changing the voice or model
+makes new clips (the hash covers both).
+
+**The cap.** Characters sent are counted per UTC month in `data/voice-usage.json` (cached clips
+are free and not counted). Before each call its credits are reserved; a call that could pass the
+limit is not made. The limit is the lower of `ELEVENLABS_MONTHLY_CREDIT_CAP` (default 20,000)
+and the account's real balance, read from ElevenLabs at most every 10 minutes. Settings shows a
+notice at 80%; at the limit the device voice speaks until the next month. Any ElevenLabs failure
+also falls back to the device voice.
+
+**Paired phone.** Only the device driving the solve (the last to show a new step or press
+play / pause / seek / speed) speaks; the other stays silent.
+
+**Tests** fake ElevenLabs by stubbing `fetch` (`tests/voice-*.test.ts`); the suite and the build
+never call it. Only the text to speak is sent (`tests/voice-privacy.test.ts`).
 
 ---
 
