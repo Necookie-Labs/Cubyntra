@@ -101,12 +101,12 @@ Checklist for `docs/tutor/GOAL.md`. Tick an item only when it is done and tested
 - [x] Final gate passed and pushed
 
 ## Phase 11: Voice tutoring
-- [ ] Device voice (browser speech) with plain-language move reading
-- [ ] ElevenLabs route, Flash model, fake-service tests
-- [ ] Phrase bank cached in `data/voice/`
-- [ ] Credit cap, usage file, remaining-balance check
-- [ ] Settings, fallback chain, one speaker when paired
-- [ ] ADR-016 and docs
+- [x] Device voice (browser speech) with plain-language move reading
+- [x] ElevenLabs route, Flash model, fake-service tests
+- [x] Phrase bank cached in `data/voice/`
+- [x] Credit cap, usage file, remaining-balance check
+- [x] Settings, fallback chain, one speaker when paired
+- [x] ADR-016 and docs
 - [ ] Phase gate passed and pushed
 
 ## Phase 12: User-flow audit
