@@ -203,6 +203,22 @@ describe('Solve', () => {
     expect(document.activeElement).toBe(screen.getByRole('link', { name: 'Solve another' }));
   });
 
+  it('says a scanned cube is already solved, without counting a solve', async () => {
+    const { createSolvedCubeState } = await import('@/cube/constants');
+    await act(async () => {
+      await useTutorStore.getState().startSolve(createSolvedCubeState(), 'beginner');
+    });
+    const state = useTutorStore.getState();
+    expect(state.phase).toBe('solved');
+    expect(state.alreadySolved).toBe(true);
+    expect(state.profile.stats.solvesCompleted).toBe(0);
+    expect(state.profile.currentSolve).toBeNull();
+    render(<SolveView />);
+    expect(screen.getByRole('heading', { level: 1, name: 'Your cube is already solved' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Scan again' }).getAttribute('href')).toBe('/scan');
+    expect(screen.queryByText('Solved!')).toBeNull();
+  });
+
   it('keeps the camera square in the sheet while the camera is off', async () => {
     await act(async () => {
       await useTutorStore.getState().startSolve(scrambledState(5, 3), 'beginner');

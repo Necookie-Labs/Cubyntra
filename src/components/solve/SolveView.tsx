@@ -99,9 +99,29 @@ function SolveBusy({ label }: { label: string }) {
 function Solved() {
   const method = useTutorStore((s) => s.method);
   const solves = useTutorStore((s) => s.profile.stats.solvesCompleted);
+  const alreadySolved = useTutorStore((s) => s.alreadySolved);
   // The last step's "Next step" is gone: the way forward takes the focus.
   const actionsRef = useRef<HTMLDivElement>(null);
   useEffect(() => focusIfLost(actionsRef.current?.querySelector('a') ?? null), []);
+  if (alreadySolved) {
+    // A solved cube was scanned: there is nothing to teach, and no solve is counted.
+    return (
+      <PageContainer width="md">
+        <Panel role="status" className="vx-place flex flex-col items-center gap-4 p-8 text-center">
+          <h1 className="text-2xl leading-tight text-ink">Your cube is already solved</h1>
+          <p className="max-w-prose text-sm text-muted">Scramble it with about twenty random turns, then scan it again.</p>
+          <div ref={actionsRef} className="flex flex-wrap justify-center gap-3">
+            <BlockLink href="/scan" variant="primary" icon={<ScanLine aria-hidden className="h-4 w-4" />}>
+              Scan again
+            </BlockLink>
+            <BlockLink href="/" variant="ghost" icon={<Home aria-hidden className="h-4 w-4" />}>
+              Home
+            </BlockLink>
+          </div>
+        </Panel>
+      </PageContainer>
+    );
+  }
   return (
     <PageContainer width="md">
       <h1 className="sr-only">Solved</h1>
