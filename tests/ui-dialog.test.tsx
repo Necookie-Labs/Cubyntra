@@ -52,6 +52,20 @@ describe('Dialog', () => {
     expect(dialog.contains(document.activeElement)).toBe(true);
   });
 
+  it('focuses the dialog itself when its autofocus button is disabled', () => {
+    // The checkpoint sheet's "Check this face" is disabled until the camera is live.
+    const opener = document.createElement('button');
+    document.body.appendChild(opener);
+    opener.focus();
+    render(
+      <Dialog open onClose={() => {}} title="Show me your cube" footer={<button type="button" data-autofocus disabled>Check</button>}>
+        <p>Waiting for the camera</p>
+      </Dialog>
+    );
+    expect(document.activeElement).toBe(screen.getByRole('dialog'));
+    opener.remove();
+  });
+
   it('closes on Escape and gives focus back to the opener', () => {
     const onClose = vi.fn();
     render(<Harness onClose={onClose} />);

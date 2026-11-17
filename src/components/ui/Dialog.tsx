@@ -25,7 +25,7 @@ export interface DialogProps {
   children?: React.ReactNode;
   /** Actions row at the bottom. */
   footer?: React.ReactNode;
-  /** Element to focus on open; defaults to a [data-autofocus] child, else the dialog itself. */
+  /** Element to focus on open; defaults to an enabled [data-autofocus] child, else the dialog itself. */
   initialFocusRef?: React.RefObject<HTMLElement | null>;
   /** Icon block shown before the title. */
   icon?: React.ReactNode;
@@ -59,9 +59,11 @@ export const Dialog: React.FC<DialogProps> = ({
     if (!open) return;
     const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const panel = panelRef.current;
+    // A disabled target (a camera button waiting for the camera) cannot take focus: the
+    // dialog itself takes it then, so focus never stays behind the scrim.
     const target =
       initialFocusRef?.current ??
-      panel?.querySelector<HTMLElement>('[data-autofocus]') ??
+      panel?.querySelector<HTMLElement>('[data-autofocus]:not(:disabled)') ??
       panel;
     target?.focus();
     return () => {
