@@ -110,9 +110,20 @@ Checklist for `docs/tutor/GOAL.md`. Tick an item only when it is done and tested
 - [ ] Phase gate passed and pushed
 
 ## Phase 12: User-flow audit
-- [ ] Every flow walked on desktop and phone sizes
-- [ ] Rough edges fixed with regression tests
-- [ ] Flows documented in `docs/UI_UX.md`
+- [x] Every flow walked on desktop and phone sizes
+- [x] Rough edges fixed with regression tests
+  - Checkpoint sheet: focus left behind the scrim while the camera starts; the camera square
+    collapsed with the camera off; "It matches" scrolled out of sight on phones
+  - Focus fell to the page after Next step, a mismatch and the last step; headings given focus
+    showed a ring
+  - A scanned, already solved cube was counted as a solve ("every step checked")
+  - Discard this solve and the review's Start over had no confirmation
+  - Camera errors named a "Mock Scan Mode" that does not exist; scanner labels in title case;
+    the demo cube button was an unlabelled icon on phones
+  - Settings switches did not toggle from their label
+  - The phone said only "Not linked" for a garbled or ended pairing, and the camera error
+    screen hid the header
+- [x] Flows documented in `docs/UI_UX.md`
 - [ ] Phase gate passed and pushed
 
 ## Blocked
