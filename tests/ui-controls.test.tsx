@@ -45,6 +45,18 @@ describe('SegmentedControl', () => {
     fireEvent.keyDown(screen.getByRole('radiogroup'), { key: 'ArrowLeft' });
     expect(onChange).toHaveBeenLastCalledWith('dark');
   });
+
+  it('shows a disabled option but skips it and cannot choose it', () => {
+    const onChange = vi.fn();
+    const withDisabled = [options[0], { ...options[1], disabled: true }, options[2]];
+    render(<SegmentedControl label="Theme" value="light" options={withDisabled} onChange={onChange} />);
+    const dark = screen.getByRole('radio', { name: 'Dark' }) as HTMLButtonElement;
+    expect(dark.disabled).toBe(true);
+    fireEvent.click(dark);
+    expect(onChange).not.toHaveBeenCalled();
+    fireEvent.keyDown(screen.getByRole('radiogroup'), { key: 'ArrowRight' });
+    expect(onChange).toHaveBeenLastCalledWith('system');
+  });
 });
 
 describe('StickerGrid', () => {

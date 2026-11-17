@@ -5,7 +5,8 @@
  * Necookie Labs (c) 2026
  *
  * A row of block buttons where exactly one is chosen: a radiogroup. Arrow keys move the
- * choice (roving tabindex), so the whole group is one Tab stop.
+ * choice (roving tabindex), so the whole group is one Tab stop. A disabled option is shown but
+ * skipped by the arrow keys and cannot be chosen.
  */
 
 import React, { useRef } from 'react';
@@ -15,6 +16,7 @@ export interface SegmentOption<T extends string> {
   value: T;
   label: React.ReactNode;
   icon?: React.ReactNode;
+  disabled?: boolean;
 }
 
 export interface SegmentedControlProps<T extends string> {
@@ -44,7 +46,12 @@ export function SegmentedControl<T extends string>({
     const back = e.key === 'ArrowLeft' || e.key === 'ArrowUp';
     if (!forward && !back) return;
     e.preventDefault();
-    const next = (index + (forward ? 1 : -1) + options.length) % options.length;
+    let next = index;
+    for (let i = 0; i < options.length; i++) {
+      next = (next + (forward ? 1 : -1) + options.length) % options.length;
+      if (!options[next].disabled) break;
+    }
+    if (next === index || options[next].disabled) return;
     onChange(options[next].value);
     refs.current[next]?.focus();
   };
@@ -63,6 +70,7 @@ export function SegmentedControl<T extends string>({
             role="radio"
             aria-checked={active}
             tabIndex={active ? 0 : -1}
+            disabled={option.disabled}
             data-variant={active ? 'primary' : 'secondary'}
             onClick={() => onChange(option.value)}
             className="vx-block inline-flex h-10 min-w-0 flex-1 items-center justify-center gap-2 px-3 pb-1 text-sm font-bold"
