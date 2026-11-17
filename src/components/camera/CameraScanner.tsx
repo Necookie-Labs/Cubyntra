@@ -341,7 +341,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({ onBack }) => {
                 <AlertTriangle className="w-6 h-6" />
               </div>
               <div>
-                <h3 className="text-lg text-ink">Camera Unavailable</h3>
+                <h3 className="text-lg text-ink">The camera didn’t open</h3>
                 <p className="text-sm text-muted mt-1 max-w-xs">{errorMessage}</p>
               </div>
               <div className="flex flex-wrap items-center justify-center gap-2">
@@ -447,7 +447,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({ onBack }) => {
             {/* Flashlight button */}
             {hasTorch && (
               <IconButton
-                label="Toggle Torch Light"
+                label="Flash"
                 variant={torchEnabled ? 'primary' : 'secondary'}
                 size="sm"
                 aria-pressed={torchEnabled}
@@ -527,16 +527,16 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({ onBack }) => {
             icon={isFace ? <UserX className="w-4 h-4" /> : <Camera className="w-4 h-4" />}
             className="flex-1"
           >
-            {isCube ? 'Capture Face' : isFace ? 'Face Detected (Align Cube)' : 'No Cube Detected'}
+            {isCube ? 'Capture this face' : isFace ? 'Show the cube, not a face' : 'No cube in the grid yet'}
           </BlockButton>
 
           <BlockButton
             onClick={() => loadMockScramble()}
-            title="Skip scan and load scramble"
-            aria-label="Use Scramble"
+            title="Skip the scan and practise on a scrambled demo cube"
             icon={<Sparkles className="w-4 h-4" />}
           >
-            <span className="hidden sm:inline">Use Scramble</span>
+            {/* Labelled on every screen size: an icon alone did not say it skips the scan. */}
+            Demo cube
           </BlockButton>
         </div>
       </Panel>
