@@ -124,7 +124,7 @@ Checklist for `docs/tutor/GOAL.md`. Tick an item only when it is done and tested
   - The phone said only "Not linked" for a garbled or ended pairing, and the camera error
     screen hid the header
 - [x] Flows documented in `docs/UI_UX.md`
-- [ ] Phase gate passed and pushed
+- [x] Phase gate passed and pushed
 
 ## Blocked
 _None._
