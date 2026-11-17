@@ -50,3 +50,15 @@ export function trapTab(event: Pick<KeyboardEvent, 'key' | 'shiftKey'>, root: HT
   }
   return false;
 }
+
+/**
+ * Moves focus to `el` only when focus has been lost to the page (the control that had it was
+ * removed, e.g. "I did it" while the next step loads), so a keyboard or screen reader user
+ * lands on the new content instead of the top of the page. Never steals focus from a control.
+ */
+export function focusIfLost(el: HTMLElement | null): void {
+  if (!el) return;
+  const active = el.ownerDocument.activeElement;
+  if (active && active !== el.ownerDocument.body && active.isConnected) return;
+  el.focus();
+}

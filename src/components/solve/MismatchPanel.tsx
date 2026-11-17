@@ -10,13 +10,14 @@
  * "it actually matches" (the camera was wrong). The read faces can be corrected tile by tile.
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowRight, Check, Eye, RotateCcw, ScanLine } from 'lucide-react';
 import { faceToShowNext } from '@/app-shell/checkpointAdapter';
 import type { CubeColor, Face } from '@/cube/types';
 import { COLORS } from '@/cube/constants';
 import { BlockButton, Panel, StickerGrid } from '@/components/ui';
+import { focusIfLost } from '@/components/ui/focus';
 import { useTutorStore } from '@/stores/useTutorStore';
 import { FACE_WORD } from './MiniCube';
 
@@ -62,6 +63,9 @@ export function MismatchPanel() {
   const observations = useTutorStore((s) => s.observations);
   const letters = useTutorStore((s) => s.profile.settings.stickerLetters);
   const { replayStep, continueFromDiagnosis, confirmByHand, showNextFace } = useTutorStore.getState();
+  // The sheet that closed took "I did it" with it: the result's heading takes the focus.
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  useEffect(() => focusIfLost(headingRef.current), [outcome]);
   if (!outcome) return null;
 
   const top = outcome.diagnosis?.likelyMistakes[0];
@@ -76,7 +80,7 @@ export function MismatchPanel() {
     <Panel as="section" aria-labelledby="mismatch-title" className="vx-place flex flex-col gap-4 bg-danger-soft">
       {/* The result is announced politely; the ways forward below are not part of the message. */}
       <div role="status" className="flex flex-col gap-1">
-        <h2 id="mismatch-title" className="text-xl leading-tight text-ink">
+        <h2 ref={headingRef} id="mismatch-title" tabIndex={-1} className="text-xl leading-tight text-ink outline-none">
           Not quite yet
         </h2>
         <p className="text-sm leading-relaxed text-ink">

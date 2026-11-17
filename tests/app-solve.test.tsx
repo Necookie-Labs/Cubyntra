@@ -158,6 +158,51 @@ describe('Solve', () => {
     expect(useTutorStore.getState().stepIndex).toBe(4);
   });
 
+  it('puts focus on the new step, the mismatch or the way forward, never on the page', async () => {
+    await act(async () => {
+      await useTutorStore.getState().startSolve(scrambledState(5, 3), 'beginner');
+    });
+    const { unmount } = render(<SolveView />);
+    await flush();
+    const first = useTutorStore.getState().plan!;
+    fireEvent.click(screen.getByRole('button', { name: 'I did it' }));
+    fireEvent.click(screen.getByRole('button', { name: 'It matches' }));
+    const next = screen.getByRole('button', { name: 'Next step' });
+    next.focus();
+    fireEvent.click(next);
+    await flush();
+    expect(useTutorStore.getState().plan!.stepIndex).toBe(first.stepIndex + 1);
+    expect(document.activeElement).toBe(screen.getByRole('heading', { level: 1 }));
+
+    // A mismatch closes the sheet: its heading takes the focus.
+    const plan = useTutorStore.getState().plan!;
+    const ref = plan.checkpoint.stickers[0];
+    const didIt = screen.getByRole('button', { name: 'I did it' });
+    didIt.focus(); // a click focuses the button in a browser
+    fireEvent.click(didIt);
+    act(() => {
+      for (const face of plan.checkpoint.facesToShow) {
+        useTutorStore.getState().submitObservation({
+          face,
+          stickers: plan.expectedState[face].map((color, i) => ({
+            color: face === ref.face && i === ref.index ? (color === 'red' ? 'blue' : 'red') : color,
+            confidence: 1,
+          })),
+        });
+      }
+    });
+    await flush();
+    expect(useTutorStore.getState().phase).toBe('mismatch');
+    expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Not quite yet' }));
+    unmount();
+
+    // Solved: "Solve another" is focused.
+    document.body.focus();
+    useTutorStore.setState({ phase: 'solved', plan: null, method: 'beginner' });
+    render(<SolveView />);
+    expect(document.activeElement).toBe(screen.getByRole('link', { name: 'Solve another' }));
+  });
+
   it('keeps the camera square in the sheet while the camera is off', async () => {
     await act(async () => {
       await useTutorStore.getState().startSolve(scrambledState(5, 3), 'beginner');

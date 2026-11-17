@@ -20,6 +20,7 @@ import { useSolveSyncTarget } from '@/sync/useSolveSyncTarget';
 import { useTutorSync } from '@/sync/useTutorSync';
 import { TeachingTwin } from '@/components/twin/TeachingTwin';
 import { BlockButton, Panel } from '@/components/ui';
+import { focusIfLost } from '@/components/ui/focus';
 import { BlockLink } from '@/components/shell/BlockLink';
 import { Busy, PageContainer, PageHeader } from '@/components/shell/Page';
 import { useWakeLock } from '@/app-shell/wakeLock';
@@ -98,12 +99,15 @@ function SolveBusy({ label }: { label: string }) {
 function Solved() {
   const method = useTutorStore((s) => s.method);
   const solves = useTutorStore((s) => s.profile.stats.solvesCompleted);
+  // The last step's "Next step" is gone: the way forward takes the focus.
+  const actionsRef = useRef<HTMLDivElement>(null);
+  useEffect(() => focusIfLost(actionsRef.current?.querySelector('a') ?? null), []);
   return (
     <PageContainer width="md">
       <h1 className="sr-only">Solved</h1>
       <Panel role="status" className="vx-place flex flex-col items-center gap-4 p-8 text-center">
         <BlockPlaced earned={Math.max(0, solves - 1)} title="Solved!" detail={method ? `${METHOD_INFO[method].name}, every step checked.` : undefined} />
-        <div className="flex flex-wrap justify-center gap-3">
+        <div ref={actionsRef} className="flex flex-wrap justify-center gap-3">
           <BlockLink href="/scan" variant="primary" icon={<ScanLine aria-hidden className="h-4 w-4" />}>
             Solve another
           </BlockLink>
