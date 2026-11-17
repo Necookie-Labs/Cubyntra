@@ -9,7 +9,8 @@
  * in a column on the right. The screen stays awake while a solve is open, and an interrupted
  * solve resumes from the student's profile. The twin stays mounted from step to step (one
  * WebGL context per solve): while the next step is planned it keeps the last cube under a
- * "Planning the next step" overlay.
+ * "Planning the next step" overlay. The tutor's voice (ADR-016) narrates the step and the
+ * checkpoints; its speaker button sits in the coach panel.
  */
 
 import React, { useEffect, useRef, useState } from 'react';
@@ -31,6 +32,7 @@ import { CoachPanel } from './CoachPanel';
 import { CheckpointSheet } from './CheckpointSheet';
 import { MismatchPanel } from './MismatchPanel';
 import { BlockPlaced } from './BlockPlaced';
+import { useSolveVoice } from './useSolveVoice';
 
 function NoSolve() {
   const method = useTutorStore((s) => s.profile.settings.methodDefault);
@@ -132,7 +134,9 @@ export function SolveView() {
 
   // The paired device mirrors the step, the grip and the twin's playback, and can drive them;
   // on a paired phone the same messages go the other way, so the laptop mirrors the phone.
-  useTutorSync(useSolveSyncTarget(), engine?.playback ?? null);
+  const syncTarget = useSolveSyncTarget();
+  useTutorSync(syncTarget, engine?.playback ?? null);
+  const voice = useSolveVoice(syncTarget, engine?.playback ?? null);
 
   useWakeLock(phase !== 'idle' && phase !== 'solved');
 
@@ -193,6 +197,15 @@ export function SolveView() {
             diagnosis={mismatch ? toCoachDiagnosis(checkpoint?.diagnosis ?? null) : undefined}
             explainDiagnosis={mismatch}
             onHint={noteHint}
+            voice={{
+              on: voice.on,
+              onToggle: voice.toggle,
+              elevenlabs: voice.mode === 'elevenlabs',
+              otherDeviceSpeaks: !voice.isSpeaker,
+              moves: voice.moves,
+              say: voice.voice.say,
+              replace: voice.voice.replace,
+            }}
           />
         </div>
       )}

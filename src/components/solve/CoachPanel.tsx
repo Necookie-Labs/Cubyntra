@@ -8,14 +8,35 @@
  * and need no network. Three hint buttons ask the coach for more: what to look for, why it
  * works, the exact moves. The reply streams into a live region. When the coach answers from
  * its templates (no key, cap reached, offline) a short notice says so.
+ *
+ * With `voice`, a speaker button in the header turns the tutor's voice on and off, a finished
+ * reply is read out with the device voice (only once it is final and passes the move guardrail,
+ * ADR-016), and in ElevenLabs mode "Read with ElevenLabs" reads it with ElevenLabs instead.
  */
 
-import React, { useEffect, useRef } from 'react';
-import { Eye, Lightbulb, ListOrdered, MessageSquare } from 'lucide-react';
+import React, { useEffect, useMemo, useRef } from 'react';
+import { AudioLines, Eye, Lightbulb, ListOrdered, MessageSquare, Volume2, VolumeX } from 'lucide-react';
 import type { Diagnosis, StepPlan } from '@/tutor/types';
 import type { AttemptRecord, HintLevel } from '@/coach/types';
 import { useCoach } from '@/coach/useCoach';
-import { BlockButton, Chip, Panel, cx } from '@/components/ui';
+import { allowedMoves, buildCoachFacts, guardNames } from '@/coach/facts';
+import { BlockButton, Chip, IconButton, Panel, cx } from '@/components/ui';
+import { coachSpeech, type MoveSpeech } from '@/voice/speechText';
+import type { SpeechItem } from '@/voice/speechQueue';
+
+/** The voice controls the solve screen hands the coach panel. */
+export interface CoachVoiceControls {
+  /** The voice is on (the speaker button's pressed state). */
+  on: boolean;
+  onToggle: () => void;
+  /** ElevenLabs mode: offer "Read with ElevenLabs" for a finished reply. */
+  elevenlabs: boolean;
+  /** Another paired device is the one speaking. */
+  otherDeviceSpeaks?: boolean;
+  moves: MoveSpeech;
+  say: (item: SpeechItem) => void;
+  replace: (item: SpeechItem) => void;
+}
 
 export interface CoachPanelProps {
   plan: StepPlan;
@@ -26,6 +47,8 @@ export interface CoachPanelProps {
   explainDiagnosis?: boolean;
   /** Called with the level of every hint the student asks for (mastery counts them). */
   onHint?: (level: HintLevel) => void;
+  /** The tutor's voice (solve screen only). */
+  voice?: CoachVoiceControls;
   className?: string;
 }
 
@@ -42,6 +65,7 @@ export function CoachPanel({
   diagnosis,
   explainDiagnosis = false,
   onHint,
+  voice,
   className,
 }: CoachPanelProps) {
   const coach = useCoach({ plan, token, attempts, diagnosis });
@@ -56,6 +80,22 @@ export function CoachPanel({
     requestHint(1);
   }, [explainDiagnosis, diagnosis, requestHint]);
 
+  // What the voice may say: the final reply, only if it passes the move guardrail again.
+  const step = useMemo(() => {
+    const facts = buildCoachFacts(plan, 3, attempts, diagnosis);
+    return { allowed: allowedMoves(facts), names: guardNames(facts) };
+  }, [plan, attempts, diagnosis]);
+  const spoken = voice ? coachSpeech({ text: coach.text, status: coach.status }, step, voice.moves) : null;
+
+  // Read each finished reply once, with the device voice.
+  const said = useRef<string | null>(null);
+  const say = voice?.say;
+  useEffect(() => {
+    if (!say || !spoken || said.current === spoken) return;
+    said.current = spoken;
+    say({ text: spoken, kind: 'reply' });
+  }, [say, spoken]);
+
   return (
     <Panel as="section" aria-labelledby="coach-title" className={cx('flex flex-col gap-4', className)}>
       <div className="flex items-center justify-between gap-2">
@@ -63,8 +103,16 @@ export function CoachPanel({
           <MessageSquare aria-hidden className="h-4 w-4" />
           Coach
         </h2>
-        {coach.mode && coach.mode !== 'live' && <Chip tone={coach.mode === 'capped' ? 'warn' : 'neutral'}>{coach.mode === 'capped' ? 'Cap reached' : 'Templates'}</Chip>}
+        <div className="flex items-center gap-2">
+          {coach.mode && coach.mode !== 'live' && <Chip tone={coach.mode === 'capped' ? 'warn' : 'neutral'}>{coach.mode === 'capped' ? 'Cap reached' : 'Templates'}</Chip>}
+          {voice && (
+            <IconButton label="Voice" size="md" aria-pressed={voice.on} onClick={voice.onToggle}>
+              {voice.on ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+            </IconButton>
+          )}
+        </div>
       </div>
+      {voice?.on && voice.otherDeviceSpeaks && <p className="text-xs text-muted">Your other device is speaking.</p>}
 
       <div className="flex flex-col gap-2 text-sm leading-relaxed">
         <p className="text-ink">{plan.facts.goal}</p>
@@ -96,6 +144,18 @@ export function CoachPanel({
           </p>
         )}
       </div>
+
+      {voice?.on && voice.elevenlabs && spoken && (
+        <BlockButton
+          size="sm"
+          variant="ghost"
+          className="self-start"
+          icon={<AudioLines aria-hidden className="h-4 w-4" />}
+          onClick={() => voice.replace({ text: spoken, kind: 'reply', premium: true })}
+        >
+          Read with ElevenLabs
+        </BlockButton>
+      )}
 
       <div role="group" aria-label="Hints" className="grid grid-cols-1 gap-2 sm:grid-cols-3 lg:grid-cols-1">
         {HINTS.map(({ level, label, Icon }) => (
