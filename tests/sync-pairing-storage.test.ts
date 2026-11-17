@@ -8,6 +8,8 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { buildPairingUrl, parsePairingFragment } from '../src/sync/pairingLink';
 import {
   PAIRING_STORAGE_KEY,
+  endPairing,
+  getPairingProblemSnapshot,
   getPairingSnapshot,
   resetPairingStoreForTests,
   setPairing,
@@ -79,5 +81,22 @@ describe('pairing store', () => {
     setPairing(null);
     expect(getPairingSnapshot()).toBeNull();
     expect(sessionStorage.getItem(PAIRING_STORAGE_KEY)).toBeNull();
+  });
+
+  it('remembers why the phone is not paired, until a new pairing', () => {
+    // A garbled or cut-short QR link: the phone says so instead of a bare "Not linked".
+    window.history.replaceState(null, '', '/companion#s=x&k=leaked');
+    expect(getPairingSnapshot()).toBeNull();
+    expect(getPairingProblemSnapshot()).toBe('invalid');
+    setPairing(creds);
+    expect(getPairingProblemSnapshot()).toBeNull();
+    // The computer ended the pairing or it expired.
+    endPairing();
+    expect(getPairingSnapshot()).toBeNull();
+    expect(getPairingProblemSnapshot()).toBe('ended');
+  });
+
+  it('has no problem on a plain visit', () => {
+    expect(getPairingProblemSnapshot()).toBeNull();
   });
 });
