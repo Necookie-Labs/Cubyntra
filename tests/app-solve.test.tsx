@@ -158,6 +158,20 @@ describe('Solve', () => {
     expect(useTutorStore.getState().stepIndex).toBe(4);
   });
 
+  it('keeps the camera square in the sheet while the camera is off', async () => {
+    await act(async () => {
+      await useTutorStore.getState().startSolve(scrambledState(5, 3), 'beginner');
+    });
+    render(<SolveView />);
+    await flush();
+    fireEvent.click(screen.getByRole('button', { name: 'I did it' }));
+    const box = screen.getByRole('dialog', { name: 'Show me your cube' }).querySelector('video')!.parentElement!;
+    // The sheet scrolls (a flex column): without shrink-0 an empty video collapses to a line
+    // and hides the "camera is blocked" message with its Try again.
+    expect(box.className).toMatch(/\baspect-square\b/);
+    expect(box.className).toMatch(/\bshrink-0\b/);
+  });
+
   it('shows the diagnosis and the ways forward after a mismatch', async () => {
     await act(async () => {
       await useTutorStore.getState().startSolve(scrambledState(5, 3), 'beginner');
