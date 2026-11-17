@@ -34,6 +34,7 @@ Key Core Principles:
 - `src/twin/`: Step plans mapped onto the 3D twin (pieces, slots, playback-driven aids). No DOM, React or Three.js imports.
 - `src/three/`: Three.js rendering: voxel cubies, layer turns with integer snapping, arrows, grip camera, spotlight, "after" preview, playback, context-loss recovery.
 - `src/coach/`: Claude coach (Haiku 5.5): facts, system prompt, templates and case notes, move guardrail, spend cap, SSE relay, `useCoach`.
+- `src/voice/`: Voice tutoring (ADR-016): speakable text, phrase bank, speech queue, device voice, ElevenLabs client and speaker, credit cap, clip cache, one-speaker rule.
 - `src/sync/`: Phone ↔ laptop pairing and state-only sync (ADR-015). Messages carry cube state, steps, grip, playback and checkpoint verdicts, never images; every sync route checks the session secret.
 - `src/app-shell/`: App shell glue: app token, checkpoint adapter (the only caller of verify / diagnose / recover), navigation, wake lock, install, progress summaries.
 - `src/lib/`: Tokens, theme, the `data/` directory, the app secret and loopback check, the streaming body cap, and the student profile schema, file and merge operations.
