@@ -112,6 +112,17 @@ add the public hostname `cubyntra.necookie.dev` → `HTTP` → `localhost:3001`,
 into `~/.config/cubyntra/tunnel-token`. No `config.yml` or `cloudflared tunnel login` is needed.
 Logs: `journalctl --user -u cubyntra -f` and `journalctl --user -u cubyntra-tunnel -f`.
 
+**How `necore` actually runs (2026-11-19).** The tunnel there is *locally managed* instead:
+`cloudflared tunnel login` (one browser authorization), `cloudflared tunnel create cubyntra`,
+`cloudflared tunnel route dns cubyntra cubyntra.necookie.dev`, and `~/.cloudflared/cubyntra.yml`
+with the ingress from `cloudflared-config.example.yml`. The drop-in
+`user/cubyntra-tunnel.service.d/local-config.conf` makes the tunnel unit run that config instead
+of a token file. The app runs in `passcode` mode until a Cloudflare Access application is set up;
+switching to `cloudflare-access` is two values in `.env.local` (`CF_ACCESS_TEAM_DOMAIN`,
+`CF_ACCESS_AUD`) and `systemctl --user restart cubyntra`. Without `loginctl enable-linger`, the
+services keep running only while the account has a login session (necore has a permanent console
+login), and do not start by themselves after a reboot.
+
 ## 4. Run it with systemd
 
 ```bash
