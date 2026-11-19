@@ -134,7 +134,7 @@ describe('/api/student', () => {
     const res = await patch([{ op: 'addTimerSolve', solve: timerSolve('a1') }]);
     expect(res.status).toBe(200);
     const saved = JSON.parse(fs.readFileSync(studentFile(), 'utf8')) as StudentProfile;
-    expect(saved.version).toBe(3);
+    expect(saved.version).toBe(4);
     expect(saved.name).toBe('Sam');
     expect(saved.settings).toMatchObject({ lastLayer: '2-look', voiceMode: 'off', voiceMoves: 'words' });
     expect(saved.stats).toMatchObject({ solvesCompleted: 4, stepsCompleted: 30, stages: {}, activeDays: [] });

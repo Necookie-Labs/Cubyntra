@@ -15,7 +15,11 @@
  * - the current solve is replaced only by a newer one: a later `startedAt` (a new solve), or the
  *   same solve at a later step, or the same step with a later `updatedAt`. Clearing names the
  *   solve it clears, which is then closed: an older copy of it arriving late cannot bring it back;
- * - settings fields, the name and the palette are set (the last write wins per field).
+ * - settings fields, the name and the palette are set (the last write wins per field);
+ * - saved cubes are added by id (a cube already there is not added again, so a retried or
+ *   doubled add is harmless), kept newest first and capped at `MAX_SAVED_CUBES` (the oldest
+ *   drop off); renaming, the remembered solution method and deleting name the cube by id, and do
+ *   nothing once it is gone.
  *
  * Pure TypeScript, shared by `/api/student` and the tutor store. No Node or DOM imports.
  */
@@ -24,7 +28,14 @@ import { answerDrill } from '../learn/leitner';
 import { addActiveDay, recordStage } from '../learn/mastery';
 import { MAX_TIMER_HISTORY, type HintUse, type Penalty, type TimerSolve, type TrainerSetId } from '../learn/types';
 import type { StudentPalette } from '../vision/palette';
-import type { CurrentSolve, StudentProfile, StudentSettings } from './studentProfile';
+import {
+  MAX_SAVED_CUBES,
+  type CurrentSolve,
+  type SavedCube,
+  type SolutionMethod,
+  type StudentProfile,
+  type StudentSettings,
+} from './studentProfile';
 
 export type ProfileOp =
   | { op: 'setName'; name: string }
@@ -41,7 +52,11 @@ export type ProfileOp =
   | { op: 'setTrainerSet'; set: TrainerSetId | null }
   | { op: 'addTimerSolve'; solve: TimerSolve & { id: string } }
   | { op: 'setTimerPenalty'; id: string; penalty: Penalty }
-  | { op: 'deleteTimerSolve'; id: string };
+  | { op: 'deleteTimerSolve'; id: string }
+  | { op: 'addSavedCube'; cube: SavedCube }
+  | { op: 'renameSavedCube'; id: string; name: string }
+  | { op: 'setSavedCubeMethod'; id: string; method: SolutionMethod }
+  | { op: 'deleteSavedCube'; id: string };
 
 export type ProfileOpName = ProfileOp['op'];
 
@@ -60,6 +75,10 @@ export const PROFILE_OP_NAMES: readonly ProfileOpName[] = [
   'addTimerSolve',
   'setTimerPenalty',
   'deleteTimerSolve',
+  'addSavedCube',
+  'renameSavedCube',
+  'setSavedCubeMethod',
+  'deleteSavedCube',
 ];
 
 /** Most operations one request may carry. */
@@ -85,6 +104,12 @@ export function isNewerSolve(incoming: CurrentSolve, existing: CurrentSolve | nu
   if (started !== existingStarted) return started > existingStarted;
   if (incoming.stepIndex !== existing.stepIndex) return incoming.stepIndex > existing.stepIndex;
   return time(incoming.updatedAt) >= time(existing.updatedAt);
+}
+
+/** `cubes` with `cube` added, newest `scannedAt` first, the oldest dropped past the cap. */
+export function withSavedCube(cubes: readonly SavedCube[], cube: SavedCube): SavedCube[] {
+  if (cubes.some((c) => c.id === cube.id)) return [...cubes];
+  return [cube, ...cubes].sort((a, b) => time(b.scannedAt) - time(a.scannedAt)).slice(0, MAX_SAVED_CUBES);
 }
 
 const count = (n: unknown) => (typeof n === 'number' && Number.isInteger(n) && n > 0 && n <= MAX_INCREMENT ? n : 0);
@@ -149,6 +174,17 @@ export function applyProfileOp(profile: StudentProfile, op: ProfileOp): StudentP
       };
     case 'deleteTimerSolve':
       return { ...profile, timer: { history: profile.timer.history.filter((s) => s.id !== op.id) } };
+    case 'addSavedCube': {
+      if (!op.cube || profile.savedCubes.some((c) => c.id === op.cube.id)) return profile;
+      return { ...profile, savedCubes: withSavedCube(profile.savedCubes, op.cube) };
+    }
+    case 'renameSavedCube':
+      if (typeof op.name !== 'string') return profile;
+      return { ...profile, savedCubes: profile.savedCubes.map((c) => (c.id === op.id ? { ...c, name: op.name.trim() } : c)) };
+    case 'setSavedCubeMethod':
+      return { ...profile, savedCubes: profile.savedCubes.map((c) => (c.id === op.id ? { ...c, lastMethod: op.method } : c)) };
+    case 'deleteSavedCube':
+      return { ...profile, savedCubes: profile.savedCubes.filter((c) => c.id !== op.id) };
     default:
       return profile;
   }
@@ -222,7 +258,17 @@ export function parseProfileOps(body: unknown): OpsParse {
         if (!str('id') || !['none', '+2', 'DNF'].includes(raw.penalty as string)) return bad('needs an id and a penalty');
         break;
       case 'deleteTimerSolve':
+      case 'deleteSavedCube':
         if (!str('id')) return bad('id must be a string');
+        break;
+      case 'addSavedCube':
+        if (!isRecord(raw.cube) || typeof raw.cube.id !== 'string') return bad('cube must be an object with an id');
+        break;
+      case 'renameSavedCube':
+        if (!str('id') || !str('name')) return bad('needs an id and a name');
+        break;
+      case 'setSavedCubeMethod':
+        if (!str('id') || !['beginner', 'cfop', 'fewest'].includes(raw.method as string)) return bad('needs an id and a method');
         break;
     }
     ops.push(raw as unknown as ProfileOp);

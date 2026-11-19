@@ -21,6 +21,7 @@
 import type { CubeColor, CubeState, Face } from '../cube/types';
 import { COLORS, FACES } from '../cube/constants';
 import { isValidGrip, type Grip } from '../cube/grip';
+import { validateCubeState } from '../cube/validator';
 import type { AttemptRecord, MistakeKind } from '../coach/types';
 import { MISTAKE_KINDS } from '../coach/types';
 import type { LastLayerMode, MethodId } from '../tutor/types';
@@ -41,7 +42,7 @@ import {
   type TrainerState,
 } from '../learn/types';
 
-export const STUDENT_PROFILE_VERSION = 3;
+export const STUDENT_PROFILE_VERSION = 4;
 /** Largest body `/api/student` accepts and the largest file it writes. */
 export const MAX_STUDENT_BYTES = 128 * 1024;
 export const MAX_NAME_LENGTH = 40;
@@ -53,6 +54,10 @@ export const MAX_STAGE_RECORDS = 10;
 export const MAX_ACTIVE_DAYS = 400;
 /** Trainer cards kept: every case of every set fits with room to spare. */
 export const MAX_TRAINER_CARDS = 300;
+/** Saved cubes kept; adding one more drops the oldest. */
+export const MAX_SAVED_CUBES = 30;
+/** Longest name of a saved cube. */
+export const MAX_CUBE_NAME_LENGTH = 40;
 const MAX_STAGE_KEYS = 40;
 const MAX_SCRAMBLE_LENGTH = 200;
 
@@ -85,6 +90,27 @@ export interface StudentSettings {
   voiceRate: VoiceRate;
   /** Moves spoken as plain-language names or as notation ("R prime"). */
   voiceMoves: VoiceMoves;
+}
+
+/** Where a saved cube came from. */
+export type SavedCubeSource = 'webcam' | 'phone' | 'demo';
+export const SAVED_CUBE_SOURCES: readonly SavedCubeSource[] = ['webcam', 'phone', 'demo'];
+/** How a saved cube's full solution is shown: a tutor method, or the computer's fewest moves. */
+export type SolutionMethod = MethodId | 'fewest';
+export const SOLUTION_METHODS: readonly SolutionMethod[] = ['beginner', 'cfop', 'fewest'];
+
+/** A scanned scramble kept for later: solve it again, or walk through its whole solution. */
+export interface SavedCube {
+  /** Short letters, digits, - or _; unique in the list. */
+  id: string;
+  /** 1 to `MAX_CUBE_NAME_LENGTH` characters, e.g. "Scan · 19 Nov, 14:32". */
+  name: string;
+  /** The cube as scanned (a valid cube, never solved when saved automatically). */
+  state: CubeState;
+  scannedAt: string;
+  source: SavedCubeSource;
+  /** The solution shown last for this cube on its walkthrough. */
+  lastMethod?: SolutionMethod;
 }
 
 /** A guided solve that has started and not finished. */
@@ -127,6 +153,8 @@ export interface StudentProfile {
   stats: StudentStats;
   trainer: TrainerState;
   timer: TimerState;
+  /** Saved cubes, newest `scannedAt` first, at most `MAX_SAVED_CUBES`. */
+  savedCubes: SavedCube[];
   /**
    * `startedAt` of the newest solve that was finished or abandoned. A late save of that solve
    * (or an older one) from another device is ignored rather than bringing it back.
@@ -160,6 +188,7 @@ export function defaultStudentProfile(): StudentProfile {
     stats: defaultStats(),
     trainer: defaultTrainerState(),
     timer: defaultTimerState(),
+    savedCubes: [],
   };
 }
 
@@ -203,6 +232,15 @@ export function migrateProfileV2(input: unknown): unknown {
   return { ...input, version: 3, settings: isRecord(input.settings) ? { ...voice, ...input.settings } : input.settings };
 }
 
+/**
+ * Brings a version 3 profile up to version 4: no saved cubes yet. Anything that is not a version
+ * 3 object is returned as is.
+ */
+export function migrateProfileV3(input: unknown): unknown {
+  if (!isRecord(input) || input.version !== 3) return input;
+  return { ...input, version: 4, savedCubes: [] };
+}
+
 class SchemaError extends Error {}
 
 function need(condition: unknown, message: string): asserts condition {
@@ -233,12 +271,12 @@ function parseSettings(v: unknown): StudentSettings {
   };
 }
 
-function parseState(v: unknown): CubeState {
-  need(isRecord(v), 'currentSolve.state must be an object');
+function parseState(v: unknown, where = 'currentSolve.state'): CubeState {
+  need(isRecord(v), `${where} must be an object`);
   const state = {} as CubeState;
   for (const face of FACES as readonly Face[]) {
     const tiles = v[face];
-    need(Array.isArray(tiles) && tiles.length === 9 && tiles.every(isColor), `currentSolve.state.${face} must be 9 colors`);
+    need(Array.isArray(tiles) && tiles.length === 9 && tiles.every(isColor), `${where}.${face} must be 9 colors`);
     state[face] = [...tiles] as CubeState[Face];
   }
   return state;
@@ -364,13 +402,45 @@ function parseTimer(v: unknown): TimerState {
   return { history: v.history.map((s, i) => parseTimerSolve(s, i)) };
 }
 
+const SAVED_CUBE_ID = /^[A-Za-z0-9_-]{1,64}$/;
+
+function parseSavedCube(v: unknown): SavedCube {
+  need(isRecord(v), 'a saved cube must be an object');
+  need(typeof v.id === 'string' && SAVED_CUBE_ID.test(v.id), 'a saved cube id must be short letters and digits');
+  const name = typeof v.name === 'string' ? v.name.trim() : '';
+  need(name.length >= 1 && name.length <= MAX_CUBE_NAME_LENGTH, `a saved cube name must be 1 to ${MAX_CUBE_NAME_LENGTH} characters`);
+  const state = parseState(v.state, 'a saved cube state');
+  need(validateCubeState(state).valid, 'a saved cube state is not a cube that can be solved');
+  need(isIsoDate(v.scannedAt), 'a saved cube date must be an ISO date');
+  need((SAVED_CUBE_SOURCES as readonly unknown[]).includes(v.source), 'a saved cube source must be webcam, phone or demo');
+  need(
+    v.lastMethod === undefined || (SOLUTION_METHODS as readonly unknown[]).includes(v.lastMethod),
+    'a saved cube method must be beginner, cfop or fewest'
+  );
+  return {
+    id: v.id,
+    name,
+    state,
+    scannedAt: v.scannedAt,
+    source: v.source as SavedCubeSource,
+    ...(v.lastMethod !== undefined ? { lastMethod: v.lastMethod as SolutionMethod } : {}),
+  };
+}
+
+function parseSavedCubes(v: unknown): SavedCube[] {
+  need(Array.isArray(v) && v.length <= MAX_SAVED_CUBES, `savedCubes must hold at most ${MAX_SAVED_CUBES} cubes`);
+  const cubes = v.map(parseSavedCube);
+  need(new Set(cubes.map((c) => c.id)).size === cubes.length, 'savedCubes has two cubes with the same id');
+  return cubes;
+}
+
 /**
- * Validates a profile (parsed JSON). A version 1 or 2 profile is migrated first. Unknown fields are
+ * Validates a profile (parsed JSON). A version 1, 2 or 3 profile is migrated first. Unknown fields are
  * dropped; anything malformed is an error.
  */
 export function parseStudentProfile(raw: unknown): ProfileParse {
   try {
-    const input = migrateProfileV2(migrateProfileV1(raw));
+    const input = migrateProfileV3(migrateProfileV2(migrateProfileV1(raw)));
     need(isRecord(input), 'the profile must be an object');
     need(input.version === STUDENT_PROFILE_VERSION, `version must be ${STUDENT_PROFILE_VERSION}`);
     need(typeof input.name === 'string' && input.name.length <= MAX_NAME_LENGTH, `name must be at most ${MAX_NAME_LENGTH} characters`);
@@ -394,6 +464,7 @@ export function parseStudentProfile(raw: unknown): ProfileParse {
         stats: parseStats(input.stats),
         trainer: parseTrainer(input.trainer),
         timer: parseTimer(input.timer),
+        savedCubes: parseSavedCubes(input.savedCubes),
         ...(input.closedSolveStartedAt !== undefined ? { closedSolveStartedAt: input.closedSolveStartedAt as string } : {}),
       },
     };

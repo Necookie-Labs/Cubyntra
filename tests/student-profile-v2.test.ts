@@ -30,7 +30,7 @@ function v1Profile() {
 describe('student profile v2', () => {
   it('is the current version with the learning fields empty by default', () => {
     const profile = defaultStudentProfile();
-    expect(STUDENT_PROFILE_VERSION).toBe(3);
+    expect(STUDENT_PROFILE_VERSION).toBeGreaterThanOrEqual(3);
     expect(profile.settings.lastLayer).toBe('2-look');
     expect(profile.stats.stages).toEqual({});
     expect(profile.stats.activeDays).toEqual([]);

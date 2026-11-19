@@ -26,7 +26,7 @@ function v2Profile() {
 
 describe('student profile v3 (voice)', () => {
   it('is version 3 with voice off, normal speed and moves in words by default', () => {
-    expect(STUDENT_PROFILE_VERSION).toBe(3);
+    expect(STUDENT_PROFILE_VERSION).toBeGreaterThanOrEqual(3);
     expect(defaultStudentProfile().settings).toMatchObject({ voiceMode: 'off', voiceRate: 1, voiceMoves: 'words' });
   });
 
@@ -36,7 +36,7 @@ describe('student profile v3 (voice)', () => {
     const parsed = parseStudentProfile(old);
     expect(parsed.ok).toBe(true);
     if (!parsed.ok) return;
-    expect(parsed.profile.version).toBe(3);
+    expect(parsed.profile.version).toBe(STUDENT_PROFILE_VERSION);
     expect(parsed.profile.settings).toEqual({ ...old.settings, voiceMode: 'off', voiceRate: 1, voiceMoves: 'words' });
     expect(parsed.profile.currentSolve).toEqual(old.currentSolve);
   });
