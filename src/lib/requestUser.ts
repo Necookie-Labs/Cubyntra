@@ -20,6 +20,7 @@ import { authMode, type AuthMode, type Env } from './authMode';
 import { CF_ACCESS_HEADER, accessConfig, verifyAccessJwt } from './cfAccess';
 import { SlidingWindowLimiter, getAppSecret, isValidAppToken, tokenFromRequest } from './localAuth';
 import { sessionUserFromRequest } from './passcodeSession';
+import { USER_SLUG_PATTERN } from './studentFile';
 
 export interface RequestUser {
   id: string;
@@ -61,11 +62,9 @@ function tokenMatches(given: string | null, expected: string): boolean {
   return timingSafeEqual(a, b) && given.length === expected.length;
 }
 
-/** File-safe slug of a user id: `[a-z0-9-]`, at most 57 characters, never `.` or `/`. */
-export const USER_SLUG_PATTERN = /^[a-z0-9][a-z0-9-]{0,47}-[0-9a-f]{8}$/;
-
 /**
- * A slug for per-user files (`data/students/<slug>.json`). The readable part keeps letters and
+ * A slug for per-user files, matching `USER_SLUG_PATTERN`: `[a-z0-9-]`, at most 57 characters,
+ * never `.` or `/`. (`data/students/<slug>.json`). The readable part keeps letters and
  * digits only; an 8-hex hash of the full id keeps ids that read alike (a.b@x and a-b@x) apart.
  */
 export function userSlug(id: string): string {

@@ -8,7 +8,7 @@
  * (default: the one saved in the profile); `mode` is what the laptop can give them now.
  */
 
-import { guardUser } from '@/lib/requestUser';
+import { guardUser, profileSlugFor } from '@/lib/requestUser';
 import { readStudentProfile } from '@/lib/studentFile';
 import { VOICE_MODES, type VoiceMode } from '@/lib/studentProfile';
 import { voiceStatus } from '@/voice/service';
@@ -21,6 +21,6 @@ export async function GET(req: Request) {
   const asked = new URL(req.url).searchParams.get('preference');
   const preference: VoiceMode = (VOICE_MODES as readonly string[]).includes(asked ?? '')
     ? (asked as VoiceMode)
-    : readStudentProfile().settings.voiceMode;
+    : readStudentProfile(profileSlugFor(guard.user)).settings.voiceMode;
   return Response.json(await voiceStatus(preference), { headers: { 'Cache-Control': 'no-store' } });
 }
