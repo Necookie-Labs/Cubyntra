@@ -139,11 +139,15 @@ function CompanionScannerContent() {
 
   // Move on once the computer has read the current face. Faces can be done out of order,
   // so jump to the first one still missing.
-  const [advancedFor, setAdvancedFor] = useState<string | null>(null);
-  if (currentStatus === 'accepted' && advancedFor !== currentStep.face) {
-    setAdvancedFor(currentStep.face);
+  // Only the moment a face *becomes* read moves on: opening a face that was read earlier (to
+  // check it or scan it again) must stay on it.
+  const [readSeen, setReadSeen] = useState<Partial<Record<Face, boolean>>>({});
+  if (currentStatus === 'accepted' && !readSeen[currentStep.face]) {
+    setReadSeen((seen) => ({ ...seen, [currentStep.face]: true }));
     const next = SCAN_SEQUENCE.findIndex((_, i) => !isAccepted(i));
     if (next !== -1) setStepIndex(next);
+  } else if (currentStatus !== 'accepted' && readSeen[currentStep.face]) {
+    setReadSeen((seen) => ({ ...seen, [currentStep.face]: false }));
   }
 
   // The computer asked for a specific face again from its review screen.
@@ -152,7 +156,6 @@ function CompanionScannerContent() {
     setHandledRescanAt(session.rescanRequest.at);
     const target = SCAN_SEQUENCE.findIndex((step) => step.face === session.rescanRequest!.face);
     if (target !== -1) setStepIndex(target);
-    setAdvancedFor(null);
   }
 
   /** Where the reticle sits in camera-frame pixels; the same region is checked and sent. */
@@ -355,7 +358,7 @@ function CompanionScannerContent() {
   const handleReset = useCallback(() => {
     void session.startOver();
     acceptedSamplesRef.current = {};
-    setAdvancedFor(null);
+    setReadSeen({});
     setStepIndex(0);
   }, [session]);
 
@@ -492,8 +495,23 @@ function CompanionScannerContent() {
             letters={letters}
           />
 
-          <div className="h-10 shrink-0 flex items-center">
-            {hint && (
+          <div className="min-h-10 shrink-0 flex items-center">
+            {currentStatus === 'accepted' ? (
+              // A face already read can be taken again when a color came out wrong.
+              <div className="pointer-events-auto flex flex-wrap items-center justify-center gap-2">
+                <p role="status" className={cx('inline-flex items-center gap-2 px-3 py-2 text-sm font-bold border-2 border-line shadow-block-sm', HINT_STYLE.ok)}>
+                  <Check className="w-4 h-4" strokeWidth={3} />
+                  {currentStep.title} read
+                </p>
+                <BlockButton
+                  size="sm"
+                  onClick={() => session.redoFace(currentStep.face)}
+                  icon={<RotateCcw aria-hidden className="w-4 h-4" />}
+                >
+                  Scan this face again
+                </BlockButton>
+              </div>
+            ) : hint && (
               <p
                 role="status"
                 className={cx(
