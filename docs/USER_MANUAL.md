@@ -494,16 +494,120 @@ certificate warnings, and the camera works.
 
 - [ ] Pass
 
-## 13. Quick accessibility checks
+## 13. My cubes and full solutions
+
+Every cube you scan is saved in **My cubes** (in the menu, and under More on Home), newest first,
+up to the last 30. From there you can watch the whole solution of a cube, step by step, without
+the camera checks, or solve it again with the tutor.
+
+### Test 13.1 A scan is saved
+
+1. Scan a scrambled cube (webcam or phone) and press **Confirm & solve**.
+2. Open **My cubes**.
+
+Expected: "Saved to My cubes." shows for a moment after confirming. The cube is first in the
+list, named like "Scan · 19 Nov, 14:32", with a small flat picture of the scramble, the date and
+"Webcam scan" or "Phone scan". With Letters on stickers on, the picture has letters too.
+
+- [ ] Pass
+
+### Test 13.2 What is not saved
+
+1. Scan a solved cube and confirm.
+2. Start a demo cube (Home, **Try a demo cube**). Under the coach, press **Save this cube**.
+
+Expected: the solved cube is not added. The demo cube is only added once you press Save this
+cube; it then says "Saved to My cubes." with **See its full solution**, and the list shows it as
+"Demo cube".
+
+- [ ] Pass
+
+### Test 13.3 Rename and delete
+
+1. On a cube, press **Rename**, type a new name, press **Save name**.
+2. Press **Rename** again, type something, press Escape.
+3. Press **Delete**, then **Keep it**. Press **Delete** again, then **Delete**.
+
+Expected: the new name shows at once and after a reload; Escape keeps the old name. Delete asks
+first, with Keep it focused; only the second Delete removes the cube.
+
+- [ ] Pass
+
+### Test 13.4 The empty list
+
+1. Delete every cube (or use a fresh profile) and open **My cubes**.
+
+Expected: "No saved cubes yet" with **Scan my cube**.
+
+- [ ] Pass
+
+### Test 13.5 The whole solution
+
+1. On a cube, press **Show the solution**.
+2. Try **Previous step** and **Next step**, tap a step in the list, and use the arrow keys in the
+   list.
+
+Expected: a short "Working out" wait, then the total moves and steps, the moves per stage, the
+selected step's goal and what to look for, and the list of all steps grouped by stage with their
+moves. The twin shows the selected step from where it starts, with the usual playback, move
+chips, In words and After. On a phone the list is under the twin; on the laptop it is on the
+right.
+
+- [ ] Pass
+
+### Test 13.6 Play all
+
+1. Press **Play all**. Partway through press **Pause all**, then **Resume all**, then **Stop**.
+2. Press **Play all** again and let it run to the end.
+
+Expected: each step plays to its end and the next one starts by itself. Pause all and Stop halt it
+where it is; the end says "Solved! That is the whole solution." With the voice on, each stage and
+move is spoken while Play all runs, and nothing is spoken when you step through by hand.
+
+- [ ] Pass
+
+### Test 13.7 Other methods and copying
+
+1. Switch to **CFOP**, then to **Fewest moves**.
+2. Press **Copy all moves** and paste into a text editor.
+3. Go back to My cubes and open the same cube again.
+
+Expected: CFOP follows your last-layer setting (it says which). Fewest moves is labelled as a
+computer solution, not a human method, and comes in parts of up to 8 moves. The pasted text lists
+every stage with its steps in notation. The cube opens on the method you picked last.
+
+- [ ] Pass
+
+### Test 13.8 Links, reload and a missing cube
+
+1. On a cube's solution page, reload. Copy the address, open it in a new tab.
+2. Change the end of the address to something else, e.g. `/cubes/nope`.
+
+Expected: the same cube's solution after a reload and in the new tab. A cube that does not exist
+says "Cube not found" with a link back to My cubes.
+
+- [ ] Pass
+
+### Test 13.9 Solve it again
+
+1. On a cube, press **Solve it with me**.
+
+Expected: the guided solve opens on the first step of that scramble, with the method chosen on
+Home.
+
+- [ ] Pass
+
+## 14. Quick accessibility checks
 
 | Check | Expected | Pass |
 |---|---|---|
 | Use only the keyboard (Tab, Enter, Space, Escape) on Home, Solve and Timer | Everything is reachable, focus is visible, dialogs close with Escape | [ ] |
+| On a full solution, Tab into the list of steps and use the arrow keys, Home and End | One Tab stop; the arrows move the selected step and the twin follows | [ ] |
 | Turn on Letters on stickers | Every sticker shows its letter (W, Y, R, O, G, B) | [ ] |
 | Turn on Reduce motion | The twin turns instantly, nothing bounces | [ ] |
 | Dark theme | All text is readable | [ ] |
 
-## 14. Troubleshooting
+## 15. Troubleshooting
 
 | Problem | What to do |
 |---|---|
@@ -516,7 +620,7 @@ certificate warnings, and the camera works.
 | Hosted site asks for a code each time | Cloudflare Access session expired; sign in again with your email. |
 | Laptop feels slow | Close other dev servers and browser tabs; Cubyntra's production server uses about 110 MB. |
 
-## 15. Sign-off
+## 16. Sign-off
 
 | Area | Tests | Pass |
 |---|---|---|
@@ -533,6 +637,7 @@ certificate warnings, and the camera works.
 | Settings | 10.1-10.2 | [ ] |
 | Phone | 11.1-11.5 | [ ] |
 | Hosted site | 12.1-12.3 | [ ] |
-| Accessibility | 13 | [ ] |
+| My cubes and full solutions | 13.1-13.9 | [ ] |
+| Accessibility | 14 | [ ] |
 
 Tested by: ____________________ Date: ____________ Notes: ______________________________
