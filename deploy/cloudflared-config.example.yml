@@ -1,0 +1,17 @@
+# Cubyntra - cloudflared tunnel config (ADR-017)
+# Copy to /etc/cloudflared/config.yml and replace <TUNNEL_ID> with the id printed by
+# `cloudflared tunnel create cubyntra`. The tunnel is outbound-only: no port is opened on
+# the router, and the app itself listens on 127.0.0.1 only.
+
+tunnel: <TUNNEL_ID>
+credentials-file: /etc/cloudflared/<TUNNEL_ID>.json
+
+ingress:
+  - hostname: cubyntra.necookie.dev
+    service: http://127.0.0.1:3001
+    originRequest:
+      # The sync relay and the coach use long-lived event streams.
+      noHappyEyeballs: true
+      keepAliveTimeout: 90s
+  # Anything else that reaches this tunnel gets a 404.
+  - service: http_status:404

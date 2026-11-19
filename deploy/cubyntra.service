@@ -1,0 +1,45 @@
+# Cubyntra - systemd unit for the home server (ADR-017)
+# Necookie Labs (c) 2026
+#
+# Install:  sudo cp deploy/cubyntra.service /etc/systemd/system/cubyntra.service
+#           (edit User=, WorkingDirectory= and the paths below to match your server)
+#           sudo systemctl daemon-reload && sudo systemctl enable --now cubyntra
+# Logs:     journalctl -u cubyntra -f
+#
+# The app listens on 127.0.0.1:3001 only; cloudflared is the one way in from outside.
+
+[Unit]
+Description=Cubyntra cube tutor (Next.js)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=cubyntra
+Group=cubyntra
+WorkingDirectory=/opt/cubyntra
+# Every variable from .env.example (CUBYNTRA_AUTH_MODE, CF_ACCESS_*, PUBLIC_ORIGIN, keys...).
+# Next.js also reads .env.local from WorkingDirectory; loading it here makes systemd the source.
+EnvironmentFile=/opt/cubyntra/.env.local
+Environment=NODE_ENV=production
+Environment=NEXT_TELEMETRY_DISABLED=1
+# `npx` must resolve to Node 22's npx (check with `which npx`; NodeSource installs /usr/bin/npx).
+ExecStart=/usr/bin/npx next start -p 3001 -H 127.0.0.1
+Restart=on-failure
+RestartSec=5
+MemoryMax=1G
+
+# Hardening: the app writes only data/ (profiles, usage, voice cache, app secret) and .next/cache.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/cubyntra/data /opt/cubyntra/.next
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+
+[Install]
+WantedBy=multi-user.target
