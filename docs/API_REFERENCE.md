@@ -432,8 +432,14 @@ type ProfileOp =
   | { op: 'setTrainerSet'; set: TrainerSetId | null }
   | { op: 'addTimerSolve'; solve: TimerSolve & { id: string } }     // ignored if the id is there
   | { op: 'setTimerPenalty'; id: string; penalty: Penalty }
-  | { op: 'deleteTimerSolve'; id: string };
+  | { op: 'deleteTimerSolve'; id: string }
+  | { op: 'addSavedCube'; cube: SavedCube }                         // v4; ignored if the id is there; newest
+                                                                    //   scannedAt first, the oldest dropped past 30
+  | { op: 'renameSavedCube'; id: string; name: string }             // v4; trimmed; 1-40 characters
+  | { op: 'setSavedCubeMethod'; id: string; method: SolutionMethod } // v4; the walkthrough's last choice
+  | { op: 'deleteSavedCube'; id: string };                          // v4; a cube already gone is left alone
 applyProfileOps(profile, ops): StudentProfile     // the same merge on the server and in the store
+withSavedCube(cubes, cube): SavedCube[]          // add by id, newest first, capped at MAX_SAVED_CUBES
 isNewerSolve(incoming, existing, closedStartedAt?): boolean
   // a later startedAt (a new solve); else the same solve at a later stepIndex; else the same step
   // with an updatedAt at least as late. Nothing started at or before closedStartedAt comes back.
@@ -444,7 +450,7 @@ parseProfileOps(body): { ok: true; ops; batchId } | { ok: false; error }
 // src/lib/studentProfile.ts (shared; no Node or DOM)
 type HintUse = 0 | 1 | 2 | 3;                     // highest coach hint asked for (src/learn/types.ts)
 interface StudentProfile {
-  version: 3;
+  version: 4;
   name: string;                                   // ≤ 40 characters
   settings: { methodDefault: MethodId; plainLanguage: boolean; stickerLetters: boolean;
               reducedMotion: boolean; theme: 'light' | 'dark' | 'system';
@@ -465,12 +471,30 @@ interface StudentProfile {
              set: 'beginner' | 'f2l' | 'last-layer-2look' | 'oll' | 'pll' | null };
   timer: { history: { id: string; ms: number; penalty: 'none' | '+2' | 'DNF'; at: string; scramble: string }[] }; // v2: ≤ 100, oldest first;
                                                   // id: [A-Za-z0-9_-]{1,64}, given to older solves when read
+  savedCubes: SavedCube[];                        // v4: newest scannedAt first, ≤ MAX_SAVED_CUBES (30), ids unique
   closedSolveStartedAt?: string;                  // startedAt of the newest finished or abandoned solve
 }
+type SavedCubeSource = 'webcam' | 'phone' | 'demo';
+type SolutionMethod = MethodId | 'fewest';      // 'fewest' = the Kociemba computer solution
+interface SavedCube {
+  id: string;                                     // [A-Za-z0-9_-]{1,64}
+  name: string;                                   // 1-40 characters (MAX_CUBE_NAME_LENGTH), trimmed
+  state: CubeState;                               // must pass validateCubeState (a cube that can be solved)
+  scannedAt: string;                              // ISO date
+  source: SavedCubeSource;
+  lastMethod?: SolutionMethod;                    // the full-solution walkthrough's last choice
+}
+// 30 saved cubes are about 20 KB of JSON, well inside MAX_STUDENT_BYTES (128 KB).
 parseStudentProfile(input: unknown): { ok: true; profile: StudentProfile } | { ok: false; error: string }
-  // version 1 and 2 profiles are migrated first (migrateProfileV1, then migrateProfileV2); version 4+ is rejected
+  // version 1, 2 and 3 profiles are migrated first (migrateProfileV1, V2, then V3); version 5+ is rejected
 migrateProfileV1(input: unknown): unknown       // v1 -> v2: lastLayer '2-look', no stage records or days, empty trainer and timer
 migrateProfileV2(input: unknown): unknown       // v2 -> v3: voice off, normal speed, moves in words
+migrateProfileV3(input: unknown): unknown       // v3 -> v4: no saved cubes
+
+// src/lib/savedCubes.ts (shared; no Node or DOM)
+defaultCubeName(source, date): string            // "Scan · 19 Nov, 14:32" (local time); "Demo · ..." for a demo
+shortDateTime(date): string                      // "19 Nov, 14:32"
+SOURCE_LABEL: Record<SavedCubeSource, string>    // Webcam scan, Phone scan, Demo cube
 defaultStudentProfile(): StudentProfile
 
 // src/lib/studentFile.ts (server only)
@@ -480,7 +504,8 @@ updateStudentProfile(change: (p) => StudentProfile): Promise<StudentProfile>  //
 
 // src/stores/useTutorStore.ts
 type SolvePhase = 'idle' | 'loading' | 'step' | 'checking' | 'celebrate' | 'mismatch' | 'solved' | 'error';
-startSolve(state, method); resumeSolve(): Promise<boolean>; loadPlan();
+startSolve(state, method, { demo? }); resumeSolve(): Promise<boolean>; loadPlan();
+// demo: true keeps the scramble in `unsavedDemo` until saveDemoCube(); any other start clears it
 beginCheckpoint(); submitObservation(observation); editTiles(face, edits); confirmByHand();
 advance(); replayStep(); continueFromDiagnosis(); showNextFace(); replanFromRescan(scanned);
 setGrip(grip); applyRemoteCheckpoint({ stepIndex, result, mistakes? }); abandonSolve();
@@ -499,8 +524,26 @@ noteHint(level)                                  // stageHint = max(stageHint, l
 //   stats.stages['<method>/<stage>'] with stageHint and resets it; a finished solve adds today to activeDays
 answerTrainerCase(caseId, correct); setTrainerSet(set)         // Leitner update + today in activeDays
 addTimerSolve(solve); setLastTimerPenalty(penalty); deleteLastTimerSolve()
+saveCube(state, source, at?): string | null      // addSavedCube with a new id and the default name; null for a solved cube
+saveDemoCube(): string | null                    // saves unsavedDemo (source 'demo') and clears it
+renameSavedCube(id, name); setSavedCubeMethod(id, method); deleteSavedCube(id)
+// The scan screen calls saveCube for every confirmed scan with a scan source (webcam, or 'phone'
+//   for the companion), before the solve starts; the demo scramble is started with { demo: true }.
 methodOptionsFor(method, settings): MethodOptions | undefined  // { lastLayer: 'full' } for CFOP only;
 //   passed to planStepInWorker and replanAfterRescan, so worker jobs carry it as `options`
+
+// src/app-shell/walkthrough.ts (pure; the full-solution walkthrough, /cubes/[id])
+buildWalkthrough(method: SolutionMethod, plans: StepPlan[]): Walkthrough
+  // { method, steps: { plan, index, turns }[], stages: { stage, stageName, number, steps, turns }[], totalTurns }
+  // turns = layer turns; x / y / z regrips are not counted
+computerSolutionSteps(state, moves, max = 8): StepPlan[]
+  // the Kociemba solution as near-equal parts of ≤ 8 moves (partSizes: 20 -> 7, 7, 6), one stage
+  // 'computer' ("Computer solution"), face moves only, each part starting where the last ended;
+  // no highlighted pieces and an empty checkpoint (the method id is only there for the type)
+solutionText(walkthrough, cubeName): string      // "Copy all moves": numbered stages, one line per step
+// src/components/cubes/CubeSolutionView.tsx
+computeWalkthrough(state, method, lastLayer): Promise<Walkthrough>
+  // beginner / cfop: guidedSolveInWorker (with methodOptionsFor); fewest: solveInWorker
 
 // src/app-shell/checkpointAdapter.ts (wires src/tutor/checkpoint, diagnose and recovery)
 checkCheckpoint(plan, observations, previous?): CheckpointOutcome   // { result, diagnosis, recovery }; previous = the last outcome (a trusted hold)
