@@ -22,6 +22,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { href: '/', label: 'Home', group: 'learn', tab: true, blurb: 'Pick a method and pick up where you left off.' },
   { href: '/scan', label: 'Scan', group: 'learn', tab: true, blurb: 'Show the camera all six faces of your cube.' },
   { href: '/solve', label: 'Solve', group: 'learn', tab: true, blurb: 'Follow the twin one step at a time.' },
+  { href: '/cubes', label: 'My cubes', group: 'learn', tab: false, blurb: 'Your scanned cubes and their full solutions.' },
   { href: '/trainer', label: 'Trainer', group: 'practice', tab: false, blurb: 'Drill the cases you miss.' },
   { href: '/timer', label: 'Timer', group: 'practice', tab: false, blurb: 'Time your solves with inspection.' },
   { href: '/progress', label: 'Progress', group: 'practice', tab: true, blurb: 'Stages mastered and streaks.' },

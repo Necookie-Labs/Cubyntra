@@ -17,7 +17,7 @@ describe('method info', () => {
 describe('navigation map', () => {
   it('has every shell route once and five phone tabs', () => {
     expect(NAV_ITEMS.map((i) => i.href).sort()).toEqual(
-      ['/', '/pair', '/progress', '/scan', '/settings', '/solve', '/timer', '/trainer'].sort()
+      ['/', '/cubes', '/pair', '/progress', '/scan', '/settings', '/solve', '/timer', '/trainer'].sort()
     );
     expect(NAV_ITEMS.filter((i) => i.tab)).toHaveLength(5);
   });

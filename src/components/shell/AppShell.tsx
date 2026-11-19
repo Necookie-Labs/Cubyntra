@@ -22,6 +22,7 @@ import {
   Smartphone,
   Target,
   Timer,
+  Library,
   type LucideIcon,
 } from 'lucide-react';
 import { CubeGlyph } from '@/components/branding/CubeGlyph';
@@ -35,6 +36,7 @@ const ICONS: Record<string, LucideIcon> = {
   '/': Home,
   '/scan': ScanLine,
   '/solve': Box,
+  '/cubes': Library,
   '/trainer': Target,
   '/timer': Timer,
   '/progress': BarChart3,

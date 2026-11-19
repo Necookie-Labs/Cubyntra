@@ -11,7 +11,7 @@
 
 import React, { useState, useSyncExternalStore } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, GraduationCap, ScanLine, Shuffle, Smartphone, Target, Timer } from 'lucide-react';
+import { ArrowRight, GraduationCap, Library, ScanLine, Shuffle, Smartphone, Target, Timer } from 'lucide-react';
 import { BlockButton, Chip, Dialog, Panel, ProgressBlocks, cx } from '@/components/ui';
 import { BlockLink } from '@/components/shell/BlockLink';
 import { PageContainer, PageHeader, PageSection } from '@/components/shell/Page';
@@ -201,6 +201,7 @@ function Stat({ value, label }: { value: React.ReactNode; label: string }) {
 }
 
 const PRACTICE = [
+  { href: '/cubes', label: 'My cubes', blurb: 'Saved scans and their full solutions.', Icon: Library },
   { href: '/trainer', label: 'Trainer', blurb: 'Drill the cases you miss.', Icon: Target },
   { href: '/timer', label: 'Timer', blurb: 'Time solves with inspection.', Icon: Timer },
   { href: '/pair', label: 'Pair phone', blurb: 'Use your phone as the camera.', Icon: Smartphone },
@@ -264,7 +265,7 @@ export function HomeView() {
       </PageSection>
 
       <PageSection title="More">
-        <ul className="grid gap-3 sm:grid-cols-3">
+        <ul className="grid gap-3 sm:grid-cols-2">
           {PRACTICE.map(({ href, label, blurb, Icon }) => (
             <li key={href}>
               <BlockLink
