@@ -31,3 +31,15 @@ export function pageNeedsSignIn(pathname: string): boolean {
   const last = pathname.slice(pathname.lastIndexOf('/') + 1);
   return !last.includes('.');
 }
+
+/** `PUBLIC_ORIGIN` as a bare origin, or null when unset or not an http(s) URL. */
+export function publicOrigin(env: Record<string, string | undefined> = process.env): string | null {
+  const raw = (env.PUBLIC_ORIGIN ?? '').trim();
+  if (!raw) return null;
+  try {
+    const url = new URL(raw);
+    return url.protocol === 'https:' || url.protocol === 'http:' ? url.origin : null;
+  } catch {
+    return null;
+  }
+}

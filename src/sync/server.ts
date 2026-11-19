@@ -6,6 +6,9 @@
 import { authMode } from '../lib/authMode';
 import { SlidingWindowLimiter } from '../lib/localAuth';
 import { getRequestUser, type RequestUser } from '../lib/requestUser';
+
+// The pairing link's origin when hosted (ADR-017); lives with the proxy's helpers.
+export { publicOrigin } from '../lib/hostedHeaders';
 import { SESSION_SECRET_HEADER } from './pairing';
 import { LOCAL_OWNER, sessionManager } from './sessionManager';
 
@@ -58,16 +61,4 @@ export async function guardSession(req: Request, id: string): Promise<Response |
   return result.status === 404
     ? jsonError(404, 'Session not found or expired')
     : jsonError(403, 'Missing or wrong session secret');
-}
-
-/** `PUBLIC_ORIGIN` as a bare origin, or null when unset or not an http(s) URL. */
-export function publicOrigin(env: Record<string, string | undefined> = process.env): string | null {
-  const raw = (env.PUBLIC_ORIGIN ?? '').trim();
-  if (!raw) return null;
-  try {
-    const url = new URL(raw);
-    return url.protocol === 'https:' || url.protocol === 'http:' ? url.origin : null;
-  } catch {
-    return null;
-  }
 }

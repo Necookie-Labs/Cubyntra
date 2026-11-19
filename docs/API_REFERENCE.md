@@ -637,11 +637,11 @@ studentFilePath(slug?); readStudentProfile(slug?); updateStudentProfile(change, 
 
 // src/sync/server.ts
 sessionOwner(req): Promise<RequestUser | null>; guardSession(req, id): Promise<Response | null>
-publicOrigin(env?): string | null   // PUBLIC_ORIGIN as a bare http(s) origin
+publicOrigin(env?): string | null   // PUBLIC_ORIGIN as a bare http(s) origin (re-exported from src/lib/hostedHeaders.ts)
 
 // src/lib/hostedHeaders.ts + src/proxy.ts (hosted modes only)
 SECURITY_HEADERS   // HSTS, nosniff, Referrer-Policy, X-Frame-Options, Permissions-Policy (camera/microphone on self)
-pageNeedsSignIn(pathname)   // passcode mode: pages without a valid cookie -> 307 /signin?next=…
+pageNeedsSignIn(pathname)   // passcode mode: pages without a valid cookie -> 307 to <PUBLIC_ORIGIN or request origin>/signin?next=…
 ```
 
 The coach (`data/coach-usage.json`) and voice (`data/voice-usage.json`) caps are global in every

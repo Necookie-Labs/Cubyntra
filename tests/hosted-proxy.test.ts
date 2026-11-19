@@ -56,11 +56,20 @@ describe('passcode page gate', () => {
     vi.stubEnv('CUBYNTRA_ACCESS_CODE', 'cube-night-2026');
   });
 
-  it('sends a page without a session to /signin, relative and with next', () => {
+  it('sends a page without a session to /signin on PUBLIC_ORIGIN, with next', () => {
+    vi.stubEnv('PUBLIC_ORIGIN', 'https://cubyntra.necookie.dev');
     const res = proxy(req('/solve?x=1'));
     expect(res.status).toBe(307);
-    expect(res.headers.get('location')).toBe(`/signin?next=${encodeURIComponent('/solve?x=1')}`);
+    const location = new URL(res.headers.get('location')!);
+    expect(location.origin).toBe('https://cubyntra.necookie.dev');
+    expect(location.pathname).toBe('/signin');
+    expect(location.searchParams.get('next')).toBe('/solve?x=1');
     expect(res.headers.get('strict-transport-security')).toBeTruthy();
+  });
+
+  it('falls back to the request origin without PUBLIC_ORIGIN (an absolute URL either way)', () => {
+    const location = proxy(req('/')).headers.get('location')!;
+    expect(location).toBe('http://localhost:3001/signin?next=%2F');
   });
 
   it('lets a signed-in page, the sign-in page, assets and the API through', () => {
