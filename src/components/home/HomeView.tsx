@@ -217,7 +217,7 @@ export function HomeView() {
   const startSolve = useTutorStore((s) => s.startSolve);
 
   const tryDemo = (m: MethodId) => {
-    void startSolve(demoCube(), m);
+    void startSolve(demoCube(), m, { demo: true });
     router.push('/solve');
   };
 

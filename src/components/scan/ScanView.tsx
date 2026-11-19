@@ -9,8 +9,9 @@
  * is confirmed the student's color palette is built from the raw samples (for checkpoint
  * scans later), saved, and a guided solve starts on /solve with the default method, unless the
  * student asked to rescan the cube in the middle of a solve (`rescanRequested`): then that solve
- * plans again from the scan. The demo scramble from the scanner takes the same path without a
- * palette.
+ * plans again from the scan. Every confirmed scan, from the webcam or the phone, is also saved to
+ * My cubes first (a solved cube is not). The demo scramble from the scanner takes the same path
+ * without a palette and is not saved: the solve screen offers to save it.
  */
 
 import React, { useEffect, useRef } from 'react';
@@ -18,6 +19,7 @@ import { useRouter } from 'next/navigation';
 import { AlertTriangle, RefreshCw, Shuffle, Smartphone } from 'lucide-react';
 import type { Face } from '@/cube/types';
 import { FACES } from '@/cube/constants';
+import { isCubeSolved } from '@/cube/transforms';
 import { useCubyntraStore } from '@/stores/useCubyntraStore';
 import { useTutorStore } from '@/stores/useTutorStore';
 import { CameraScanner } from '@/components/camera/CameraScanner';
@@ -45,6 +47,9 @@ export function ScanView() {
   const stickerLetters = useTutorStore((s) => s.profile.settings.stickerLetters);
   const { mobileConnected, requestRescan, confirmScan } = useCompanion();
   const byPhone = scanSource === 'companion';
+  // A confirmed scan (not the demo) of an unsolved cube was saved to My cubes.
+  const scrambled = useCubyntraStore((s) => !isCubeSolved(s.originalScrambleState));
+  const savedToCubes = scanSource !== null && scrambled;
 
   // Armed once this visit has shown the scanner or the review, so a finished scan from an
   // earlier visit does not start a solve on arrival.
@@ -78,11 +83,16 @@ export function ScanView() {
         console.warn('[Cubyntra] Could not build the color palette:', error);
       }
     }
+    // A scanned cube is saved to My cubes before the solve starts; the demo cube (no scan
+    // source) is not, unless the student saves it from the solve screen.
+    const scanned = scan.originalScrambleState;
+    const source = scan.scanSource;
+    if (source) tutor.saveCube(scanned, source === 'companion' ? 'phone' : 'webcam');
     // Only "Rescan the cube" during a solve plans again from the scanned cube (same method,
     // grip and step count). Any other scan, "Solve another" included, starts a new solve with
     // the method chosen on Home. Both plan in the worker.
-    if (tutor.rescanRequested && tutor.method && tutor.cube) void tutor.replanFromRescan(scan.originalScrambleState);
-    else void tutor.startSolve(scan.originalScrambleState, tutor.profile.settings.methodDefault);
+    if (tutor.rescanRequested && tutor.method && tutor.cube) void tutor.replanFromRescan(scanned);
+    else void tutor.startSolve(scanned, tutor.profile.settings.methodDefault, { demo: !source });
     router.push('/solve');
   }, [appState, router]);
 
@@ -138,7 +148,12 @@ export function ScanView() {
         />
       )}
 
-      {CONFIRMED.has(appState) && <Busy label="Getting your first step ready" />}
+      {CONFIRMED.has(appState) && (
+        <>
+          <Busy label="Getting your first step ready" />
+          {savedToCubes && <p className="text-center text-sm text-muted">Saved to My cubes.</p>}
+        </>
+      )}
 
       {appState === 'error' && (
         <Panel role="alert" className="vx-place flex flex-col gap-4 p-6 pb-7">

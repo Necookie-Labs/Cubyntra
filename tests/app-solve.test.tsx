@@ -118,6 +118,25 @@ describe('Solve', () => {
     expect(screen.getByRole('heading', { name: 'No solve in progress' })).toBeTruthy();
   });
 
+  it('offers to save a demo cube to My cubes, and only a demo cube', async () => {
+    render(<SolveView />);
+    fireEvent.click(screen.getByRole('button', { name: /^Demo cube/ }));
+    await flush();
+    expect(useTutorStore.getState().profile.savedCubes).toEqual([]);
+    fireEvent.click(screen.getByRole('button', { name: 'Save this cube' }));
+    const saved = useTutorStore.getState().profile.savedCubes;
+    expect(saved.map((c) => c.source)).toEqual(['demo']);
+    expect(screen.getByRole('status').textContent).toContain('Saved to My cubes.');
+    expect(screen.getByRole('link', { name: 'See its full solution' }).getAttribute('href')).toBe(`/cubes/${saved[0].id}`);
+    expect(screen.queryByRole('button', { name: 'Save this cube' })).toBeNull();
+
+    // A scanned cube was saved already: nothing to offer.
+    await act(async () => {
+      await useTutorStore.getState().startSolve(scrambledState(5, 3), 'beginner');
+    });
+    expect(useTutorStore.getState().unsavedDemo).toBeNull();
+  });
+
   it('keeps one page heading while it waits and once solved', () => {
     useTutorStore.setState({ profileStatus: 'loading' });
     const { unmount } = render(<SolveView />);

@@ -11,6 +11,8 @@ import { planNextStep } from '@/tutor';
 import { defaultStudentProfile } from '@/lib/studentProfile';
 import { createSolvedCubeState } from '@/cube/constants';
 import { warmUpSolver } from '@/solver/client';
+import type { CubeState } from '@/cube/types';
+import { scrambledState } from './helpers/scrambles';
 
 const nav = vi.hoisted(() => ({ pathname: '/', push: vi.fn(), refresh: vi.fn() }));
 vi.mock('next/navigation', () => ({
@@ -220,6 +222,59 @@ describe('Scan', () => {
     expect(tutor.method).toBe('cfop');
     expect(tutor.stepIndex).toBe(3);
     expect(tutor.rescanRequested).toBe(false);
+  });
+
+  /** Shows the review, then confirms it, as a scan from `source` of `state`. */
+  async function confirmScanOf(state: CubeState, source: 'webcam' | 'companion') {
+    useCubyntraStore.getState().resetAll();
+    render(<ScanView />);
+    act(() => useCubyntraStore.setState({ appState: 'reviewing', scanSource: source, cubeState: state, validationResult: null }));
+    act(() => useCubyntraStore.setState({ appState: 'processing', originalScrambleState: state }));
+    await flush();
+  }
+
+  it('saves a confirmed webcam scan to My cubes before the solve starts', async () => {
+    const state = scrambledState(3, 20);
+    await confirmScanOf(state, 'webcam');
+    const saved = useTutorStore.getState().profile.savedCubes;
+    expect(saved).toHaveLength(1);
+    expect(saved[0]).toMatchObject({ state, source: 'webcam' });
+    expect(saved[0].name).toMatch(/^Scan · \d{1,2} [A-Z][a-z]{2}, \d{2}:\d{2}$/);
+    expect(useTutorStore.getState().unsavedDemo).toBeNull();
+    expect(screen.getByText('Saved to My cubes.')).toBeTruthy();
+    expect(nav.push).toHaveBeenCalledWith('/solve');
+  });
+
+  it('saves a confirmed phone scan as a phone scan', async () => {
+    await confirmScanOf(scrambledState(4, 20), 'companion');
+    expect(useTutorStore.getState().profile.savedCubes.map((c) => c.source)).toEqual(['phone']);
+  });
+
+  it('does not save a scan of a solved cube', async () => {
+    await confirmScanOf(createSolvedCubeState(), 'webcam');
+    expect(useTutorStore.getState().profile.savedCubes).toEqual([]);
+    expect(screen.queryByText('Saved to My cubes.')).toBeNull();
+  });
+
+  it('does not save the demo cube unless the student saves it', async () => {
+    useCubyntraStore.getState().resetAll();
+    render(<ScanView />);
+    await act(async () => {
+      await useCubyntraStore.getState().loadMockScramble();
+    });
+    await flush();
+    const tutor = useTutorStore.getState();
+    expect(tutor.profile.savedCubes).toEqual([]);
+    expect(tutor.unsavedDemo).toEqual(useCubyntraStore.getState().originalScrambleState);
+    let id: string | null = null;
+    act(() => {
+      id = useTutorStore.getState().saveDemoCube();
+    });
+    const saved = useTutorStore.getState().profile.savedCubes;
+    expect(saved).toHaveLength(1);
+    expect(saved[0]).toMatchObject({ id, source: 'demo' });
+    expect(saved[0].name).toMatch(/^Demo · /);
+    expect(useTutorStore.getState().unsavedDemo).toBeNull();
   });
 
   it('names colors in the review with letters, never by the swatch alone', () => {

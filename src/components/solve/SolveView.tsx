@@ -10,11 +10,12 @@
  * solve resumes from the student's profile. The twin stays mounted from step to step (one
  * WebGL context per solve): while the next step is planned it keeps the last cube under a
  * "Planning the next step" overlay. The tutor's voice (ADR-016) narrates the step and the
- * checkpoints; its speaker button sits in the coach panel.
+ * checkpoints; its speaker button sits in the coach panel. A demo cube is not saved to My cubes
+ * on its own: "Save this cube" under the coach saves it.
  */
 
 import React, { useEffect, useRef, useState } from 'react';
-import { AlertTriangle, CheckCircle2, Home, RefreshCw, ScanLine, Shuffle } from 'lucide-react';
+import { AlertTriangle, Bookmark, CheckCircle2, Home, RefreshCw, ScanLine, Shuffle } from 'lucide-react';
 import { useTutorStore } from '@/stores/useTutorStore';
 import type { CubeEngine } from '@/three/engine';
 import { useSolveSyncTarget } from '@/sync/useSolveSyncTarget';
@@ -49,7 +50,7 @@ function NoSolve() {
           size="lg"
           variant="ghost"
           icon={<Shuffle aria-hidden className="h-5 w-5" />}
-          onClick={() => void startSolve(demoCube(), method)}
+          onClick={() => void startSolve(demoCube(), method, { demo: true })}
         >
           Demo cube ({METHOD_INFO[method].name})
         </BlockButton>
@@ -85,6 +86,32 @@ function PlanError() {
         </div>
       </Panel>
     </PageContainer>
+  );
+}
+
+/** Saves the demo cube of this solve to My cubes, then says where it went. */
+function SaveDemo() {
+  const unsavedDemo = useTutorStore((s) => s.unsavedDemo);
+  const saveDemoCube = useTutorStore((s) => s.saveDemoCube);
+  const [savedId, setSavedId] = useState<string | null>(null);
+  if (savedId) {
+    return (
+      <p role="status" className="flex flex-wrap items-center gap-2 text-sm text-muted">
+        Saved to My cubes.
+        <BlockLink href={`/cubes/${savedId}`} variant="ghost" size="sm">
+          See its full solution
+        </BlockLink>
+      </p>
+    );
+  }
+  if (!unsavedDemo) return null;
+  return (
+    <div className="flex flex-wrap items-center gap-3">
+      <BlockButton size="sm" variant="ghost" icon={<Bookmark aria-hidden className="h-4 w-4" />} onClick={() => setSavedId(saveDemoCube())}>
+        Save this cube
+      </BlockButton>
+      <span className="text-xs text-muted">Demo cubes are not kept unless you save them.</span>
+    </div>
   );
 }
 
@@ -231,6 +258,7 @@ export function SolveView() {
               replace: voice.voice.replace,
             }}
           />
+          <SaveDemo />
         </div>
       )}
 

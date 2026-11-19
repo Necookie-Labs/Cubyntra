@@ -28,7 +28,8 @@ import type { AttemptRecord } from '@/coach/types';
 import { planStepInWorker } from '@/solver/client';
 import { applyTileEdits, type TileEdit } from '@/tutor/checkpoint';
 import { correctivePlanFrom } from '@/tutor/recovery';
-import { parseAlgorithm } from '@/cube/transforms';
+import { isCubeSolved, parseAlgorithm } from '@/cube/transforms';
+import { defaultCubeName } from '@/lib/savedCubes';
 import { stepPlanId } from '@/sync/tutorSync';
 import type { FaceObservation, MethodId, MethodOptions, StepPlan } from '@/tutor/types';
 import type { StudentPalette } from '@/vision/palette';
@@ -36,10 +37,13 @@ import { completedStage, localDay, stageKey } from '@/learn/mastery';
 import { type HintUse, type Penalty, type TimerSolve, type TrainerSetId } from '@/learn/types';
 import { applyProfileOps, type ProfileOp } from '@/lib/profileOps';
 import {
+  MAX_CUBE_NAME_LENGTH,
   MAX_SAVED_ATTEMPTS,
   defaultStudentProfile,
   parseStudentProfile,
   type CurrentSolve,
+  type SavedCubeSource,
+  type SolutionMethod,
   type StudentProfile,
   type StudentSettings,
 } from '@/lib/studentProfile';
@@ -84,6 +88,11 @@ export interface TutorStore {
   rescanRequested: boolean;
   /** The cube was already solved when the solve started: nothing was taught or counted. */
   alreadySolved: boolean;
+  /**
+   * The scramble of a demo solve, until the student saves it to My cubes (demo cubes are not
+   * saved on their own). Null for a scanned cube, or once saved.
+   */
+  unsavedDemo: CubeState | null;
 
   setToken: (token: string | null) => void;
   loadProfile: () => Promise<void>;
@@ -91,7 +100,8 @@ export interface TutorStore {
   setName: (name: string) => void;
   savePalette: (palette: StudentPalette) => void;
 
-  startSolve: (state: CubeState, method: MethodId) => Promise<void>;
+  /** Starts a guided solve. `demo` marks a demo cube, which can then be saved by hand. */
+  startSolve: (state: CubeState, method: MethodId, options?: { demo?: boolean }) => Promise<void>;
   /** Picks up the saved solve; resolves false when there is none. */
   resumeSolve: () => Promise<boolean>;
   loadPlan: () => Promise<void>;
@@ -138,6 +148,17 @@ export interface TutorStore {
   addTimerSolve: (solve: TimerSolve) => void;
   setLastTimerPenalty: (penalty: Penalty) => void;
   deleteLastTimerSolve: () => void;
+
+  /**
+   * Saves a cube to My cubes with a default name, and returns its id. A solved cube is not
+   * saved (null).
+   */
+  saveCube: (state: CubeState, source: SavedCubeSource, at?: Date) => string | null;
+  /** Saves the demo cube of the solve in progress (`unsavedDemo`). */
+  saveDemoCube: () => string | null;
+  renameSavedCube: (id: string, name: string) => void;
+  setSavedCubeMethod: (id: string, method: SolutionMethod) => void;
+  deleteSavedCube: (id: string) => void;
 }
 
 export interface RemoteStep {
@@ -172,6 +193,7 @@ const SESSION_RESET = {
   stageHint: 0 as HintUse,
   rescanRequested: false,
   alreadySolved: false,
+  unsavedDemo: null as CubeState | null,
 };
 
 /** The learner settings that pick a method's variant (only CFOP's last layer so far). */
@@ -385,9 +407,17 @@ export const useTutorStore = create<TutorStore>((set, get) => {
 
     savePalette: (palette) => commit({ op: 'setPalette', palette }),
 
-    startSolve: async (state, method) => {
+    startSolve: async (state, method, options) => {
       const closing = clearSolveOp();
-      set({ ...SESSION_RESET, method, cube: state, grip: gripOf(state), phase: 'loading', solveStartedAt: stamp() });
+      set({
+        ...SESSION_RESET,
+        method,
+        cube: state,
+        grip: gripOf(state),
+        phase: 'loading',
+        solveStartedAt: stamp(),
+        unsavedDemo: options?.demo && !isCubeSolved(state) ? state : null,
+      });
       commit(...closing);
       persistSolve();
       await get().loadPlan();
@@ -687,6 +717,41 @@ export const useTutorStore = create<TutorStore>((set, get) => {
       const last = get().profile.timer.history.at(-1);
       if (!last?.id) return;
       commit({ op: 'deleteTimerSolve', id: last.id });
+    },
+
+    saveCube: (state, source, at = new Date()) => {
+      if (isCubeSolved(state)) return null;
+      const id = newId();
+      commit({
+        op: 'addSavedCube',
+        cube: { id, name: defaultCubeName(source, at), state, scannedAt: at.toISOString(), source },
+      });
+      return id;
+    },
+
+    saveDemoCube: () => {
+      const demo = get().unsavedDemo;
+      if (!demo) return null;
+      set({ unsavedDemo: null });
+      return get().saveCube(demo, 'demo');
+    },
+
+    renameSavedCube: (id, name) => {
+      const trimmed = name.trim().slice(0, MAX_CUBE_NAME_LENGTH).trim();
+      const current = get().profile.savedCubes.find((c) => c.id === id);
+      if (!current || !trimmed || trimmed === current.name) return;
+      commit({ op: 'renameSavedCube', id, name: trimmed });
+    },
+
+    setSavedCubeMethod: (id, method) => {
+      const current = get().profile.savedCubes.find((c) => c.id === id);
+      if (!current || current.lastMethod === method) return;
+      commit({ op: 'setSavedCubeMethod', id, method });
+    },
+
+    deleteSavedCube: (id) => {
+      if (!get().profile.savedCubes.some((c) => c.id === id)) return;
+      commit({ op: 'deleteSavedCube', id });
     },
   };
 });
