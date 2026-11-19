@@ -91,7 +91,7 @@ is cut to 0.01 ms and blocks no longer lift on hover (see §5.2).
 
 ## 3. Screens and Navigation
 
-The tutor is one app shell (`src/components/shell/AppShell.tsx`) around eight screens, in the
+The tutor is one app shell (`src/components/shell/AppShell.tsx`) around nine screens, in the
 `src/app/(app)/` route group. The phone companion (`/companion`) is in the group too, but full
 screen with its own camera layout and no navigation.
 
@@ -99,7 +99,7 @@ screen with its own camera layout and no navigation.
 
 ```
                  ┌──────────── phone tab bar / desktop side nav ────────────┐
-   Learn         │ Home (/)        Scan (/scan)        Solve (/solve)       │
+   Learn         │ Home (/)   Scan (/scan)   Solve (/solve)   My cubes (/cubes)
    Practice      │ Trainer (/trainer)   Timer (/timer)   Progress (/progress)│
    This device   │ Pair phone (/pair)*                  Settings (/settings) │
                  └──────────────────────────────────────────────────────────┘
@@ -109,12 +109,16 @@ screen with its own camera layout and no navigation.
      │  ──Try a demo cube──────────────────────────►  │
      └──Continue (saved solve)────────────────────────┘
    Solve ──mismatch──► Rescan the cube ──► Scan ──► Solve (same method, fresh plan)
+   Scan ──confirm (saved to My cubes)──► Solve
+   My cubes ──Show the solution──► /cubes/[id] (full walkthrough) ──My cubes──► My cubes
+            ──Solve it with me──► Solve (that scramble, the Home method)
 ```
 
 - **Phone (< 1024px).** A 56px top bar (logo, theme switch) and a fixed bottom tab bar with
   five tabs: Home, Scan, Solve, Progress, Settings. The active tab has a 4px leaf-edge bar on top
-  and its icon in a leaf-soft block. Trainer, Timer and Pair are reached from Home's "More".
-- **Desktop (>= 1024px).** A 240px side nav with all eight screens in three groups (Learn,
+  and its icon in a leaf-soft block. My cubes, Trainer, Timer and Pair are reached from Home's
+  "More".
+- **Desktop (>= 1024px).** A 240px side nav with all nine screens in three groups (Learn,
   Practice, This device). The active item is a leaf-soft row with a 4px leaf-edge bar on its left.
 - **Accessibility.** "Skip to content" is the first Tab stop and jumps to `<main id="content">`.
   Both navs are `<nav aria-label="Main">` (only one is displayed at a time); the current link has
@@ -134,13 +138,16 @@ screen with its own camera layout and no navigation.
   once CFOP's four 2-look stages are (Use the full last layer, Open the trainer). "Not yet" hides it
   for this visit. Rules in `docs/tutor/METHODS.md` §10.4.
 - **Progress** glance: stages mastered (of 15, or 17 with the full last layer), days in a row,
-  cases learned in the trainer and solves; **More** (Trainer, Timer, Pair).
+  cases learned in the trainer and solves; **More** (My cubes, Trainer, Timer, Pair).
 
 ### 3.3 Scan (`/scan`)
 The six-face webcam scan (`CameraScanner`) and the review (`ScanReview`, letters on tiles when
 the color-blind option is on). On confirm the student palette is built from the raw samples
 (`buildStudentPalette`), saved to the profile and a guided solve starts on `/solve` with the
-method chosen on Home ("Solve another" included). Only "Rescan the cube" (or "Scan again" after a
+method chosen on Home ("Solve another" included). Before the solve starts, the confirmed scan
+(webcam or phone) is saved to My cubes with a default name ("Scan · 19 Nov, 14:32"), and a short
+"Saved to My cubes." note shows under the busy indicator; a cube that is already solved is not
+saved, and neither is the demo cube. Only "Rescan the cube" (or "Scan again" after a
 failed plan) during a solve sets `rescanRequested`: that scan replaces the solve's cube and the same
 step is planned again in the worker; a solved rescan counts as a finished solve. Errors: the
 camera panel explains how to allow the camera ("Camera not working?"); an unreadable cube shows
@@ -197,6 +204,9 @@ lighting and glare tips with Scan again and Use a demo cube.
   moves to the new step's heading, the "Not quite yet" heading or Solve another.
 - The screen stays awake while a solve is open (Screen Wake Lock, re-taken when the page is
   visible again).
+
+- **Demo cubes** are not saved on their own: during a demo solve, **Save this cube** under the
+  coach saves it to My cubes and then links to its full solution.
 
 ### 3.5 Settings (`/settings`)
 Name; method to start with; CFOP last layer (2-look or Full OLL and PLL, shown only while CFOP is
@@ -266,6 +276,60 @@ playback controls) with **Solve on this phone**, which opens `/solve` on the pho
 so the laptop mirrors a solve done on the phone. `/companion` (the phone) is inside the shell but full screen, with no
 navigation over the viewfinder.
 
+### 3.10 My cubes (`/cubes`)
+Every saved cube, newest first, at most 30 (the oldest drop off): each confirmed scan, and demo
+cubes saved by hand. Each card shows a small flat net of the scramble (`CubeNet`: one labelled
+image, letters on the stickers when that option is on), the name (`h2`), the date and the source
+(Webcam scan, Phone scan, Demo cube), and four actions:
+- **Show the solution** → `/cubes/[id]`;
+- **Solve it with me** starts a guided `/solve` from that scramble with the method chosen on Home;
+- **Rename** swaps the actions for an inline form (a labelled "New name" field, 40 characters at
+  most, focused and selected; Save name or Cancel, Escape cancels); the focus then returns to
+  Rename;
+- **Delete** asks first ("Delete this cube?", Keep it focused), like Discard this solve.
+
+With none saved: "No saved cubes yet" with **Scan my cube**. While the profile loads: "Loading your
+cubes", never a false empty state.
+
+### 3.11 Full solution (`/cubes/[id]`)
+The whole solution of one saved cube, step by step on the twin, in addition to the
+checkpoint-driven `/solve`.
+- **Phone, top to bottom:** back link (My cubes), the cube's name and date, the method switch,
+  the summary, the twin, the selected step, then the list of steps. **Desktop:** the twin large and
+  sticky on the left, everything else in a 400px column on the right, as on `/solve`.
+- **Method switch** (`SegmentedControl`, "Solution"): **Beginner's**, **CFOP** (with the last-layer
+  setting; a line says which and that it is changed in Settings) and **Fewest moves**, the
+  Kociemba computer solution, labelled as such: "A computer solution: the short sequence the solver
+  found, not a method a person follows." The choice is remembered per cube (`lastMethod`); the
+  first visit uses the Home method. Each solution is worked out once in the solver worker
+  ("Working out the … solution" over the twin while it runs; an alert with **Try again** if it
+  fails).
+- **Fewest moves in parts.** The computer's sequence (about 20 moves) is split into near-equal
+  parts of at most 8 moves (20 = 7 + 7 + 6), each shown as one step of a single stage, "Computer
+  solution", named "Part 2 of 3: moves 8 to 14 of 20". Parts keep Previous / Next, the list and
+  Play all working exactly as for the human methods, while one long chip row would not fit a phone.
+- **Summary:** total moves (layer turns; x / y / z regrips are not counted) and steps, the moves of
+  each stage, and **Copy all moves**, which puts the whole solution in notation on the clipboard,
+  one line per step under a numbered heading per stage (a status line says it was copied, or that
+  the browser blocked it).
+- **Selected step:** "Stage n of N", "Step k of K", the stage name (`h2`) and case, and the step's
+  facts as text (Goal, What to look for, Why it works). The twin plays the step from its own start
+  state with the usual playback, move chips, "In words" and After preview. **Previous step** and
+  **Next step**.
+- **Play all** plays the selected step to the end, then moves on to the next and plays it, until
+  the last step: "Solved! That is the whole solution." It becomes **Pause all** / **Resume all**,
+  with **Stop**; pausing the twin from its own controls pauses Play all too, and picking a step
+  stops it. A screen-reader status line says which step is playing. The screen stays awake while it
+  plays. With the voice on ([ADR-016](ADR/016-voice-tutoring.md)) Play all, and only Play all,
+  names each stage as it starts and each move as it turns; it follows the one-speaker rule.
+- **All steps:** grouped by stage (`h3` "Stage n: name" with its counts), each step a button with
+  its number, move count, case name and moves as small notation blocks; the selected one is
+  highlighted and has `aria-current="step"`. Its accessible name reads "Step k: case. n moves:
+  R U R'". The list is one Tab stop: the arrow keys, Home and End move the selection. On desktop it
+  scrolls on its own beside the twin.
+- **Deep links and reload** work: the cube is read from the profile once it has loaded ("Loading
+  your cube" until then). An unknown id shows "Cube not found" with a link to My cubes.
+
 ---
 
 ## 4. Key UI Components & Interactions
@@ -290,6 +354,7 @@ navigation over the viewfinder.
 | `CaseTiles`, `CaseLegend` | one square per trainer case by how well it is known, and the key |
 | `VoxelWorld` | the progress island: flat isometric SVG, a block per stage mastered |
 | `PhoneStepCard` | the phone's view of the laptop's step after a scan |
+| `CubeNet` | a saved cube as a small flat net, one labelled image; letters on the stickers when that option is on |
 
 ---
 
@@ -351,7 +416,7 @@ changes) drops its idle bob, regrips instantly and plays each quarter turn in at
 
 | Test | Checks |
 |---|---|
-| `tests/a11y-pages.test.tsx` | Renders every screen in the shell (home, scan and review with letters, solve with the checkpoint sheet open, trainer, timer, progress, pair, settings in both themes, phone camera, 404) and runs `axe-core`: no serious or critical violations, one h1, one main, `lang` set, no tap target under 44px. About 2 s. |
+| `tests/a11y-pages.test.tsx` | Renders every screen in the shell (home, scan and review with letters, solve with the checkpoint sheet open, trainer, timer, progress, pair, settings in both themes, phone camera, My cubes (with a rename and the delete dialog open, and empty), a full solution and an unknown cube, 404) and runs `axe-core`: no serious or critical violations, one h1, one main, `lang` set, no tap target under 44px. About 2 s. |
 | `tests/a11y-contrast.test.ts` | Computes WCAG ratios from the `globals.css` token block, both themes: text 4.5:1, outlines and focus ring 3:1, every sticker letter 4.5:1. |
 | `tests/a11y-tap-targets.test.tsx` | The 44px hit-area rule in `globals.css`, and every small kit control passing it. |
 | `tests/a11y-motion.test.ts` | Both reduced-motion paths cut animations and the hover lift. |
@@ -369,6 +434,8 @@ class names rather than measured.
   keyboard reach every tile.
 - The phone camera overlays (reticle center, live dots, face list) carry the color's letter
   when Letters on stickers is on; the step card names the face in words.
+- A saved cube's net on My cubes is one image named after the cube: its 54 stickers are not read
+  out one by one (the full solution says what to do in words).
 - The 3D twin is a picture for screen readers: the step is told by the stage header, the coach
   notes and the named move chips.
 - Contrast is AA by token pair; the twin's lit faces are shaded per direction, so on-screen
@@ -527,7 +594,25 @@ Reduce motion sets `data-motion="reduce"` and the twin turns instantly.
    says it is incomplete and an ended pairing says to make a new code. The header and this note
    stay above the camera's error screen.
 
-### 9.8 Navigation
+### 9.8 My cubes and full solutions
+1. Scan a cube (webcam or phone) and confirm: "Saved to My cubes." shows while the first step is
+   planned; `/cubes` lists it first, named "Scan · <day> <month>, <time>", with its net and
+   source. A scan of a solved cube and a demo cube are not listed.
+2. During a demo solve, **Save this cube** saves it ("Saved to My cubes." with See its full
+   solution).
+3. **Rename**: the field takes the focus with the name selected; Save name renames it, Escape
+   keeps the old name; the focus is back on Rename. **Delete** asks first; Keep it changes nothing.
+4. **Show the solution**: Beginner's (or the cube's last choice) is worked out; the summary, the
+   first step and the list grouped by stage show. Next / Previous, a click in the list and the
+   arrow keys move the selection; the twin shows that step from its start.
+5. **Play all** plays every step in turn and stops on "Solved!"; Pause all, Resume all and Stop
+   work at any point. CFOP follows the last-layer setting; Fewest moves shows the computer
+   solution in parts. Reopening the cube keeps the last choice.
+6. **Copy all moves** and paste: the solution by stage, in notation.
+7. Reload `/cubes/<id>`: the same cube. An unknown id: "Cube not found" with My cubes.
+8. **Solve it with me** opens `/solve` on the first step of that scramble with the Home method.
+
+### 9.9 Navigation
 Every nav item works on both sizes; browser back / forward through the solve keeps its step;
 deep links (`/solve` with no solve, `/trainer` cold) render their own empty states; an unknown
 path is the 404 with Back to home. No screen scrolls sideways at 390px, and no screen logged a
