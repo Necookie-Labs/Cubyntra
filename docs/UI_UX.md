@@ -182,7 +182,7 @@ lighting and glare tips with Scan again and Use a demo cube.
   - *mismatch* → the sheet closes; the solve screen shows **Not quite yet** with the most likely
     mistake in words, the read faces with wrong tiles marked (tap to correct, then "Check with my
     fixes"), the coach's explanation (the diagnosis is passed to `useCoach`), and Replay the
-    step / Fix it from here (when the diagnosis is confident) / Rescan the cube / It actually
+    step / Show me how to fix it (when the diagnosis is confident) / Rescan the cube / It actually
     matches.
   - No camera (blocked or failed): how to allow it, Try again, or "It matches" (check by eye).
     The camera starts once the sheet's video element is mounted (a callback ref), and never
@@ -443,7 +443,7 @@ Every screen has a labeled way forward; the logo and the Home tab always return 
 | Review | Rescan a face, Start over, Confirm & solve (→ Solve) |
 | Solve | I did it (checkpoint sheet), hints, playback; Rescan the cube after a mismatch |
 | Checkpoint sheet | Check this face / Check again, It matches, Close (back to the step) |
-| Mismatch | Replay the step, Fix it from here, Rescan the cube, It actually matches |
+| Mismatch | Replay the step, Show me how to fix it, Rescan the cube, It actually matches |
 | Planning failed | Try again, Scan again |
 | Solved | Solve another, Home |
 | Trainer | Set picker, group filter, Show the name, Show the algorithm, Ask the coach, Got it, Missed it, Check with the camera, case grid |
@@ -481,7 +481,7 @@ list is in `docs/tutor/PROGRESS.md` (Phase 12).
 5. **It matches** → "Block placed" → the next step after 1.8 s or on Next step; focus moves to
    the new step's heading.
 6. Mismatch (a wrong reading): the sheet closes, **Not quite yet** takes the focus, wrong tiles
-   are marked; tap tiles then "Check with my fixes", or Replay the step / Fix it from here /
+   are marked; tap tiles then "Check with my fixes", or Replay the step / Show me how to fix it /
    Rescan the cube / It actually matches.
 7. The last step → **Solved!** with Solve another (focused) and Home; the solve is counted.
 
