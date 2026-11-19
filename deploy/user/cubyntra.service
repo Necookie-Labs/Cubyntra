@@ -1,0 +1,29 @@
+# Cubyntra - systemd *user* unit for a home server without root (ADR-017)
+# Necookie Labs (c) 2026
+#
+# For a server where the app runs under your own account (Node under ~/.local/node, the repo in
+# ~/apps/cubyntra). See deploy/README.md, "Without root".
+# Install:  mkdir -p ~/.config/systemd/user && cp deploy/user/*.service ~/.config/systemd/user/
+#           systemctl --user daemon-reload && systemctl --user enable --now cubyntra
+#           sudo loginctl enable-linger "$USER"   # once, so it runs without a login and after reboot
+# Logs:     journalctl --user -u cubyntra -f
+
+[Unit]
+Description=Cubyntra cube tutor (Next.js, user service)
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/apps/cubyntra
+Environment=PATH=%h/.local/node/bin:/usr/local/bin:/usr/bin:/bin
+Environment=NODE_ENV=production
+Environment=NEXT_TELEMETRY_DISABLED=1
+# Next.js reads .env.local from WorkingDirectory (keys, CUBYNTRA_AUTH_MODE, CF_ACCESS_*, ...).
+ExecStart=%h/.local/node/bin/npx next start -p 3001 -H 127.0.0.1
+Restart=on-failure
+RestartSec=5
+MemoryMax=1G
+NoNewPrivileges=true
+
+[Install]
+WantedBy=default.target

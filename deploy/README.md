@@ -17,6 +17,7 @@ Files in this folder:
 |:---|:---|
 | `cubyntra.service` | systemd unit: runs `next start -p 3001 -H 127.0.0.1` as a service user |
 | `cloudflared-config.example.yml` | Tunnel ingress: `cubyntra.necookie.dev` → `http://127.0.0.1:3001`, everything else 404 |
+| `user/cubyntra.service`, `user/cubyntra-tunnel.service` | The same two services as systemd *user* units, for a server where you have no root (see "Without root") |
 
 ---
 
@@ -86,6 +87,30 @@ Notes:
   protect one wallet). Each person's profile is separate: `data/students/<slug>.json`.
 - An unknown `CUBYNTRA_AUTH_MODE` value makes every API route refuse (fail closed);
   `/api/health` shows `"mode": "invalid"`.
+
+## Without root (how `necore` runs it)
+
+When `sudo` isn't available for the setup, everything can live in your own account. Only one
+command needs root, once: `sudo loginctl enable-linger "$USER"`, so your services run without a
+login and start after a reboot.
+
+```bash
+# Node 22 under ~/.local/node (official tarball, checksum-verified) and cloudflared under ~/.local/bin
+# (official release binary, checksum-verified). Then:
+git clone https://github.com/Necookie-Labs/Cubyntra.git ~/apps/cubyntra
+cd ~/apps/cubyntra && npm ci && npm run build
+nano .env.local && chmod 600 .env.local            # see section 3
+mkdir -p ~/.config/cubyntra && nano ~/.config/cubyntra/tunnel-token && chmod 600 ~/.config/cubyntra/tunnel-token
+mkdir -p ~/.config/systemd/user && cp deploy/user/*.service ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now cubyntra cubyntra-tunnel
+curl -s http://127.0.0.1:3001/api/health
+```
+
+The tunnel here is **dashboard-managed**: in Zero Trust → Networks → Tunnels, create the tunnel,
+add the public hostname `cubyntra.necookie.dev` → `HTTP` → `localhost:3001`, and copy its token
+into `~/.config/cubyntra/tunnel-token`. No `config.yml` or `cloudflared tunnel login` is needed.
+Logs: `journalctl --user -u cubyntra -f` and `journalctl --user -u cubyntra-tunnel -f`.
 
 ## 4. Run it with systemd
 

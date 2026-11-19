@@ -1,0 +1,23 @@
+# Cubyntra - Cloudflare Tunnel as a systemd *user* unit (ADR-017)
+# Necookie Labs (c) 2026
+#
+# Uses a dashboard-managed tunnel (Zero Trust -> Networks -> Tunnels): its public hostname
+# cubyntra.necookie.dev points at http://localhost:3001 in the dashboard, so no config.yml is
+# needed. Put the tunnel token in ~/.config/cubyntra/tunnel-token (chmod 600); it never appears
+# on a command line. The unit does nothing until that file exists.
+# Logs:     journalctl --user -u cubyntra-tunnel -f
+
+[Unit]
+Description=Cloudflare Tunnel for Cubyntra (user service)
+After=network-online.target cubyntra.service
+ConditionPathExists=%h/.config/cubyntra/tunnel-token
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/cloudflared tunnel --no-autoupdate run --token-file %h/.config/cubyntra/tunnel-token
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+
+[Install]
+WantedBy=default.target
