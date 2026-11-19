@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **My cubes** (`/cubes`): every confirmed scan, from the webcam or the phone, is saved before the solve starts, named like "Scan · 19 Nov, 14:32" (a solved cube is not saved; a demo cube only with **Save this cube** on the solve screen). Newest first, the last 30 kept. Each cube shows a small flat net (letters when that setting is on), its date and source, with **Show the solution**, **Solve it with me** (a guided solve of that scramble with the Home method), an inline **Rename** and **Delete** after a confirmation. In the nav (Learn) and under More on Home.
+- **Full-solution walkthrough** (`/cubes/[id]`): the whole solution of a saved cube on the 3D twin, by **Beginner's**, **CFOP** (with the last-layer setting) or **Fewest moves** (the Kociemba computer solution, labelled as such and split into parts of at most 8 moves), remembered per cube. A summary of moves and steps per stage, the selected step's facts, Previous / Next, a keyboard-navigable list of every step grouped by stage, **Play all** (each step to the end, then the next; pause, resume, stop; narrated when the voice is on) and **Copy all moves** (notation by stage). Deep links and reload work; an unknown id says so.
 - **Hosting** ([ADR-017](docs/ADR/017-hosting-cloudflare.md), [`deploy/`](deploy/README.md)): Cubyntra can be served from a home server at `https://cubyntra.necookie.dev` behind a Cloudflare Tunnel and Cloudflare Access. `CUBYNTRA_AUTH_MODE` picks `local` (default, unchanged), `cloudflare-access` (every API request carries a verified `Cf-Access-Jwt-Assertion` JWT: RS256 via `jose`, cached JWKS, `aud`/`iss`/expiry, optional `CUBYNTRA_ALLOWED_EMAILS`; loopback never trusted) or `passcode` (`/signin` with a name and `CUBYNTRA_ACCESS_CODE`, a signed 7-day cookie, Sign out in Settings). Unknown values fail closed.
 - **One identity layer** (`getRequestUser`, `guardUser`) on every guarded route, with per-user `x-cubyntra-token`s and per-user rate limits in the hosted modes.
 - **Per-person profiles** in `data/students/<slug>.json` when hosted; pairing sessions belong to their creator; the QR link uses `PUBLIC_ORIGIN`. Coach and voice caps stay global and shared.
@@ -19,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Credit cap**: characters counted per month in `data/voice-usage.json` (Flash 0.5 credit per character), default 20,000 credits (`ELEVENLABS_MONTHLY_CREDIT_CAP`), checked before each call against the lower of the cap and the account's real balance; a notice at 80%.
 
 ### Changed
+- Student profile schema v4 (`savedCubes`, with the `addSavedCube`, `renameSavedCube`, `setSavedCubeMethod` and `deleteSavedCube` operations, merged and validated on the server: a valid cube, a name of 1 to 40 characters); version 3 profiles are migrated on read.
 - Student profile schema v3 (`voiceMode`, `voiceRate`, `voiceMoves`); version 2 profiles are migrated on read.
 - `SegmentedControl` options can be disabled.
 
