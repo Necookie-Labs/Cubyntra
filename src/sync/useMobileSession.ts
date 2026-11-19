@@ -35,6 +35,8 @@ export interface MobileSession {
   sendFace: (payload: FaceScannedPayload) => Promise<void>;
   /** Marks a face as needing a retake, with the reason to show. */
   rejectFace: (face: Face, reason: string) => void;
+  /** Forgets this phone's reading of a face so it can be scanned again. */
+  redoFace: (face: Face) => void;
   /** Play / pause / seek / speed from the phone. */
   controlPlayback: (payload: PlaybackPayload) => void;
   reset: () => void;
@@ -73,6 +75,12 @@ export function useMobileSession(
     });
     setReasons((r) => ({ ...r, [face]: reason }));
   }, []);
+
+  /**
+   * Forgets this phone's reading of `face` so it can be taken again. Nothing is sent: the new
+   * reading replaces the old one on the computer when it arrives.
+   */
+  const redoFace = useCallback((face: Face) => settle(face, undefined), [settle]);
 
   const reset = useCallback(() => {
     setStatus({});
@@ -234,6 +242,7 @@ export function useMobileSession(
     playback,
     sendFace,
     rejectFace,
+    redoFace,
     controlPlayback,
     reset,
     startOver,

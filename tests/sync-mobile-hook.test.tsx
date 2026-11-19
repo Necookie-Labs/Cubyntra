@@ -91,6 +91,20 @@ describe('useMobileSession', () => {
     expect(calls).toHaveLength(0);
   });
 
+  it('forgets a read face so it can be scanned again, without telling the laptop', async () => {
+    const { result } = renderHook(() => useMobileSession(creds));
+    await act(() => result.current.sendFace(face));
+    expect(result.current.status.R).toBe('accepted');
+    const sentBefore = messages().length;
+    act(() => result.current.redoFace('R'));
+    expect(result.current.status.R).toBeUndefined();
+    // The new reading replaces the old one on the laptop when it arrives; nothing is sent now.
+    expect(messages()).toHaveLength(sentBefore);
+    await act(() => result.current.sendFace(face));
+    expect(result.current.status.R).toBe('accepted');
+    expect(messages().filter((m) => m.type === 'face-scanned')).toHaveLength(2);
+  });
+
   it('reports an ended pairing', async () => {
     messageStatus = 403;
     const onEnded = vi.fn();
