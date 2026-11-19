@@ -8,7 +8,7 @@
  * (default: the one saved in the profile); `mode` is what the laptop can give them now.
  */
 
-import { guardRequest } from '@/lib/localAuth';
+import { guardUser } from '@/lib/requestUser';
 import { readStudentProfile } from '@/lib/studentFile';
 import { VOICE_MODES, type VoiceMode } from '@/lib/studentProfile';
 import { voiceStatus } from '@/voice/service';
@@ -16,8 +16,8 @@ import { voiceStatus } from '@/voice/service';
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: Request) {
-  const denied = guardRequest(req);
-  if (denied) return denied;
+  const guard = await guardUser(req);
+  if (!guard.ok) return guard.response;
   const asked = new URL(req.url).searchParams.get('preference');
   const preference: VoiceMode = (VOICE_MODES as readonly string[]).includes(asked ?? '')
     ? (asked as VoiceMode)

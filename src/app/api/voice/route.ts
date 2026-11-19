@@ -11,15 +11,16 @@
  */
 
 import { readJsonCapped } from '@/lib/readBodyCapped';
-import { guardRequest, voiceRateLimiter } from '@/lib/localAuth';
+import { voiceRateLimiter } from '@/lib/localAuth';
+import { guardUser } from '@/lib/requestUser';
 import { parseVoiceRequest, speak } from '@/voice/service';
 import { MAX_VOICE_REQUEST_BYTES } from '@/voice/types';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: Request) {
-  const denied = guardRequest(req, voiceRateLimiter);
-  if (denied) return denied;
+  const guard = await guardUser(req, voiceRateLimiter);
+  if (!guard.ok) return guard.response;
 
   const body = await readJsonCapped(req, MAX_VOICE_REQUEST_BYTES);
   if (!body.ok) return Response.json({ error: body.error }, { status: body.status });
