@@ -3,13 +3,18 @@
  * Necookie Labs (c) 2026
  */
 
+import { authMode } from '../lib/authMode';
 import { SlidingWindowLimiter } from '../lib/localAuth';
+import { getRequestUser, type RequestUser } from '../lib/requestUser';
 import { SESSION_SECRET_HEADER } from './pairing';
-import { sessionManager } from './sessionManager';
+import { LOCAL_OWNER, sessionManager } from './sessionManager';
 
 /** Laptop session creation: generous, but stops a runaway loop. */
 export const sessionCreateLimiter = new SlidingWindowLimiter(20, 60_000);
-/** Typed-code attempts across all devices: guessing one of ~600 million codes stays hopeless. */
+/**
+ * Typed-code attempts across all devices (per user in the hosted modes): guessing one of ~600
+ * million codes stays hopeless.
+ */
 export const pairingCodeLimiter = new SlidingWindowLimiter(10, 60_000);
 /** Messages per session; playback index reports arrive about twice a second. */
 export const messageLimiter = new SlidingWindowLimiter(600, 60_000);
@@ -32,13 +37,37 @@ export function rateLimited(retryAfterSec: number): Response {
 }
 
 /**
- * Checks the session secret header. Returns a ready error response (404 unknown session, 403
- * missing or wrong secret) or null when the request may proceed.
+ * Who owns sessions made by this request: `local` in local mode; the signed-in user in the
+ * hosted modes (null when nobody is signed in, ADR-017).
  */
-export function guardSession(req: Request, id: string): Response | null {
-  const result = sessionManager.authorize(id, req.headers.get(SESSION_SECRET_HEADER));
+export async function sessionOwner(req: Request): Promise<RequestUser | null> {
+  if (authMode() === 'local') return { id: LOCAL_OWNER, name: 'Student' };
+  return getRequestUser(req);
+}
+
+/**
+ * Checks the requester and the session secret header. Returns a ready error response (401 not
+ * signed in, 404 unknown session or another user's, 403 missing or wrong secret) or null when
+ * the request may proceed.
+ */
+export async function guardSession(req: Request, id: string): Promise<Response | null> {
+  const owner = await sessionOwner(req);
+  if (!owner) return jsonError(401, 'Sign in first');
+  const result = sessionManager.authorize(id, req.headers.get(SESSION_SECRET_HEADER), owner.id);
   if (result.ok) return null;
   return result.status === 404
     ? jsonError(404, 'Session not found or expired')
     : jsonError(403, 'Missing or wrong session secret');
+}
+
+/** `PUBLIC_ORIGIN` as a bare origin, or null when unset or not an http(s) URL. */
+export function publicOrigin(env: Record<string, string | undefined> = process.env): string | null {
+  const raw = (env.PUBLIC_ORIGIN ?? '').trim();
+  if (!raw) return null;
+  try {
+    const url = new URL(raw);
+    return url.protocol === 'https:' || url.protocol === 'http:' ? url.origin : null;
+  } catch {
+    return null;
+  }
 }

@@ -18,7 +18,7 @@ export const dynamic = 'force-dynamic';
 
 export async function POST(req: Request, context: { params: Promise<{ id: string }> }) {
   const { id } = await context.params;
-  const denied = guardSession(req, id);
+  const denied = await guardSession(req, id);
   if (denied) return denied;
 
   const limit = messageLimiter.hit(id);

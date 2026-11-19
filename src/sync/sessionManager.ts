@@ -13,6 +13,9 @@
  *   PAIRING_CODE_TTL_MS.
  * - Open streams are counted per role, so two laptop tabs closing one at a time never report the
  *   laptop as gone while the other is still open.
+ * - A session belongs to the user who created it (`ownerId`; `local` on the laptop install).
+ *   Only that user's requests can claim its code or use it (ADR-017); another user's request is
+ *   told the session does not exist.
  * - Every relayed message gets the next per-session sequence number. Devices apply playback
  *   commands in sequence order, so the last writer wins.
  */
@@ -38,8 +41,12 @@ export const PAIRING_CODE_TTL_MS = 10 * 60 * 1000;
 
 type Listener = (event: StreamEvent) => void;
 
+/** The owner of sessions made in local mode (`LOCAL_USER.id`). */
+export const LOCAL_OWNER = 'local';
+
 interface SessionRecord {
   id: string;
+  ownerId: string;
   secret: string;
   code: string | null;
   codeExpiresAt: number;
@@ -84,7 +91,7 @@ export class SessionManager {
   }
 
   /** Creates a session, or returns null when MAX_SESSIONS are all in use. */
-  public createSession(now = Date.now()): CreatedSession | null {
+  public createSession(now = Date.now(), ownerId: string = LOCAL_OWNER): CreatedSession | null {
     this.purgeExpired(now);
     if (this.sessions.size >= MAX_SESSIONS && !this.evictIdle()) return null;
 
@@ -94,6 +101,7 @@ export class SessionManager {
 
     const record: SessionRecord = {
       id: newSessionId(),
+      ownerId,
       secret: newSessionSecret(),
       code,
       codeExpiresAt: now + PAIRING_CODE_TTL_MS,
@@ -127,20 +135,27 @@ export class SessionManager {
     return true;
   }
 
-  /** Checks a presented secret in constant time. 404 for an unknown session, 403 for a wrong secret. */
-  public authorize(id: string, secret: string | null | undefined): AuthResult {
+  /**
+   * Checks a presented secret in constant time. 404 for an unknown session or one owned by
+   * someone else, 403 for a wrong secret.
+   */
+  public authorize(id: string, secret: string | null | undefined, ownerId: string = LOCAL_OWNER): AuthResult {
     const session = this.sessions.get(id);
-    if (!session) return { ok: false, status: 404 };
+    if (!session || session.ownerId !== ownerId) return { ok: false, status: 404 };
     return secretsMatch(secret, session.secret) ? { ok: true } : { ok: false, status: 403 };
   }
 
   /**
    * Trades a typed code for the session's credentials. A code works once and only until it
-   * expires; a wrong or used code returns null.
+   * expires; a wrong or used code, or another user's, returns null.
    */
-  public claimCode(code: string, now = Date.now()): { sessionId: string; secret: string } | null {
+  public claimCode(
+    code: string,
+    now = Date.now(),
+    ownerId: string = LOCAL_OWNER
+  ): { sessionId: string; secret: string } | null {
     for (const s of this.sessions.values()) {
-      if (s.code !== null && secretsMatch(code, s.code)) {
+      if (s.code !== null && s.ownerId === ownerId && secretsMatch(code, s.code)) {
         if (now > s.codeExpiresAt) return null;
         s.code = null;
         s.lastActiveAt = now;

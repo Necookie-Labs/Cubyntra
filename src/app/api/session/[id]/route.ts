@@ -15,7 +15,7 @@ type Context = { params: Promise<{ id: string }> };
 
 export async function GET(req: Request, context: Context) {
   const { id } = await context.params;
-  const denied = guardSession(req, id);
+  const denied = await guardSession(req, id);
   if (denied) return denied;
   return Response.json(
     { success: true, snapshot: sessionManager.snapshot(id) },
@@ -25,7 +25,7 @@ export async function GET(req: Request, context: Context) {
 
 export async function DELETE(req: Request, context: Context) {
   const { id } = await context.params;
-  const denied = guardSession(req, id);
+  const denied = await guardSession(req, id);
   if (denied) return denied;
   sessionManager.deleteSession(id);
   return Response.json({ success: true });

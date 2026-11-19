@@ -21,7 +21,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(req: Request, context: { params: Promise<{ id: string }> }) {
   const { id } = await context.params;
-  const denied = guardSession(req, id);
+  const denied = await guardSession(req, id);
   if (denied) return denied;
 
   const roleParam = new URL(req.url).searchParams.get('role');
