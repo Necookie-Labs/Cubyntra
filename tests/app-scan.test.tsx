@@ -141,6 +141,39 @@ describe('Scan', () => {
     companion.value.sessionId = null;
   });
 
+  it('rescans one face read by the phone: drops it here and sends the phone back to it', () => {
+    useCubyntraStore.getState().resetAll();
+    companion.value.mobileConnected = true;
+    companion.value.sessionId = 's1';
+    vi.mocked(companion.value.requestRescan).mockClear();
+    render(<ScanView />);
+    fireEvent.click(screen.getByRole('button', { name: 'Scan with the phone' }));
+    const solved = createSolvedCubeState();
+    act(() => {
+      useCubyntraStore.setState({
+        scannedFaces: {
+          U: { face: 'U', centerColor: 'white', stickers: solved.U, confidences: Array(9).fill(1), capturedAt: 1 },
+          F: { face: 'F', centerColor: 'green', stickers: solved.F, confidences: Array(9).fill(1), capturedAt: 2 },
+        },
+      });
+    });
+
+    // Only faces already read offer a rescan.
+    expect(screen.getByRole('button', { name: 'Rescan the top face' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Rescan the front face' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Rescan the right face' })).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Rescan the front face' }));
+    const scan = useCubyntraStore.getState();
+    expect(scan.scannedFaces.F).toBeUndefined();
+    expect(scan.scannedFaces.U).toBeDefined();
+    expect(scan.scanSource).toBe('companion');
+    expect(companion.value.requestRescan).toHaveBeenCalledWith('F');
+    expect(screen.queryByRole('button', { name: 'Rescan the front face' })).toBeNull();
+    companion.value.mobileConnected = false;
+    companion.value.sessionId = null;
+  });
+
   it('starts a guided solve and goes to /solve when the demo cube is used', async () => {
     useCubyntraStore.getState().resetAll();
     render(<ScanView />);

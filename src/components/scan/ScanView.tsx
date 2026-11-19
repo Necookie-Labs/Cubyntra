@@ -101,6 +101,10 @@ export function ScanView() {
           onUseWebcam={startScanning}
           onCancel={() => router.push('/')}
           onNewPairing={() => router.push('/pair')}
+          onRescanFace={(face) => {
+            rescanFace(face);
+            void requestRescan(face);
+          }}
         />
       )}
 

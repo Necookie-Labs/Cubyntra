@@ -15,7 +15,7 @@ import { SCAN_SEQUENCE } from '@/cube/constants';
 import { Face } from '@/cube/types';
 import { BlockButton, Chip, ChipTone, Panel, ProgressBlocks, cx, stickerColor, stickerLetter, stickerLetterClass } from '@/components/ui';
 import { useTutorStore } from '@/stores/useTutorStore';
-import { AlertTriangle, Camera, CheckCircle2, Link2, Loader2, QrCode, Smartphone } from 'lucide-react';
+import { AlertTriangle, Camera, CheckCircle2, Link2, Loader2, QrCode, RotateCcw, Smartphone } from 'lucide-react';
 
 const FACE_LABEL: Record<Face, string> = {
   U: 'Top',
@@ -33,6 +33,8 @@ interface CompanionScanPanelProps {
   onCancel: () => void;
   /** Start a new pairing (new QR code) after the old one ended. */
   onNewPairing: () => void;
+  /** Drop one face's reading and send the phone back to that face (a color came out wrong). */
+  onRescanFace?: (face: Face) => void;
 }
 
 type Connection = 'ended' | 'reconnecting' | 'phone' | 'waiting';
@@ -49,6 +51,7 @@ export const CompanionScanPanel: React.FC<CompanionScanPanelProps> = ({
   onUseWebcam,
   onCancel,
   onNewPairing,
+  onRescanFace,
 }) => {
   const { mobileConnected, isConnected, sessionEnded, sessionId } = useCompanion();
   const scannedFaces = useCubyntraStore((s) => s.scannedFaces);
@@ -165,6 +168,19 @@ export const CompanionScanPanel: React.FC<CompanionScanPanelProps> = ({
                 <span aria-hidden className="w-3 h-3 border-2 border-line" style={{ backgroundColor: sticker }} />
                 <span className={isNext ? 'text-ink font-bold' : 'text-muted'}>{FACE_LABEL[step.face]}</span>
               </div>
+
+              {scanned && onRescanFace && (
+                <BlockButton
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => onRescanFace(step.face)}
+                  aria-label={`Rescan the ${FACE_LABEL[step.face].toLowerCase()} face`}
+                  icon={<RotateCcw aria-hidden className="w-4 h-4" />}
+                  className="self-start"
+                >
+                  Rescan
+                </BlockButton>
+              )}
             </li>
           );
         })}
