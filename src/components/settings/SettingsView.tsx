@@ -22,6 +22,7 @@ import { THEME_CHANGE_EVENT, readThemePreference, setThemePreference, type Theme
 import type { CoachMode } from '@/coach/types';
 import type { LastLayerMode, MethodId } from '@/tutor/types';
 import { VoiceSettings } from './VoiceSettings';
+import { AccountPanel } from './AccountPanel';
 
 function subscribeTheme(onChange: () => void) {
   window.addEventListener(THEME_CHANGE_EVENT, onChange);
@@ -293,6 +294,8 @@ export function SettingsView() {
       <PageSection title="Install">
         <InstallPanel />
       </PageSection>
+
+      <AccountPanel />
     </PageContainer>
   );
 }
