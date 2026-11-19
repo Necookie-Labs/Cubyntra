@@ -15,7 +15,7 @@ import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import axe from 'axe-core';
-import { planNextStep } from '@/tutor';
+import { planNextStep, runGuidedSolve } from '@/tutor';
 import { defaultStudentProfile } from '@/lib/studentProfile';
 import { createSolvedCubeState } from '@/cube/constants';
 import { sampleProfile } from './helpers/studentProfile';
@@ -30,6 +30,7 @@ vi.mock('next/navigation', () => ({
 vi.mock('@/solver/client', () => ({
   planStepInWorker: vi.fn(async (state, method, grip, stepIndex) => planNextStep(state, method, grip, stepIndex)),
   tutorProgressInWorker: vi.fn(async () => ({ method: 'cfop', stageIndex: 1, stage: 'f2l', withinStage: 0, value: 1000, done: false })),
+  guidedSolveInWorker: vi.fn(async (state, method, grip, options) => runGuidedSolve(state, method, grip, options)),
   warmUpSolver: vi.fn(),
   solveInWorker: vi.fn(),
 }));
@@ -113,6 +114,8 @@ const { TimerView, setFirstScrambleForTests } = await import('@/components/timer
 const { ProgressView } = await import('@/components/progress/ProgressView');
 const { PairView } = await import('@/components/pair/PairView');
 const { SettingsView } = await import('@/components/settings/SettingsView');
+const { CubesView } = await import('@/components/cubes/CubesView');
+const { CubeSolutionView } = await import('@/components/cubes/CubeSolutionView');
 const NotFound = (await import('@/app/not-found')).default;
 const CompanionPage = (await import('@/app/(app)/companion/page')).default;
 
@@ -241,6 +244,48 @@ describe('accessibility (axe, serious and critical)', () => {
 
   it('Settings', async () => {
     renderInShell('/settings', <SettingsView />);
+    await flush();
+    expect(await audit()).toEqual([]);
+  });
+
+  it('My cubes, with letters on, and renaming one', async () => {
+    const profile = defaultStudentProfile();
+    profile.settings.stickerLetters = true;
+    profile.savedCubes = [
+      { id: 'b', name: 'Scan · 19 Nov, 14:32', state: scrambledState(5, 20), scannedAt: '2026-11-19T14:32:00.000Z', source: 'phone' },
+      { id: 'a', name: 'Demo · 18 Nov, 09:10', state: scrambledState(6, 20), scannedAt: '2026-11-18T09:10:00.000Z', source: 'demo' },
+    ];
+    useTutorStore.setState({ profile });
+    renderInShell('/cubes', <CubesView />);
+    await flush();
+    expect(await audit()).toEqual([]);
+    fireEvent.click(screen.getByRole('button', { name: 'Rename Scan · 19 Nov, 14:32' }));
+    expect(await audit()).toEqual([]);
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Demo · 18 Nov, 09:10' }));
+    expect(await audit()).toEqual([]);
+  });
+
+  it('My cubes, empty', async () => {
+    renderInShell('/cubes', <CubesView />);
+    await flush();
+    expect(await audit()).toEqual([]);
+  });
+
+  it('Full solution of a saved cube', async () => {
+    const profile = defaultStudentProfile();
+    profile.savedCubes = [
+      { id: 'a', name: 'Scan · 19 Nov, 14:32', state: scrambledState(5, 20), scannedAt: '2026-11-19T14:32:00.000Z', source: 'webcam' },
+    ];
+    useTutorStore.setState({ profile });
+    renderInShell('/cubes/a', <CubeSolutionView id="a" />);
+    await flush();
+    await flush();
+    expect(screen.getByRole('region', { name: 'All steps' })).toBeTruthy();
+    expect(await audit()).toEqual([]);
+  });
+
+  it('Full solution of a cube that is not saved', async () => {
+    renderInShell('/cubes/nope', <CubeSolutionView id="nope" />);
     await flush();
     expect(await audit()).toEqual([]);
   });

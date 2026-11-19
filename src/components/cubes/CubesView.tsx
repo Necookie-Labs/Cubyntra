@@ -53,7 +53,7 @@ function RenameForm({ cube, onDone }: { cube: SavedCube; onDone: () => void }) {
           value={draft}
           maxLength={MAX_CUBE_NAME_LENGTH}
           onChange={(e) => setDraft(e.target.value)}
-          className="h-11 w-full min-w-0 border-2 border-line bg-panel px-3 text-base font-normal text-ink"
+          className="h-11 w-full border-2 border-line bg-panel px-3 text-base font-normal text-ink"
         />
       </label>
       <BlockButton type="submit" size="sm" variant="primary" disabled={!draft.trim()} icon={<Check aria-hidden className="h-4 w-4" />}>
