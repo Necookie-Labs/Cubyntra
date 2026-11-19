@@ -441,7 +441,18 @@ continue on the laptop.
 
 - [ ] Pass
 
-### Test 11.4 Solve on the phone, mirror on the laptop
+### Test 11.4 Rescan one face that read wrong
+
+1. While scanning with the phone, if a face's colors on the laptop don't match your cube, press
+   **Rescan** under that face on the laptop.
+2. Or, on the phone, tap that face in the face strip and press **Scan this face again**.
+
+Expected: the laptop clears just that face, the phone goes back to it, and the new reading replaces
+the old one. The other faces stay as they were.
+
+- [ ] Pass
+
+### Test 11.5 Solve on the phone, mirror on the laptop
 
 1. After a scan, on the phone press **Solve on this phone**.
 2. Play, check a step on the phone.
@@ -520,7 +531,7 @@ certificate warnings, and the camera works.
 | Timer | 8.1-8.2 | [ ] |
 | Progress | 9.1-9.2 | [ ] |
 | Settings | 10.1-10.2 | [ ] |
-| Phone | 11.1-11.4 | [ ] |
+| Phone | 11.1-11.5 | [ ] |
 | Hosted site | 12.1-12.3 | [ ] |
 | Accessibility | 13 | [ ] |
 

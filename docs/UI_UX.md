@@ -409,6 +409,7 @@ State is never carried by color alone: each state also has an icon or a word.
 - **Reticle**: square 4px corner brackets, ink when idle, warn when something needs fixing, leaf while holding steady; a solid leaf frame pops in once the face is read. Square live dots show that the phone sees each tile.
 - **Hint line**: exactly one instruction, naming the fix rather than the fault ("Glare on the bottom row. Tilt the cube slightly.").
 - **Shutter**: an 80px leaf block, always usable by hand. A four-segment meter under it fills while every check holds; at 600 ms the shutter fires by itself and the face is read on the phone. Auto-capture can be turned off.
+- **Scanning a face again**: tapping a read face in the face strip opens it and stays on it (the phone moves on only at the moment a face is read). A read face shows "Top read" with **Scan this face again**, which forgets that reading on the phone; the new reading replaces the old one on the laptop when it arrives. On the laptop, the phone-scan panel shows **Rescan** under every face read so far: it drops that face there and sends the phone back to it (`scan-control` rescan, ADR-015).
 - **Layout**: a column of header, guidance, reticle, hint and controls. The reticle is sized to the remaining height so nothing overlaps on short screens. Safe-area insets are respected and touch targets are at least 44 px.
 
 ### 6.3 Review (`ScanReview.tsx`)
