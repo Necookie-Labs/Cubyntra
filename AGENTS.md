@@ -22,7 +22,7 @@ Key Core Principles:
 2. **The Engine Picks Every Move**: The deterministic tutor engine (`src/tutor/`) plans every step and replays it on the logical cube before it is shown. Claude only explains; it never chooses moves, and the coach's guardrail replaces any reply naming a move outside the step.
 3. **No Pixels Leave the Capturing Device**: Camera frames are sampled to tile colors in the browser tab that owns the camera. Phone ↔ laptop sync sends states only, and no route accepts, stores or returns image data (ADR-015, `tests/sync-privacy.test.ts`). The coach receives only a facts JSON about the step.
 4. **Zero Floating-Point Drift**: All 3D layer rotations must snap cubie positions and orientations back to exact integer axes.
-5. **Local Only**: One server on the laptop; the profile lives in `data/student.json`, the API key only in `.env.local` on the server. No hosting, accounts or real Claude calls in tests or the build.
+5. **Local by Default, Hosted by Choice** (ADR-017): `CUBYNTRA_AUTH_MODE` picks the mode. `local` (the default) is one server on the laptop, a loopback-only app token and one profile in `data/student.json`. `cloudflare-access` (the owner's home server behind Cloudflare Tunnel + Access, verified JWT on every API request, loopback never trusted) and `passcode` (signed cookie fallback) keep one profile per person in `data/students/<slug>.json`; the coach and voice caps stay global. API keys live only in `.env.local` on the server. No real Claude, ElevenLabs or Cloudflare calls in tests or the build.
 6. **Documentation Synchronization**: Code changes must be paired with updates to corresponding documents in `/docs`.
 
 ## 2. Directory Structure & Architecture Boundaries
@@ -37,10 +37,12 @@ Key Core Principles:
 - `src/voice/`: Voice tutoring (ADR-016): speakable text, phrase bank, speech queue, device voice, ElevenLabs client and speaker, credit cap, clip cache, one-speaker rule.
 - `src/sync/`: Phone ↔ laptop pairing and state-only sync (ADR-015). Messages carry cube state, steps, grip, playback and checkpoint verdicts, never images; every sync route checks the session secret.
 - `src/app-shell/`: App shell glue: app token, checkpoint adapter (the only caller of verify / diagnose / recover), navigation, wake lock, install, progress summaries.
-- `src/lib/`: Tokens, theme, the `data/` directory, the app secret and loopback check, the streaming body cap, and the student profile schema, file and merge operations.
+- `src/lib/`: Tokens, theme, the `data/` directory, the app secret and loopback check, auth modes (`authMode`, Cloudflare Access JWT, passcode cookie, `getRequestUser` / `guardUser`, hosted headers), the streaming body cap, and the student profile schema, file and merge operations.
+- `src/proxy.ts`: Next 16 proxy (formerly middleware): hosted-mode security headers and the passcode sign-in redirect. Does nothing in local mode.
+- `deploy/`: systemd unit, cloudflared example config and the home-server guide (ADR-017).
 - `src/stores/`: Zustand stores: `useCubyntraStore` (scan) and `useTutorStore` (guided solve, profile, trainer, timer).
 - `src/components/`: React UI: the `ui/` kit, `shell/`, and one folder per screen or feature (home, scan, camera, review, solve, twin, trainer, timer, progress, pair, companion, settings).
-- `src/app/`: Next.js routes: the `(app)/` screens including `/companion`, `api/` (auth, coach, session, student) and `manifest.ts`.
+- `src/app/`: Next.js routes: the `(app)/` screens including `/companion`, `/signin` (passcode mode), `api/` (auth, coach, health, session, student, voice) and `manifest.ts`.
 - `docs/`: Engineering documentation, tutor docs (`docs/tutor/`) and architectural decision records (`docs/ADR/`).
 - `tests/`: Automated unit, integration, property and accessibility tests.
 

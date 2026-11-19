@@ -126,5 +126,16 @@ Checklist for `docs/tutor/GOAL.md`. Tick an item only when it is done and tested
 - [x] Flows documented in `docs/UI_UX.md`
 - [x] Phase gate passed and pushed
 
+## Phase 13: Hosting
+- [x] Auth modes: `local` (default, unchanged), `cloudflare-access` (Access JWT verified with `jose`), `passcode` (signed cookie, sign-in page, sign-out); unknown values fail closed
+- [x] One identity layer (`getRequestUser`, `guardUser`) on coach, voice, student, session and auth routes; per-user tokens in the hosted modes
+- [x] Per-person profiles in `data/students/<slug>.json` with a slug safety test; shared global spend caps
+- [x] Pairing bound to its user; `companionUrl` from `PUBLIC_ORIGIN`
+- [x] Rate limits per user in the hosted modes
+- [x] Hosted security headers (`src/proxy.ts`) and `GET /api/health`
+- [x] Deploy kit (`deploy/`: systemd unit, cloudflared config, guide, smoke test, updates, backups) and `.env.example`
+- [x] ADR-017 and docs (SECURITY_PRIVACY, DEPLOYMENT, API_REFERENCE, README, AGENTS, GOAL, CHANGELOG)
+- [ ] Phase gate passed and pushed
+
 ## Blocked
 _None._

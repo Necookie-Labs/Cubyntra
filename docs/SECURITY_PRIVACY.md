@@ -3,14 +3,16 @@
 **Product**: Cubyntra  
 **Organization**: Necookie Labs  
 **Status**: Implemented (2.0.0)  
-**Scope**: Camera privacy, local data, the coach, phone pairing and web security
+**Scope**: Camera privacy, local data, the coach, phone pairing, web security and hosting (section 8)
 
 ---
 
 ## 1. Core Security & Privacy Philosophy
 
 Cubyntra runs on the student's own laptop (`npm run dev` / `npm start`), with a phone on the same
-network as an optional camera and remote. Users pointing a camera at a physical object must be able
+network as an optional camera and remote. It can also be hosted on the owner's home server behind
+Cloudflare Tunnel and Access for a few named people (section 8, ADR-017); what changes then is
+said there. Users pointing a camera at a physical object must be able
 to trust that their video feed, environment and likeness never leave the device holding the camera.
 
 ### Core Privacy Commitments:
@@ -20,7 +22,7 @@ to trust that their video feed, environment and likeness never leave the device 
 4. **No Third-Party Analytics Trackers**: No third-party tracking scripts, cookies, or telemetry libraries are bundled. The UI fonts are downloaded at build time by `next/font` and served from the laptop, so the browser never contacts Google.
 5. **The AI coach sends words, never pictures**: when an Anthropic API key is configured, the only thing sent to Anthropic is a small facts JSON about the current step (section 5). No images, video, cube state, names or device details are ever sent. Without a key nothing is sent at all.
 6. **The voice sends words, never pictures**: with an ElevenLabs key, only the text of the line being spoken goes to ElevenLabs (section 7). The device voice runs in the browser and sends nothing. No microphone is used.
-7. **Local data only**: the student profile, the coach and voice usage files, cached voice clips and the app secret live in `data/` on the laptop (git-ignored); there are no accounts and no cloud storage.
+7. **Local data by default**: the student profile, the coach and voice usage files, cached voice clips and the app secret live in `data/` on the laptop (git-ignored); there are no accounts and no cloud storage. When hosted (section 8), the same files live in `data/` on the owner's home server, with one profile per person, and all traffic passes through Cloudflare.
 
 ---
 
@@ -75,7 +77,7 @@ export function terminateCameraStream(stream: MediaStream | null): void {
 
 ## 4. Content Security Policy (CSP) Guidelines
 
-The app sets no security headers itself (`next.config.ts` only configures `allowedDevOrigins`), and hosting is out of scope ([DEPLOYMENT.md](DEPLOYMENT.md)). If Cubyntra were ever served beyond the laptop, these headers would be the starting point:
+On the laptop (local mode) the app sets no security headers (HSTS would pin `localhost` to HTTPS). In the hosted modes `src/proxy.ts` sends `Strict-Transport-Security: max-age=31536000; includeSubDomains`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, `X-Frame-Options: DENY` and a `Permissions-Policy` that allows camera, microphone, wake lock, autoplay and fullscreen on self only and switches the rest off (section 8). A Content-Security-Policy is not sent yet; this would be the starting point:
 
 ```http
 Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; media-src 'self' blob:; object-src 'none'; frame-ancestors 'none';
@@ -151,8 +153,8 @@ forgets them when the session is deleted or expires. Nothing is written to disk.
   deleting it signs every device out.
 - Loopback is judged from request headers (section 5.3); a program on the network that forges
   `Host: localhost` could create sessions and read the app token.
-- The relay assumes one long-running server process on the laptop. It is not designed for
-  hosting on the internet.
+- The relay assumes one long-running server process. Hosting is supported only as section 8
+  describes (one `next start` behind Cloudflare Access).
 
 ---
 
@@ -185,3 +187,52 @@ like a data URL or an encoded blob, reads at most 4 KB and needs the app token; 
 - `/api/voice` and `/api/voice/status` require the app token (section 5.3) and are rate limited
   (60 requests a minute per token).
 - Sound never plays before a user gesture on the page.
+
+---
+
+## 8. Hosting on a Home Server ([ADR-017](ADR/017-hosting-cloudflare.md))
+
+For the 2026-11-21 presentation Cubyntra is served at `https://cubyntra.necookie.dev` from the
+owner's Linux home server, for two allow-listed people. Laptop installs are unchanged
+(`CUBYNTRA_AUTH_MODE` unset = `local`).
+
+### 8.1 What changes, honestly
+- **Where data lives**: profiles (one per person, `data/students/<slug>.json`), the coach and
+  voice usage files, cached voice clips and the app secret are on the owner's home server, not on
+  the student's laptop. The owner can read them. Back them up privately (`deploy/README.md`, section 9).
+- **Who carries the traffic**: every request goes through Cloudflare. Cloudflare terminates TLS
+  at its edge and forwards through the tunnel, so Cloudflare can see request metadata and, in
+  principle, the content: state messages, profile changes and the coach facts. It never sees a
+  camera frame, because none is ever sent (section 1 still holds).
+- **Identity**: Cloudflare Access knows each person's email (that is how they sign in), and the
+  app uses that email as the profile key. Nothing else about the person is collected.
+- **Coach and voice**: unchanged. The server, not the laptop, now calls Anthropic and ElevenLabs
+  with the same facts JSON and text. The monthly caps are shared by both people.
+
+### 8.2 Authentication
+- `cloudflare-access` mode: Access blocks anyone not on the email allowlist at Cloudflare's edge
+  (one-time PIN). The app then verifies the `Cf-Access-Jwt-Assertion` JWT on every API request
+  itself: RS256 against the team's published keys, `iss`, `aud`, expiry, and the optional
+  `CUBYNTRA_ALLOWED_EMAILS`. `cloudflared` connects from 127.0.0.1, so **loopback is never
+  trusted** in this mode: no valid JWT, 401.
+- `passcode` mode (fallback): a shared code of at least 8 characters, compared in constant time,
+  10 attempts a minute; an HMAC-signed HttpOnly, Secure, SameSite=Lax cookie for 7 days; sign
+  out clears it. The typed name is the identity, so anyone with the code can choose any name.
+- Hosted tokens are per person (HMAC of the user id with the app secret) and must match the
+  authenticated requester, so one person's token cannot be used with another's session.
+- Pairing sessions belong to their creator; another person gets 404 even with the secret. The
+  phone passes Access with the same email. The QR link uses `PUBLIC_ORIGIN`, and the server's
+  LAN addresses are not returned.
+- An unknown `CUBYNTRA_AUTH_MODE` fails closed. `GET /api/health` is the only unauthenticated
+  API route and reports only `{ ok, mode, version }`.
+
+### 8.3 Additional threats
+
+| Threat | Mitigation |
+|:---|:---|
+| Internet scanners reach the server | No open port; the app binds 127.0.0.1; Access at the edge; JWT checked again in the app |
+| Forged "local" requests through the tunnel | Loopback is ignored in hosted modes |
+| JWT forgery (`alg: none`, HS256 with the public key, other issuer or audience, expired) | `jose` with `algorithms: ['RS256']`, issuer and audience pinned; tested |
+| One person reading the other's profile | Profile file chosen from the verified identity; per-user tokens; tested |
+| Path traversal through an email or name | Slug of `[a-z0-9-]` plus a hash, re-validated before any path is built; tested |
+| Bill run-up | Signed-in people only, per-user rate limits, global monthly caps |

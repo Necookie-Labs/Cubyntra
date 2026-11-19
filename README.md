@@ -122,6 +122,17 @@ npm run build && npm start   # http://localhost:3000
 `npm start` serves plain HTTP, so the phone camera needs `npm run dev`
 ([DEPLOYMENT](docs/DEPLOYMENT.md)).
 
+### Hosting (optional)
+Cubyntra can also be hosted for a few named people on a home server behind a Cloudflare Tunnel and
+Cloudflare Access (one-time email PIN), for example at `https://cubyntra.necookie.dev`. Set
+`CUBYNTRA_AUTH_MODE=cloudflare-access` with `CF_ACCESS_TEAM_DOMAIN`, `CF_ACCESS_AUD` and
+`PUBLIC_ORIGIN` (or `passcode` with `CUBYNTRA_ACCESS_CODE` as a fallback). Every API request is
+then authenticated (a verified Access JWT or a signed cookie; loopback is never trusted), each
+person gets their own profile in `data/students/`, a phone pairs only with its owner's session,
+and the coach and voice caps stay shared. Leave the variable unset and the laptop install works
+exactly as before. Step by step: [`deploy/README.md`](deploy/README.md); decisions:
+[ADR-017](docs/ADR/017-hosting-cloudflare.md).
+
 ---
 
 ## 3. Scripts
@@ -190,9 +201,11 @@ cubies back to integer positions. Start with [ARCHITECTURE](docs/ARCHITECTURE.md
   fixed system prompt and a small facts JSON about the current step (stage, case, grip, the
   step's moves, hint level, recent attempt results, an optional diagnosis). Never images, cube
   state, the student's name, profile or progress. Without a key nothing is sent.
-- **Local data only.** `data/student.json` (profile, palette, progress), `data/coach-usage.json`
+- **Local data by default.** `data/student.json` (profile, palette, progress), `data/coach-usage.json`
   (token counts and cost, no reply text) and `data/app-secret` stay on the laptop and are
-  git-ignored. There are no analytics or third-party trackers.
+  git-ignored. There are no analytics or third-party trackers. When hosted (ADR-017), the same
+  files (one profile per person) live on the home server and traffic passes through Cloudflare;
+  still no pictures.
 - **Local network, honestly.** Pairing is protected by a 128-bit session secret and an app token
   that only the laptop's own browser can fetch, but a paired phone is trusted like the laptop,
   and the self-signed certificate is not trusted by the phone by default. The limits are listed

@@ -17,8 +17,8 @@ localhost:
 | Area | Decision |
 |---|---|
 | Platform | PWA in the existing Next.js 16 app. No native app, no monorepo. |
-| Runtime | Must run well on localhost (`npm run dev` over HTTPS for phone camera access; `npm run build && npm start`). No hosting or deployment work. |
-| Users | One local student. No accounts or auth. Profile and progress live in `data/student.json` on the laptop (`/data/` is gitignored), read and written through API routes. |
+| Runtime | Must run well on localhost (`npm run dev` over HTTPS for phone camera access; `npm run build && npm start`). *Amended by Phase 13 / ADR-017:* it may also be hosted on the owner's home server behind Cloudflare Tunnel + Access; localhost stays the default and is unchanged. |
+| Users | One local student. No accounts or auth. Profile and progress live in `data/student.json` on the laptop (`/data/` is gitignored), read and written through API routes. *Amended by Phase 13:* in the hosted modes, each allow-listed person has their own `data/students/<slug>.json`. |
 | Methods | **Beginner's:** white cross on top, then an animated flip so white is on the bottom. **CFOP:** white on the bottom throughout; 2-look OLL/PLL first, full 57 OLL / 21 PLL in Phase 9. |
 | Moves | A deterministic tutor engine picks **every** move. Claude never decides moves. |
 | Privacy | No photos leave the device that took them. Phone↔laptop sync sends cube states only. The photo relay routes are deleted. |
@@ -27,7 +27,8 @@ localhost:
 | Audience | English, plain language suitable for ages 10+. Coach tone: encouraging and concise. |
 
 ## Non-goals
-Hosting, accounts, multiple users, teacher dashboards, native apps, Bluetooth smart cubes,
+Hosting, accounts, multiple users (all three now in scope only as Phase 13 describes: one home
+server, two allow-listed people, no sign-up), teacher dashboards, native apps, Bluetooth smart cubes,
 tracking moves from live video, languages other than English.
 
 ## Phases and acceptance criteria
@@ -191,6 +192,27 @@ Every route through the app is walked as a student would: first run, demo solve,
 each checkpoint outcome, resume after reload, solve another, trainer, timer, progress,
 settings, pairing, errors, back/forward navigation, phone and desktop. Rough edges are fixed with
 regression tests; flows are documented in `docs/UI_UX.md`.
+
+### Phase 13: Hosting (added 2026-11-19, approved by the owner)
+For a presentation on 2026-11-21, Cubyntra is hosted at `https://cubyntra.necookie.dev` for two
+people (the owner and Kiko). Laptop use must keep working exactly as before. ADR-017.
+- **Where:** the owner's Linux home server runs `next start -p 3001 -H 127.0.0.1` under systemd;
+  a Cloudflare Tunnel publishes it; Cloudflare Access (email allowlist, one-time PIN) protects it.
+- **Auth modes** (`CUBYNTRA_AUTH_MODE`): `local` (default, unchanged), `cloudflare-access` (every
+  API request carries a `Cf-Access-Jwt-Assertion` JWT verified with `jose`: RS256, cached JWKS,
+  `aud`, `iss`, expiry; identity = `email`; optional `CUBYNTRA_ALLOWED_EMAILS`; loopback never
+  trusted) and `passcode` (fallback: name + `CUBYNTRA_ACCESS_CODE`, signed HttpOnly cookie, 7
+  days, constant-time compare, rate limited, sign-out). Unknown values fail closed.
+- **One identity layer:** `getRequestUser` / `guardUser` on every guarded route; hosted modes get
+  a per-user `x-cubyntra-token` (HMAC of the user id) that must match the requester.
+- **Per-person profiles** in `data/students/<slug>.json` (safe slug + hash, tested); locks, caps
+  and batch ids per file. **Coach and voice spend caps stay global and shared** (one wallet).
+- **Pairing per person:** sessions belong to their creator; the phone passes Access with the same
+  email; `companionUrl` uses `PUBLIC_ORIGIN`. Session cap and expiry unchanged.
+- **Rate limits per user**, hosted security headers through `src/proxy.ts`, `GET /api/health`
+  (`{ ok, mode, version }`, no key status), a deploy kit in `deploy/`, `.env.example` for every
+  variable.
+- **Tests** with a local RSA key pair and a stubbed `fetch` for the JWKS; no network.
 
 ## Execution rules
 1. Work on `feat/tutor`. Never commit to `main`, never force-push, never rewrite pushed history.

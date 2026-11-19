@@ -241,12 +241,16 @@ interface CubyntraStore {
 
 See [ADR-015](ADR/015-state-only-sync.md). State messages only; no route accepts or returns image
 data. Every route except the first two needs the session secret in `x-cubyntra-session`
-(404 unknown session, 403 missing or wrong secret).
+(404 unknown session, 403 missing or wrong secret). In the hosted modes (§12) every sync route
+also authenticates the requester (401 when not signed in), a session belongs to the user who
+created it (another user gets 404, even with the secret), a typed code can only be claimed by its
+owner, the `token` returned is that user's own, and `companionUrl` uses `PUBLIC_ORIGIN` (with
+`availableIps: []`).
 
 | Method & path | Caller | Auth | Body / query | Result |
 |:---|:---|:---|:---|:---|
 | `POST /api/session` | laptop | `x-cubyntra-token` (app token), 20/min | ignored (no `preferredId`) | `{ sessionId, secret, code, codeExpiresAt, companionUrl, availableIps, primaryIp }`. `401` bad token, `429`, `503` all 8 slots in use. |
-| `POST /api/session/pair` | phone | none, 10/min overall | `{ code }`, ≤ 1 KB | `{ sessionId, secret, token }`. Code is single-use, 10 min. `400`, `404` wrong/used/expired, `413`, `429`. |
+| `POST /api/session/pair` | phone | none (hosted: signed in), 10/min overall (hosted: per user) | `{ code }`, ≤ 1 KB | `{ sessionId, secret, token }`. Code is single-use, 10 min. `400`, `404` wrong/used/expired, `413`, `429`. |
 | `GET /api/session/[id]` | either | secret | – | `{ snapshot: SessionSnapshot }` |
 | `DELETE /api/session/[id]` | laptop | secret | – | Ends the session; open streams get `ended`. |
 | `GET /api/session/[id]/events?role=desktop\|mobile` | either | secret | – | `text/event-stream` of `data: StreamEvent`: `snapshot` first, then `message`, `connections`, `ping` (15 s, keeps the session alive), `ended`. |
@@ -299,13 +303,14 @@ animating device ignores others' reports while it plays.
 ## 7. Coach API (`src/coach/`, `src/app/api/coach/`)
 
 See [ADR-014](ADR/014-claude-coach.md). Protected routes need the header `x-cubyntra-token`
-(the per-install app secret from `src/lib/localAuth.ts`).
+(the per-install app secret from `src/lib/localAuth.ts`; in the hosted modes, the signed-in
+user's own token, §12). Rate limits count per token (local) or per user (hosted).
 
 | Route | Auth | Body | Result |
 |:---|:---|:---|:---|
 | `POST /api/coach` | token, 30/min | `{ facts: CoachFacts }`, at most 8 KB | `text/event-stream`: `delta` → `{ text }`, `replace` → `{ text, reason }`, `done` → `{ source: 'live' \| 'template', mode, reason?, notice? }`. `400` bad body, `401` bad token, `413` too large, `429` rate limited (`Retry-After`). |
 | `GET /api/coach/status` | token | – | `{ mode: 'live' \| 'mock' \| 'capped', monthSpendUsd, capUsd, month }` |
-| `GET /api/auth/token` | loopback Host only | – | `{ token }`, or `403` from any other host. |
+| `GET /api/auth/token` | local: loopback Host only; hosted: signed in | – | Local: `{ token }`, or `403` from any other host. Hosted: `{ token, user: { name }, mode }`, or `401`. |
 
 ```typescript
 // Facts (src/coach/facts.ts)
@@ -402,12 +407,12 @@ guidedSolveInWorker(state, method, grip?, options?): Promise<GuidedSolve>
 
 | Route | Auth | Body | Response |
 |---|---|---|---|
-| `GET /api/student` | token | – | `StudentProfile` (the default one before anything is saved) |
+| `GET /api/student` | token | – | `StudentProfile` (the default one before anything is saved). Hosted modes: the signed-in person's own `data/students/<slug>.json`. |
 | `PATCH /api/student` | token | `{ ops: ProfileOp[]; batchId?: string }` (≤ 200 ops, ≤ 128 KB, read in chunks) | the merged, saved profile; `400` bad op or invalid result, `401` no token, `413` too large, `500` write failed |
 
 There is no whole-profile `PUT`: a device sends only what changed, and the server merges it into
 the profile it holds, so a paired phone or a second tab never wipes what the laptop saved.
-Updates are serialized per server process (a promise-chain lock around read, apply, validate,
+Updates are serialized per profile file (a promise-chain lock around read, apply, validate,
 write), the merged profile is validated as a whole (`parseStudentProfile`) before the atomic
 write, and a `batchId` seen lately (the last 500) is not applied twice, so a retry is safe.
 
@@ -590,3 +595,55 @@ fetchSubscription(apiKey, fetchImpl?): Promise<{ characterCount, characterLimit,
 clipHash(model, voiceId, text); readClip(hash); writeClip(hash, audio)   // data/voice/<hash>.mp3
 parseVoiceRequest(body); speak({ text, kind }, deps?, signal?); voiceStatus(preference, deps?)
 ```
+
+---
+
+## 12. Auth Modes and Hosting (`src/lib/`, `src/proxy.ts`, `src/app/api/auth/`, `src/app/api/health/`)
+
+See [ADR-017](ADR/017-hosting-cloudflare.md) and [`deploy/README.md`](../deploy/README.md).
+`CUBYNTRA_AUTH_MODE` is `local` (default), `cloudflare-access` or `passcode`; anything else is
+`invalid` and every guarded route answers 401.
+
+| Route | Auth | Body | Result |
+|:---|:---|:---|:---|
+| `GET /api/health` | none | – | `{ ok: true, mode, version }`. Nothing about keys, caps or users. |
+| `POST /api/auth/signin` | passcode mode only (else `404`), 10/min overall | `{ name, code }`, ≤ 1 KB | `{ ok: true, user: { name } }` + `Set-Cookie: cubyntra_session=…; HttpOnly; Secure; SameSite=Lax; Max-Age=604800`. `400` bad name, `401` wrong code, `413`, `429`. |
+| `POST /api/auth/signout` | none | – | `{ ok: true }` + a cookie that clears `cubyntra_session`. |
+
+```typescript
+// src/lib/authMode.ts
+authMode(env?): 'local' | 'cloudflare-access' | 'passcode' | 'invalid'
+isHostedMode(env?); allowedEmails(env?): Set<string>          // CUBYNTRA_ALLOWED_EMAILS
+
+// src/lib/cfAccess.ts (header 'cf-access-jwt-assertion')
+accessConfig(env?): { teamDomain, audience } | null           // CF_ACCESS_TEAM_DOMAIN, CF_ACCESS_AUD
+verifyAccessJwt(token, config?, env?): Promise<{ email } | null>
+  // RS256 only; JWKS https://<team>/cdn-cgi/access/certs (cached 10 min); iss, aud, exp, nbf
+
+// src/lib/passcodeSession.ts
+userFromName(name): { id, name } | null; checkAccessCode(code, env?): boolean   // >= 8 chars, constant time
+createSessionValue(user, now?); verifySessionValue(value, now?); sessionUserFromRequest(req)
+sessionCookieHeader(value); clearSessionCookieHeader(); signInLimiter
+
+// src/lib/requestUser.ts
+getRequestUser(req, env?): Promise<{ id, name } | null>   // local -> LOCAL_USER; Access -> email; passcode -> cookie
+guardUser(req, limiter?, env?): Promise<{ ok: true; user; mode } | { ok: false; response }>
+userToken(user, env?): string     // local: the app secret; hosted: base64url HMAC-SHA256(app secret, user id)
+userSlug(id): string              // [a-z0-9-] + 8-hex hash, matches USER_SLUG_PATTERN
+profileSlugFor(user, env?): string | undefined   // undefined (data/student.json) in local mode
+
+// src/lib/studentFile.ts: every function takes an optional slug
+studentFilePath(slug?); readStudentProfile(slug?); updateStudentProfile(change, slug?); writeStudentProfile(profile, slug?)
+
+// src/sync/server.ts
+sessionOwner(req): Promise<RequestUser | null>; guardSession(req, id): Promise<Response | null>
+publicOrigin(env?): string | null   // PUBLIC_ORIGIN as a bare http(s) origin
+
+// src/lib/hostedHeaders.ts + src/proxy.ts (hosted modes only)
+SECURITY_HEADERS   // HSTS, nosniff, Referrer-Policy, X-Frame-Options, Permissions-Policy (camera/microphone on self)
+pageNeedsSignIn(pathname)   // passcode mode: pages without a valid cookie -> 307 /signin?next=…
+```
+
+The coach (`data/coach-usage.json`) and voice (`data/voice-usage.json`) caps are global in every
+mode: everyone on a hosted server shares them.
+
