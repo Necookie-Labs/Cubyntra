@@ -150,10 +150,10 @@ export const ScanReview: React.FC<ScanReviewProps> = ({ onRescanFace, onConfirme
   return (
     <section
       aria-labelledby="review-title"
-      className="vx-panel vx-place flex flex-col gap-4 w-full max-w-lg mx-auto lg:mx-0 p-6 pb-7"
+      className="vx-panel vx-place flex flex-col gap-4 w-full max-w-lg mx-auto lg:mx-0 p-6"
     >
       <header className="flex flex-col gap-2">
-        <Chip tone="leaf" icon={<ScanLine className="w-4 h-4" />} className="w-fit">
+        <Chip tone="accent" icon={<ScanLine className="w-4 h-4" />} className="w-fit">
           Step 2 of 2 · Check the scan
         </Chip>
         <h2 id="review-title" className="text-2xl leading-tight text-ink">
@@ -211,7 +211,7 @@ export const ScanReview: React.FC<ScanReviewProps> = ({ onRescanFace, onConfirme
             key={face}
             role="group"
             aria-label={`${FACE_LABEL[face]} face`}
-            className="grid grid-cols-3 gap-0.5 p-0.5 bg-sticker-core border-2 border-line shadow-block-sm"
+            className="grid grid-cols-3 gap-0.5 p-1 rounded-sm bg-sticker-core shadow-block-sm"
             style={{ gridColumn: NET_POSITION[face].col, gridRow: NET_POSITION[face].row }}
           >
             {cubeState[face].map((color, index) => {
@@ -229,7 +229,7 @@ export const ScanReview: React.FC<ScanReviewProps> = ({ onRescanFace, onConfirme
                   aria-label={`${FACE_LABEL[face]}, row ${Math.floor(index / 3) + 1} column ${(index % 3) + 1}: ${color}${
                     isCenter ? ', center, fixed' : ''
                   }${flagged ? ', needs a look' : ''}`}
-                  className={`relative flex items-center justify-center w-6 h-6 sm:w-8 sm:h-8 transition-transform duration-75 ${
+                  className={`relative flex items-center justify-center w-6 h-6 sm:w-8 sm:h-8 rounded-xs transition-transform duration-75 ${
                     isCenter ? 'cursor-default' : 'cursor-pointer hover:-translate-y-px'
                   } ${isSelected ? 'z-10 scale-110 outline-2 outline-offset-2 outline-focus' : ''}`}
                   style={{ backgroundColor: stickerColor(color) }}
@@ -240,7 +240,7 @@ export const ScanReview: React.FC<ScanReviewProps> = ({ onRescanFace, onConfirme
                     </span>
                   )}
                   {flagged && !isSelected && (
-                    <span aria-hidden className="absolute -top-1 -right-1 h-3 w-3 border-2 border-line bg-warn" />
+                    <span aria-hidden className="absolute -top-1 -right-1 h-3 w-3 rounded-full border-2 border-sticker-core bg-warn" />
                   )}
                 </button>
               );
@@ -269,10 +269,10 @@ export const ScanReview: React.FC<ScanReviewProps> = ({ onRescanFace, onConfirme
                     aria-label={`${color} (key ${i + 1})`}
                     title={`${color} · ${i + 1}`}
                     onClick={() => applyColor(color)}
-                    className={`vx-hit flex w-8 h-8 items-center justify-center border-2 border-line transition-transform duration-75 ${
+                    className={`vx-hit flex w-8 h-8 items-center justify-center rounded-md border-2 border-sticker-core transition-transform duration-75 ${
                       active
                         ? 'translate-y-0.5 outline-2 outline-offset-2 outline-ink'
-                        : 'shadow-block-sm hover:-translate-y-px'
+                        : 'shadow-[inset_0_-3px_0_0_var(--vx-sticker-core)] hover:-translate-y-px'
                     }`}
                     style={{ backgroundColor: stickerColor(color) }}
                   >
@@ -301,7 +301,7 @@ export const ScanReview: React.FC<ScanReviewProps> = ({ onRescanFace, onConfirme
           <BlockButton
             size="sm"
             onClick={selectNextFlagged}
-            icon={<span aria-hidden className="h-3 w-3 border-2 border-line bg-warn" />}
+            icon={<span aria-hidden className="h-3 w-3 rounded-full border-2 border-warn-edge bg-warn" />}
             className="self-center"
           >
             {flaggedCount} {flaggedCount === 1 ? 'tile needs' : 'tiles need'} a look
@@ -320,7 +320,7 @@ export const ScanReview: React.FC<ScanReviewProps> = ({ onRescanFace, onConfirme
                 icon={
                   <span
                     aria-hidden
-                    className="h-3 w-3 border-2 border-line"
+                    className="h-3 w-3 rounded-full border-2 border-sticker-core"
                     style={{ backgroundColor: stickerColor(color) }}
                   />
                 }
@@ -394,13 +394,13 @@ export const ScanReview: React.FC<ScanReviewProps> = ({ onRescanFace, onConfirme
   );
 };
 
-/** Icon in a small solid block, so the status never relies on text color alone. */
+/** Icon in a small solid circle, so the status never relies on text color alone. */
 function StatusIcon({ tone, children }: { tone: 'ok' | 'bad'; children: React.ReactNode }) {
   return (
     <span
       aria-hidden
-      className={`flex h-6 w-6 shrink-0 items-center justify-center border-2 border-line ${
-        tone === 'ok' ? 'bg-leaf text-on-leaf' : 'bg-danger text-on-danger'
+      className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${
+        tone === 'ok' ? 'bg-success text-on-success' : 'bg-danger text-on-danger'
       }`}
     >
       {children}
@@ -420,14 +420,14 @@ function Notice({
   return (
     <div
       role={tone === 'error' ? 'alert' : 'note'}
-      className={`flex items-start gap-3 p-3 text-sm text-ink border-2 ${
+      className={`flex items-start gap-3 rounded-lg p-3 text-sm text-ink border-2 ${
         tone === 'error' ? 'bg-danger-soft border-danger' : 'bg-well border-line-soft'
       }`}
     >
       <span
         aria-hidden
-        className={`flex h-6 w-6 shrink-0 items-center justify-center border-2 border-line ${
-          tone === 'error' ? 'bg-danger text-on-danger' : 'bg-panel text-ink'
+        className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${
+          tone === 'error' ? 'bg-danger text-on-danger' : 'bg-primary-soft text-ink'
         }`}
       >
         {icon}

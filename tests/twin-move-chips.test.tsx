@@ -33,7 +33,7 @@ describe('MoveChips', () => {
     expect(chips[2].getAttribute('aria-current')).toBe('step');
     expect(chips.filter((c) => c.hasAttribute('aria-current'))).toHaveLength(1);
     expect(chips[0].className).toContain('text-muted');
-    expect(chips[2].className).toContain('bg-leaf');
+    expect(chips[2].className).toContain('bg-primary');
   });
 
   it('marks everything done once the algorithm has finished', () => {

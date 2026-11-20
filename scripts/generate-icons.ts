@@ -3,9 +3,10 @@
  * Necookie Labs (c) 2026
  *
  * Draws the app icon, a flat voxel cube in the twin's default view (white top, green front, red
- * right, one flat tone per face), on the mint ground, and writes PNGs to public/icons/. No
- * canvas or image library: pixels are rasterized here (4x4 supersampling for clean edges) and
- * encoded with node:zlib. Colors come from src/lib/tokens.ts.
+ * right, one flat tone per face), on the mint ground, and writes PNGs to public/icons/. The
+ * browser-tab favicon (src/app/favicon.ico) is the same cube on a transparent ground at 16, 32
+ * and 48 px. No canvas or image library: pixels are rasterized here (4x4 supersampling for clean
+ * edges) and encoded with node:zlib. Colors come from src/lib/tokens.ts.
  *
  *   npx tsx scripts/generate-icons.ts
  *
@@ -56,7 +57,7 @@ function cubeFaces(cx: number, cy: number, s: number): Parallelogram[] {
 }
 
 /** Color at a point, or null outside the cube. */
-function sample(x: number, y: number, faces: Parallelogram[]): RGB | null {
+function sample(x: number, y: number, faces: Parallelogram[], gap = GAP): RGB | null {
   for (let f = 0; f < faces.length; f++) {
     const { origin, e1, e2 } = faces[f];
     const px = x - origin[0];
@@ -67,7 +68,7 @@ function sample(x: number, y: number, faces: Parallelogram[]): RGB | null {
     if (u < 0 || u > 1 || v < 0 || v > 1) continue;
     const cu = (u * 3) % 1;
     const cv = (v * 3) % 1;
-    const inGap = cu < GAP || cu > 1 - GAP || cv < GAP || cv > 1 - GAP;
+    const inGap = cu < gap || cu > 1 - gap || cv < gap || cv > 1 - gap;
     return inGap ? CORE : shade(FACES[f].color, FACES[f].tone);
   }
   return null;
@@ -101,6 +102,43 @@ export function renderIcon(size: number, scale: number): Uint8Array {
   return out;
 }
 
+/**
+ * RGBA pixels of the favicon: the same cube on a transparent ground, so a browser tab shows a cube
+ * rather than a mint square. Alpha is the share of samples inside the cube and color is the mean
+ * of those samples (straight alpha, as PNG expects). `gap` sets the sticker gaps for each size.
+ */
+export function renderFavicon(size: number, scale: number, gap: number): Uint8Array {
+  const s = (size * scale) / 2;
+  const faces = cubeFaces(size / 2, size / 2, s);
+  const out = new Uint8Array(size * size * 4);
+  const n = 4;
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      let r = 0;
+      let g = 0;
+      let b = 0;
+      let hits = 0;
+      for (let sy = 0; sy < n; sy++) {
+        for (let sx = 0; sx < n; sx++) {
+          const c = sample(x + (sx + 0.5) / n, y + (sy + 0.5) / n, faces, gap);
+          if (!c) continue;
+          r += c[0];
+          g += c[1];
+          b += c[2];
+          hits++;
+        }
+      }
+      if (hits === 0) continue; // fully transparent
+      const i = (y * size + x) * 4;
+      out[i] = Math.round(r / hits);
+      out[i + 1] = Math.round(g / hits);
+      out[i + 2] = Math.round(b / hits);
+      out[i + 3] = Math.round((255 * hits) / (n * n));
+    }
+  }
+  return out;
+}
+
 const CRC_TABLE = Array.from({ length: 256 }, (_, n) => {
   let c = n;
   for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
@@ -122,17 +160,18 @@ function chunk(type: string, data: Uint8Array): Buffer {
   return Buffer.concat([length, body, crc]);
 }
 
-/** An 8-bit RGB PNG (color type 2). */
-export function encodePng(width: number, height: number, rgb: Uint8Array): Buffer {
+/** An 8-bit PNG: RGB (color type 2) by default, or RGBA (color type 6) when `channels` is 4. */
+export function encodePng(width: number, height: number, pixels: Uint8Array, channels: 3 | 4 = 3): Buffer {
   const header = Buffer.alloc(13);
   header.writeUInt32BE(width, 0);
   header.writeUInt32BE(height, 4);
   header[8] = 8; // bit depth
-  header[9] = 2; // RGB
-  const rows = Buffer.alloc((width * 3 + 1) * height);
+  header[9] = channels === 4 ? 6 : 2; // RGBA or RGB
+  const stride = width * channels;
+  const rows = Buffer.alloc((stride + 1) * height);
   for (let y = 0; y < height; y++) {
-    rows[y * (width * 3 + 1)] = 0; // filter: none
-    Buffer.from(rgb.buffer, rgb.byteOffset + y * width * 3, width * 3).copy(rows, y * (width * 3 + 1) + 1);
+    rows[y * (stride + 1)] = 0; // filter: none
+    Buffer.from(pixels.buffer, pixels.byteOffset + y * stride, stride).copy(rows, y * (stride + 1) + 1);
   }
   return Buffer.concat([
     Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
@@ -150,6 +189,51 @@ export const ICONS = [
   { file: 'apple-touch-icon.png', size: 180, scale: 0.66 },
 ] as const;
 
+/** An ICO file holding one PNG per size (every current browser reads PNG entries). */
+export function encodeIco(images: ReadonlyArray<{ size: number; png: Buffer }>): Buffer {
+  const header = Buffer.alloc(6);
+  header.writeUInt16LE(0, 0); // reserved
+  header.writeUInt16LE(1, 2); // type: icon
+  header.writeUInt16LE(images.length, 4);
+  const entries = Buffer.alloc(16 * images.length);
+  let offset = header.length + entries.length;
+  images.forEach(({ size, png }, k) => {
+    const e = k * 16;
+    entries[e] = size >= 256 ? 0 : size; // width (0 means 256)
+    entries[e + 1] = size >= 256 ? 0 : size; // height
+    entries.writeUInt16LE(1, e + 4); // color planes
+    entries.writeUInt16LE(32, e + 6); // bits per pixel
+    entries.writeUInt32LE(png.length, e + 8);
+    entries.writeUInt32LE(offset, e + 12);
+    offset += png.length;
+  });
+  return Buffer.concat([header, entries, ...images.map((image) => image.png)]);
+}
+
+/**
+ * The browser-tab favicon. Next serves src/app/favicon.ico at /favicon.ico. The cube fills the
+ * tile. At 16 px a cell is under 3 px wide, so wide gaps would grey the stickers out: it keeps a
+ * thin gap that hints at the grid while the three face colors stay clean. 32 px gets slightly
+ * wider gaps so the grid still reads after the downscale.
+ */
+export const FAVICON = {
+  file: 'src/app/favicon.ico',
+  sizes: [
+    { size: 16, scale: 1, gap: 0.06 },
+    { size: 32, scale: 0.94, gap: 0.11 },
+    { size: 48, scale: 0.94, gap: 0.1 },
+  ],
+} as const;
+
+export function buildFavicon(): Buffer {
+  return encodeIco(
+    FAVICON.sizes.map(({ size, scale, gap }) => ({
+      size,
+      png: encodePng(size, size, renderFavicon(size, scale, gap), 4),
+    })),
+  );
+}
+
 function main(): void {
   const dir = path.join(process.cwd(), 'public', 'icons');
   fs.mkdirSync(dir, { recursive: true });
@@ -158,6 +242,9 @@ function main(): void {
     fs.writeFileSync(path.join(dir, icon.file), png);
     console.log(`public/icons/${icon.file}  ${icon.size}x${icon.size}  ${png.length} bytes`);
   }
+  const ico = buildFavicon();
+  fs.writeFileSync(path.join(process.cwd(), FAVICON.file), ico);
+  console.log(`${FAVICON.file}  ${FAVICON.sizes.map((s) => s.size).join('/')} px  ${ico.length} bytes`);
 }
 
 if (process.argv[1] && /generate-icons/.test(process.argv[1])) main();

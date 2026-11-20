@@ -68,7 +68,7 @@ export async function computeWalkthrough(state: CubeState, method: SolutionMetho
 function CubeNotFound() {
   return (
     <PageContainer width="md">
-      <Panel role="alert" className="flex flex-col items-start gap-4 p-6 pb-7">
+      <Panel role="alert" className="flex flex-col items-start gap-4 p-6">
         <h1 className="text-2xl leading-tight text-ink">Cube not found</h1>
         <p className="max-w-prose text-sm text-muted">
           This cube is not in My cubes. It may have been deleted, or it dropped off the list when newer scans came in.
@@ -135,8 +135,10 @@ function StepList({
           aria-label={`Step ${index + 1}: ${plan.caseName}. ${turns} ${turns === 1 ? 'move' : 'moves'}: ${formatAlgorithm(moves)}`}
           onClick={() => onSelect(index)}
           className={cx(
-            'vx-hit flex w-full flex-col gap-1.5 border-2 p-3 text-left',
-            current ? 'border-line bg-leaf-soft' : 'border-line-soft bg-panel hover:bg-well'
+            'vx-hit flex w-full flex-col gap-1.5 rounded-lg border-2 p-3 pb-3.5 text-left transition-colors',
+            current
+              ? 'border-primary border-b-primary-edge bg-primary-soft shadow-[inset_0_-2px_0_0_var(--vx-primary-edge)]'
+              : 'border-line-soft border-b-raised-edge bg-raised shadow-[inset_0_-2px_0_0_var(--vx-raised-edge)] hover:bg-well'
           )}
         >
           <span className="flex w-full items-baseline justify-between gap-2 text-xs font-bold text-muted">
@@ -148,7 +150,7 @@ function StepList({
           <span className="text-sm text-ink">{plan.caseName}</span>
           <span aria-hidden className="flex flex-wrap gap-1">
             {moves.map((move, i) => (
-              <span key={i} className="border border-line-soft bg-well px-1.5 font-mono text-xs leading-5 text-ink">
+              <span key={i} className="rounded-sm border border-line-soft bg-well px-1.5 font-mono text-xs leading-5 text-ink">
                 {move.notation}
               </span>
             ))}
@@ -359,7 +361,7 @@ function SolutionWalkthrough({ cube }: { cube: SavedCube }) {
           My cubes
         </BlockLink>
         <div className="flex flex-col gap-1">
-          <h1 className="break-words text-3xl leading-none text-ink">{cube.name}</h1>
+          <h1 className="break-words text-3xl font-black leading-tight tracking-tight text-ink">{cube.name}</h1>
           <p className="text-sm text-muted">
             <time dateTime={cube.scannedAt}>{shortDateTime(new Date(cube.scannedAt))}</time> · {SOURCE_LABEL[cube.source]}
           </p>
@@ -376,8 +378,8 @@ function SolutionWalkthrough({ cube }: { cube: SavedCube }) {
         {walkthrough && (
           <section aria-label="Summary" className="vx-well flex flex-col gap-2 p-3">
             <p className="text-sm text-ink">
-              <span className="font-display text-2xl leading-none">{walkthrough.totalTurns}</span> moves ·{' '}
-              <span className="font-display text-2xl leading-none">{walkthrough.steps.length}</span> steps
+              <span className="font-display text-2xl font-black leading-none">{walkthrough.totalTurns}</span> moves ·{' '}
+              <span className="font-display text-2xl font-black leading-none">{walkthrough.steps.length}</span> steps
             </p>
             <ul aria-label="Moves per stage" className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted">
               {walkthrough.stages.map((s) => (
@@ -412,7 +414,7 @@ function SolutionWalkthrough({ cube }: { cube: SavedCube }) {
           className="flex-1"
         />
         {loading && (
-          <div className="absolute inset-0 z-10 flex items-center justify-center bg-ground">
+          <div className="absolute inset-0 z-10 flex items-center justify-center rounded-2xl bg-panel">
             <Busy label={`Working out the ${SOLUTION_TITLE[method]} solution`} />
           </div>
         )}
@@ -420,9 +422,9 @@ function SolutionWalkthrough({ cube }: { cube: SavedCube }) {
 
       <div className="flex flex-col gap-4 lg:col-start-2 lg:row-start-2">
         {result?.status === 'error' && (
-          <Panel role="alert" className="flex flex-col gap-4 p-6 pb-7">
+          <Panel role="alert" className="flex flex-col gap-4 p-6">
             <div className="flex items-start gap-3">
-              <span aria-hidden data-variant="danger" className="vx-block flex h-10 w-10 shrink-0 items-center justify-center pb-1">
+              <span aria-hidden data-variant="danger" className="vx-block flex h-11 w-11 shrink-0 items-center justify-center pb-0.5">
                 <AlertTriangle className="h-5 w-5" />
               </span>
               <p className="text-sm text-ink">{result.message}</p>
@@ -440,7 +442,7 @@ function SolutionWalkthrough({ cube }: { cube: SavedCube }) {
         )}
 
         {step && plan && (
-          <Panel as="section" aria-labelledby="step-title" className="flex flex-col gap-3 p-4 pb-5">
+          <Panel as="section" aria-labelledby="step-title" className="flex flex-col gap-3">
             <p className="flex flex-wrap justify-between gap-2 text-xs font-bold text-muted">
               <span>
                 Stage {(stage?.number ?? 0) + 1} of {stage?.count ?? 1}

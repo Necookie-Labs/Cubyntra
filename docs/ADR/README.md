@@ -21,13 +21,14 @@ This directory contains records of key architectural and engineering decisions m
 | [ADR-008](008-speedcube-pbr-geometry-digital-twin.md) | High-Precision Speedcube Physical Geometry & PBR Digital Twin | Superseded by ADR-011 (its drift-free snapping still stands) | | 2026-09 |
 | [ADR-009](009-mobile-companion-qr-pairing.md) | Mobile Companion Scanner with Ephemeral QR Pairing & Center-Sticker Calibration | Accepted (amended by ADR-010, ADR-015) | | 2026-09 |
 | [ADR-010](010-desktop-side-analysis-and-global-color-resolution.md) | Desktop-Side Photo Analysis & Global 54-Sticker Color Resolution | Accepted (transport and privacy sections amended by ADR-015) | Amends ADR-001, ADR-009 | 2026-09 |
-| [ADR-011](011-voxel-design-system.md) | Voxel Design System: Flat Tokens, Blocks and Enforced Style Rules | Accepted | Supersedes the visual direction of ADR-008 | 2026-11 |
+| [ADR-011](011-voxel-design-system.md) | Voxel Design System: Flat Tokens, Blocks and Enforced Style Rules | Superseded by ADR-018 for the UI's look (its token discipline and the voxel twin still stand) | Supersedes the visual direction of ADR-008 | 2026-11 |
 | [ADR-012](012-deterministic-tutor-engine.md) | Deterministic Tutor Engine, Claude as Explainer Only | Accepted | Related: ADR-002, ADR-004 | 2026-11 |
 | [ADR-013](013-checkpoint-verification.md) | Checkpoint Verification, Mistake Diagnosis and Recovery | Accepted | Related: ADR-003, ADR-010, ADR-012 | 2026-11 |
 | [ADR-014](014-claude-coach.md) | Claude Coach: Haiku 5.5 Explanations with a Move Guardrail, Templates and a Spend Cap | Accepted | Related: ADR-001, ADR-012 | 2026-11 |
 | [ADR-015](015-state-only-sync.md) | State-Only Phone ↔ Laptop Sync: Authenticated Pairing, No Pixels Leave the Device | Accepted | Amends ADR-009, ADR-010; restores ADR-001 | 2026-11 |
 | [ADR-016](016-voice-tutoring.md) | Voice Tutoring: Device Voice and ElevenLabs Flash with a Cached Phrase Bank, a Credit Cap and One Speaker | Accepted | Related: ADR-012, ADR-014, ADR-015 | 2026-11 |
 | [ADR-017](017-hosting-cloudflare.md) | Hosting on a Home Server behind Cloudflare Tunnel and Access: Auth Modes, Per-Person Profiles, Shared Caps | Accepted | Amends GOAL.md's localhost-only decision, ADR-014, ADR-015, ADR-016 | 2026-11 |
+| [ADR-018](018-raised-design-system.md) | Raised Design System: Navy-to-Indigo Gradient, Rounded Surfaces, Pressable Buttons and Enforced Style Rules | Accepted | Supersedes the visual rules of ADR-011; amends GOAL.md's design decision | 2026-11 |
 
 The decisions in force for the 2.0 tutor are ADR-001 (as restored), 002–007, 009–010 (as
-amended) and 011–017. The plan they implement is [`docs/tutor/GOAL.md`](../tutor/GOAL.md).
+amended), 011 (its token discipline and the voxel twin) and 012–018. The plan they implement is [`docs/tutor/GOAL.md`](../tutor/GOAL.md).

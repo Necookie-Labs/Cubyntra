@@ -2,9 +2,9 @@
  * Cubyntra - Case tiles
  * Necookie Labs (c) 2026
  *
- * One small square per case of a trainer set, filled by how well the case is known: an empty
- * well (never drilled), half full (drilling), full leaf (learned: box 3 or more) and full leaf
- * with a dark base (box 5). The fill level shows the state without relying on color, and each
+ * One small rounded square per case of a trainer set, filled by how well the case is known: an
+ * empty well (never drilled), half full (drilling), full green (learned: box 3 or more) and full
+ * green with a dark base (box 5). The fill level shows the state without relying on color, and each
  * tile's name says it in words.
  * With `onSelect` the tiles are buttons that pick the case to drill.
  */
@@ -24,14 +24,14 @@ export function caseLevel(card: TrainerCard | undefined): CaseLevel {
 
 const LEVEL_CLASS: Record<CaseLevel, string> = {
   new: 'bg-well border-line-soft',
-  drilling: 'bg-leaf-soft border-line',
-  learned: 'bg-leaf border-line',
-  solid: 'bg-leaf border-line shadow-[inset_0_-3px_0_0_var(--vx-leaf-edge)]',
+  drilling: 'bg-success-soft border-success-edge',
+  learned: 'bg-success border-success-edge',
+  solid: 'bg-success border-success-edge shadow-[inset_0_-3px_0_0_var(--vx-success-edge)]',
 };
 
 /** A drilling tile is filled halfway: the fill level, not only its tint, tells it from learned. */
 function Fill({ level }: { level: CaseLevel }) {
-  return level === 'drilling' ? <span aria-hidden data-fill="half" className="block h-1/2 w-full bg-leaf" /> : null;
+  return level === 'drilling' ? <span aria-hidden data-fill="half" className="block h-1/2 w-full bg-success" /> : null;
 }
 
 export const LEVEL_WORD: Record<CaseLevel, string> = {
@@ -61,10 +61,11 @@ export function CaseTiles({ cases, cards, label, currentId, onSelect, size = 'md
         const level = caseLevel(cards[c.id]);
         const name = `${c.name}: ${LEVEL_WORD[level]}`;
         const tile = cx(
-          'flex flex-col justify-end border-2',
+          'flex flex-col justify-end overflow-hidden border-2',
+          size === 'sm' ? 'rounded-xs' : 'rounded-sm',
           box,
           LEVEL_CLASS[level],
-          currentId === c.id && 'outline-2 outline-offset-1 outline-ink'
+          currentId === c.id && 'outline-2 outline-offset-1 outline-primary'
         );
         return (
           <li key={c.id} data-level={level}>
@@ -97,7 +98,7 @@ export function CaseLegend({ className }: { className?: string }) {
     <ul aria-label="Key" className={cx('flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted', className)}>
       {(Object.keys(LEVEL_CLASS) as CaseLevel[]).map((level) => (
         <li key={level} className="flex items-center gap-1.5">
-          <span aria-hidden className={cx('flex h-3 w-3 flex-col justify-end border-2', LEVEL_CLASS[level])}>
+          <span aria-hidden className={cx('flex h-3 w-3 flex-col justify-end overflow-hidden rounded-xs border-2', LEVEL_CLASS[level])}>
             <Fill level={level} />
           </span>
           {LEVEL_WORD[level]}

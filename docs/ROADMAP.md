@@ -28,6 +28,7 @@
 ### 2.2 Version 2.0: The Tutor (Phases 0–10 of `docs/tutor/GOAL.md`)
 - [x] Stabilize: arrow direction, ML feature parity, red/orange boundary, strict `parseMove`.
 - [x] Voxel design system with enforced style rules (ADR-011).
+- [x] Raised design system: navy-to-indigo gradient, rounded surfaces, pressable buttons, enforced rules (ADR-018).
 - [x] Cube engine: rotations, wide moves, slices, grip model, piece queries, move names.
 - [x] Deterministic tutor engine: beginner's method and CFOP with 41-case F2L and 2-look last
       layer (ADR-012); full 57 OLL / 21 PLL as a setting.

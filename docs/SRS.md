@@ -74,7 +74,7 @@ graph TD
 - No image or pixel data may leave the device that captured it.
 - `src/cube`, `src/tutor` and `src/learn` import no DOM, React or Three.js.
 - Claude never chooses moves. No real API calls in the build or tests.
-- Flat voxel design only: no gradients, blur, glass, glow or text shadows (ADR-011).
+- Raised design only: colors, gradients and shadows from the design tokens, corners from one radius scale, no blur, glass or text shadows (ADR-018).
 
 ---
 

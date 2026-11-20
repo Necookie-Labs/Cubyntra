@@ -3,8 +3,8 @@
  * Necookie Labs (c) 2026
  *
  * WebGL materials need real color values, not `var(--vx-*)`. This module mirrors the tokens the
- * 3D twin uses from the token block in src/app/globals.css (ADR-011). tests/tokens.test.ts fails
- * if the two ever disagree, so change a color there first and then here.
+ * 3D twin, the manifest and the icons use from the token block in src/app/globals.css (ADR-018).
+ * tests/tokens.test.ts fails if the two ever disagree, so change a color there first and then here.
  */
 
 import type { CubeColor } from '@/cube/types';
@@ -24,9 +24,9 @@ export const STICKER_HEX: Readonly<Record<CubeColor, string>> = {
 /** Plastic between the stickers (`--vx-sticker-core`). */
 export const STICKER_CORE_HEX = '#1B2E13';
 
-/** The light neutral that spotlit-away pieces of the twin are washed toward (the panel cream). */
-export const FADE_WASH_HEX = '#F7F3E3';
-/** How far a faded twin piece's colors move toward `FADE_WASH_HEX` (0 = unchanged, 1 = all cream). */
+/** The light neutral that spotlit-away pieces of the twin are washed toward (the light `--vx-ground`). */
+export const FADE_WASH_HEX = '#F3F2FF';
+/** How far a faded twin piece's colors move toward `FADE_WASH_HEX` (0 = unchanged, 1 = all wash). */
 export const FADE_WASH = 0.7;
 
 /**
@@ -54,20 +54,17 @@ export interface TwinThemeTokens {
 }
 
 export const TWIN_THEME_HEX: Readonly<Record<ThemeName, TwinThemeTokens>> = {
-  light: { ink: '#2E4A22', focus: '#1D5FB8' },
-  dark: { ink: '#E4EFD8', focus: '#8CC4FF' },
+  light: { ink: '#1B1842', focus: '#1F5FCC' },
+  dark: { ink: '#F4F3FF', focus: '#8FC1FF' },
 };
 
 /**
  * Colors the browser chrome uses outside CSS: the PWA manifest (splash screen, title bar),
- * the `theme-color` meta tag and the generated app icons. `ground` is `--vx-ground` and
- * `ink` is `--vx-ink` in each theme.
+ * the `theme-color` meta tag and the generated app icons. `ground` is `--vx-ground` (the top of
+ * the page gradient) and `ink` is `--vx-ink` in each theme.
  */
 export const APP_CHROME_HEX: Readonly<Record<ThemeName, { ground: string; ink: string }>> = {
-  light: { ground: '#EAF4E2', ink: '#2E4A22' },
-  dark: { ground: '#16210F', ink: '#E4EFD8' },
+  light: { ground: '#F3F2FF', ink: '#1B1842' },
+  dark: { ground: '#120F2B', ink: '#F4F3FF' },
 };
 
-/** `--vx-leaf` and `--vx-leaf-edge`. */
-export const LEAF_HEX = '#5FA83A';
-export const LEAF_EDGE_HEX = '#3F7A24';

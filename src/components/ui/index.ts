@@ -1,8 +1,8 @@
 /**
- * Cubyntra voxel design system (ADR-011). Import UI building blocks from here.
+ * Cubyntra raised design system (ADR-018). Import UI building blocks from here.
  */
 
-export { BlockButton } from './BlockButton';
+export { BlockButton, BLOCK_BUTTON_BASE, BLOCK_BUTTON_SIZE } from './BlockButton';
 export type { BlockButtonProps, BlockButtonSize, BlockButtonVariant } from './BlockButton';
 export { IconButton } from './IconButton';
 export type { IconButtonProps, IconButtonSize } from './IconButton';

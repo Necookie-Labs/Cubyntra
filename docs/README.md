@@ -49,7 +49,7 @@ as it is; where a number is measured, the document says how.
 | Document | Format | Description |
 | :--- | :--- | :--- |
 | [**3D Engine & Teaching Twin**](./THREE_D_ENGINE.md) | [Markdown](./THREE_D_ENGINE.md) • [PDF](./pdf/Cubyntra-Three-D-Engine.pdf) | Voxel cubies, drift-free turns, playback, grip camera, spotlight, preview |
-| [**UI / UX**](./UI_UX.md) | [Markdown](./UI_UX.md) • [PDF](./pdf/Cubyntra-UI-UX.pdf) | Voxel tokens and components, screens and navigation, accessibility |
+| [**UI / UX**](./UI_UX.md) | [Markdown](./UI_UX.md) • [PDF](./pdf/Cubyntra-UI-UX.pdf) | Raised design tokens and components, screens and navigation, accessibility |
 
 ### 6. Quality, Security & Operations
 | Document | Format | Description |

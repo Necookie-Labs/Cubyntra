@@ -35,7 +35,7 @@ export function CubeNet({ state, label, letters = false, className }: CubeNetPro
       {(Object.keys(NET) as Face[]).map((face) => (
         <div
           key={face}
-          className="grid grid-cols-3 gap-px border border-line bg-sticker-core p-px"
+          className="grid grid-cols-3 gap-px rounded-xs bg-sticker-core p-px"
           style={{ gridColumn: NET[face].col, gridRow: NET[face].row }}
         >
           {state[face].map((color, i) => (

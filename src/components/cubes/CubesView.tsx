@@ -53,7 +53,7 @@ function RenameForm({ cube, onDone }: { cube: SavedCube; onDone: () => void }) {
           value={draft}
           maxLength={MAX_CUBE_NAME_LENGTH}
           onChange={(e) => setDraft(e.target.value)}
-          className="h-11 w-full border-2 border-line bg-panel px-3 text-base font-normal text-ink"
+          className="h-11 w-full rounded-md border-2 border-line bg-panel px-3 text-base font-normal text-ink"
         />
       </label>
       <BlockButton type="submit" size="sm" variant="primary" disabled={!draft.trim()} icon={<Check aria-hidden className="h-4 w-4" />}>
@@ -91,7 +91,7 @@ function CubeItem({ cube, onDelete }: { cube: SavedCube; onDelete: (cube: SavedC
 
   return (
     <li>
-      <Panel as="article" aria-labelledby={titleId} className="flex flex-col gap-4 p-4 pb-5 sm:flex-row sm:items-start">
+      <Panel as="article" aria-labelledby={titleId} className="flex flex-col gap-4 sm:flex-row sm:items-start">
         <CubeNet state={cube.state} letters={letters} label={`Flat view of ${cube.name}`} />
         <div className="flex min-w-0 flex-1 flex-col gap-3">
           <div className="flex flex-col gap-1">
@@ -162,7 +162,7 @@ export function CubesView() {
       {loading ? (
         <Busy label="Loading your cubes" />
       ) : cubes.length === 0 ? (
-        <Panel as="section" aria-labelledby="no-cubes" className="flex flex-col items-start gap-4 p-6 pb-7">
+        <Panel as="section" aria-labelledby="no-cubes" className="flex flex-col items-start gap-4 p-6">
           <h2 id="no-cubes" className="text-xl leading-tight text-ink">
             No saved cubes yet
           </h2>

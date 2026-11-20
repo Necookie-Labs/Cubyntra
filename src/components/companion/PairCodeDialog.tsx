@@ -87,10 +87,10 @@ export const PairCodeDialog: React.FC<PairCodeDialogProps> = ({ open, onClose, o
           maxLength={9}
           aria-invalid={error ? true : undefined}
           aria-describedby={error ? 'pair-code-error' : undefined}
-          className="h-12 px-3 border-2 border-line bg-panel text-ink font-mono text-2xl tracking-widest uppercase"
+          className="h-12 rounded-md px-3 border-2 border-line bg-well text-ink font-mono text-2xl tracking-widest uppercase"
         />
         {error && (
-          <p id="pair-code-error" role="alert" className="text-sm text-ink bg-warn-soft border-2 border-warn-edge p-2">
+          <p id="pair-code-error" role="alert" className="rounded-md text-sm text-ink bg-warn-soft border-2 border-warn-edge p-3">
             {error}
           </p>
         )}

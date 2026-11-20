@@ -43,11 +43,12 @@ interface Card {
 
 const first = SCAN_SEQUENCE[0];
 
-/** A warn-yellow block face for the "light" card. */
+/** A warn-yellow raised face for the "light" card. */
 const WARN_BLOCK = {
   '--vx-face': 'var(--vx-warn)',
   '--vx-edge': 'var(--vx-warn-edge)',
-  '--vx-text': 'var(--vx-on-leaf)',
+  '--vx-rim': 'var(--vx-warn)',
+  '--vx-text': 'var(--vx-on-warn)',
 } as React.CSSProperties;
 
 const CARDS: Card[] = [
@@ -61,10 +62,10 @@ const CARDS: Card[] = [
     body: 'Daylight or a bright room works best. Avoid a lamp shining straight at the cube. In a dim room, tap the flash.',
     art: (
       <div className="flex items-end gap-4">
-        <span className="vx-block grid place-items-center w-20 h-20 pb-1" style={WARN_BLOCK}>
+        <span className="vx-block grid place-items-center w-20 h-20 rounded-2xl pb-0.5" style={WARN_BLOCK}>
           <Sun className="w-10 h-10" strokeWidth={2} />
         </span>
-        <span className="vx-block grid place-items-center w-12 h-12 pb-1">
+        <span className="vx-block grid place-items-center w-12 h-12 pb-0.5">
           <Zap className="w-6 h-6" strokeWidth={2} />
         </span>
       </div>
@@ -78,7 +79,7 @@ const CARDS: Card[] = [
         {SCAN_SEQUENCE.map((step, i) => (
           <li key={step.face} className="flex items-center gap-1">
             <span
-              className="block w-8 h-8 border-2 border-line shadow-block-sm"
+              className="block w-8 h-8 rounded-sm border-2 border-sticker-core shadow-block-sm"
               style={{ backgroundColor: stickerColor(step.centerColor) }}
               title={step.title}
             />
@@ -145,7 +146,7 @@ export const CaptureCoach: React.FC<CaptureCoachProps> = ({ onDone }) => {
       className="outline-none absolute inset-0 z-50 flex flex-col bg-ground text-ink pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))]"
     >
       <div className="flex items-center justify-between px-5">
-        <span className="font-display text-sm uppercase tracking-widest text-leaf">Before you start</span>
+        <span className="font-display text-sm font-extrabold uppercase tracking-widest text-accent">Before you start</span>
         <BlockButton variant="ghost" size="md" onClick={finish} className="text-muted">
           Skip
         </BlockButton>
@@ -166,7 +167,7 @@ export const CaptureCoach: React.FC<CaptureCoachProps> = ({ onDone }) => {
       >
         <section key={index} className="vx-place flex flex-col items-center gap-6 text-center">
           <div className="h-32 grid place-items-center">{CARDS[index].art}</div>
-          <div className="vx-panel flex flex-col gap-2 max-w-xs p-4 pb-6">
+          <div className="vx-panel flex flex-col gap-2 max-w-xs p-5">
             <h2 id="coach-title" className="text-xl leading-tight">
               {CARDS[index].title}
             </h2>
@@ -189,8 +190,8 @@ export const CaptureCoach: React.FC<CaptureCoachProps> = ({ onDone }) => {
             >
               <span
                 className={cx(
-                  'block h-3 border-2 transition-[width] duration-100',
-                  i === index ? 'w-8 bg-leaf border-line' : 'w-3 bg-well border-line-soft'
+                  'block h-3 rounded-full border-2 transition-[width] duration-100',
+                  i === index ? 'w-8 bg-primary border-primary-edge' : 'w-3 bg-well border-line-soft'
                 )}
               />
             </button>

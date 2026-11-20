@@ -66,7 +66,7 @@ const PAD_TONE: Record<TimerMachine['phase'], string> = {
   idle: 'bg-panel',
   inspecting: 'bg-well',
   holding: 'bg-warn-soft',
-  armed: 'bg-leaf',
+  armed: 'bg-success',
   running: 'bg-panel',
   stopping: 'bg-panel',
 };
@@ -78,7 +78,7 @@ function isControl(target: EventTarget | null): boolean {
 
 function StatBlock({ label, value }: { label: string; value: string }) {
   return (
-    <div className="vx-well flex flex-col gap-1 p-3">
+    <div className="vx-panel flex flex-col gap-1 p-4">
       <span className="font-mono text-2xl font-bold tabular-nums text-ink">{value}</span>
       <span className="text-xs font-bold text-muted">{label}</span>
     </div>
@@ -210,7 +210,7 @@ export function TimerView() {
             New scramble
           </BlockButton>
         </div>
-        <p aria-label="Scramble moves" className="vx-well min-h-12 p-3 font-mono text-base font-bold leading-relaxed text-ink">
+        <p aria-label="Scramble moves" className="vx-well min-h-12 rounded-md p-3 font-mono text-base font-bold leading-relaxed text-ink">
           {scramble ?? ' '}
         </p>
         <p className="text-sm text-muted">White on top, green in front.</p>
@@ -243,12 +243,12 @@ export function TimerView() {
           send({ type: 'release', at: performance.now() });
         }}
         className={cx(
-          'flex min-h-[280px] cursor-pointer border-2 border-line shadow-block touch-none flex-col items-center justify-center gap-4 p-6 text-center select-none sm:min-h-[320px]',
+          'flex min-h-[280px] cursor-pointer touch-none flex-col items-center justify-center gap-4 rounded-2xl border-2 border-line p-6 text-center shadow-block transition-colors duration-100 select-none sm:min-h-[320px]',
           PAD_TONE[phase]
         )}
       >
         {inspecting && (
-          <Chip tone={cue === 'none' ? 'neutral' : cue === '8s' ? 'leaf' : cue === 'dnf' ? 'danger' : 'warn'}>
+          <Chip tone={cue === 'none' ? 'neutral' : cue === '8s' ? 'success' : cue === 'dnf' ? 'danger' : 'warn'}>
             {CUE_TEXT[cue]}
           </Chip>
         )}
@@ -256,13 +256,13 @@ export function TimerView() {
           aria-live={phase === 'running' ? 'off' : 'polite'}
           className={cx(
             'font-mono font-bold tabular-nums leading-none',
-            phase === 'armed' ? 'text-on-leaf' : 'text-ink',
+            phase === 'armed' ? 'text-on-success' : 'text-ink',
             big.length > 6 ? 'text-5xl sm:text-6xl' : 'text-7xl sm:text-8xl'
           )}
         >
           {big}
         </p>
-        <p id="timer-caption" className={cx('text-sm font-bold', phase === 'armed' ? 'text-on-leaf' : 'text-muted')}>
+        <p id="timer-caption" className={cx('text-sm font-bold', phase === 'armed' ? 'text-on-success' : 'text-muted')}>
           {caption}
         </p>
       </div>
@@ -305,7 +305,7 @@ export function TimerView() {
               <li
                 key={`${solve.at}-${i}`}
                 className={cx(
-                  'flex flex-col gap-0.5 border-2 p-2',
+                  'flex flex-col gap-0.5 rounded-md border-2 p-2.5',
                   i === 0 ? 'border-line bg-panel' : 'border-line-soft bg-well'
                 )}
               >

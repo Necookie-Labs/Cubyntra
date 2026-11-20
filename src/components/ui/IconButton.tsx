@@ -2,8 +2,8 @@
  * Cubyntra - Icon Button
  * Necookie Labs (c) 2026
  *
- * A square block holding only an icon. An icon alone has no accessible name, so `label` is
- * required: it becomes the aria-label and the tooltip.
+ * A square raised button holding only an icon. An icon alone has no accessible name, so
+ * `label` is required: it becomes the aria-label and the tooltip.
  */
 
 import React from 'react';
@@ -24,9 +24,9 @@ export interface IconButtonProps
 }
 
 const SIZE: Record<IconButtonSize, string> = {
-  sm: 'h-8 w-8 pb-0.5',
-  md: 'h-10 w-10 pb-1',
-  lg: 'h-12 w-12 pb-1',
+  sm: 'h-9 w-9 rounded-md pb-0.5',
+  md: 'h-11 w-11 pb-0.5',
+  lg: 'h-13 w-13 pb-0.5',
 };
 
 export const IconButton: React.FC<IconButtonProps> = ({

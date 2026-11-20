@@ -5,8 +5,9 @@
  * Necookie Labs (c) 2026
  *
  * The square the user lines the cube up in. Its color says what is happening: ink while
- * idle, warn yellow while something needs fixing, leaf while holding steady for the photo,
- * and a solid leaf frame once the computer has read the face. Square pixel brackets, no glow.
+ * idle, warn yellow while something needs fixing, success green while holding steady for the
+ * photo, and a solid green frame once the computer has read the face. Rounded corner brackets,
+ * no glow.
  * With the letters setting on, the center and the live tiles carry their color's letter, so
  * they never rely on the swatch alone.
  */
@@ -20,15 +21,15 @@ export type ReticleTone = 'idle' | 'fix' | 'steady' | 'done';
 const TONE_RING: Record<ReticleTone, string> = {
   idle: 'border-ink',
   fix: 'border-warn',
-  steady: 'border-leaf',
-  done: 'border-leaf',
+  steady: 'border-success',
+  done: 'border-success',
 };
 
 const BRACKETS = [
-  'top-0 left-0 border-t-4 border-l-4',
-  'top-0 right-0 border-t-4 border-r-4',
-  'bottom-0 left-0 border-b-4 border-l-4',
-  'bottom-0 right-0 border-b-4 border-r-4',
+  'top-0 left-0 border-t-4 border-l-4 rounded-tl-2xl',
+  'top-0 right-0 border-t-4 border-r-4 rounded-tr-2xl',
+  'bottom-0 left-0 border-b-4 border-l-4 rounded-bl-2xl',
+  'bottom-0 right-0 border-b-4 border-r-4 rounded-br-2xl',
 ] as const;
 
 interface CompanionReticleProps {
@@ -59,8 +60,8 @@ export const CompanionReticle: React.FC<CompanionReticleProps> = ({
       ref={squareRef}
       className="relative shrink-0 w-[min(74vw,320px,max(200px,calc(100dvh-440px)))] aspect-square"
     >
-      {/* Read: a solid leaf frame snaps in around the whole square. */}
-      {tone === 'done' && <span aria-hidden className="vx-pop absolute inset-0 border-4 border-leaf" />}
+      {/* Read: a solid green frame snaps in around the whole square. */}
+      {tone === 'done' && <span aria-hidden className="vx-pop absolute inset-0 rounded-2xl border-4 border-success" />}
 
       {/* Corner brackets */}
       {BRACKETS.map((pos) => (
@@ -78,10 +79,10 @@ export const CompanionReticle: React.FC<CompanionReticleProps> = ({
           const isCenter = i === 4;
           return (
             <div key={i} className="relative grid place-items-center">
-              <span aria-hidden className={cx('absolute inset-0 border-2 border-ink', isCenter ? 'opacity-60' : 'opacity-25')} />
+              <span aria-hidden className={cx('absolute inset-0 rounded-md border-2 border-ink', isCenter ? 'opacity-60' : 'opacity-25')} />
               {isCenter ? (
                 <span
-                  className="relative grid w-8 h-8 place-items-center border-2 border-line shadow-block-sm"
+                  className="relative grid w-8 h-8 place-items-center rounded-sm border-2 border-sticker-core shadow-block-sm"
                   style={{ backgroundColor: stickerColor(expectedColor) }}
                   aria-hidden
                 >
@@ -90,7 +91,7 @@ export const CompanionReticle: React.FC<CompanionReticleProps> = ({
               ) : (
                 live && (
                   <span
-                    className={cx('vx-pop relative grid place-items-center border-2 border-line', letters ? 'w-5 h-5' : 'w-4 h-4')}
+                    className={cx('vx-pop relative grid place-items-center rounded-xs border-2 border-sticker-core', letters ? 'w-5 h-5' : 'w-4 h-4')}
                     style={{ backgroundColor: stickerColor(live) }}
                     aria-hidden
                   >

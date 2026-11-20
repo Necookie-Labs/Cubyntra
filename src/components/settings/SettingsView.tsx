@@ -59,14 +59,14 @@ function NameField() {
         onKeyDown={(e) => {
           if (e.key === 'Enter') commit();
         }}
-        className="h-11 w-full max-w-sm border-2 border-line bg-well px-3 text-sm text-ink placeholder:text-muted lg:h-10"
+        className="h-11 w-full max-w-sm rounded-md border-2 border-line bg-well px-3.5 text-sm text-ink placeholder:text-muted"
       />
     </div>
   );
 }
 
-const MODE_TEXT: Record<CoachMode, { chip: string; tone: 'leaf' | 'warn' | 'neutral'; body: string }> = {
-  live: { chip: 'Live', tone: 'leaf', body: 'Claude explains each step in plain words.' },
+const MODE_TEXT: Record<CoachMode, { chip: string; tone: 'success' | 'warn' | 'neutral'; body: string }> = {
+  live: { chip: 'Live', tone: 'success', body: 'Claude explains each step in plain words.' },
   mock: {
     chip: 'Templates only',
     tone: 'neutral',
@@ -122,10 +122,10 @@ function CoachStatusPanel() {
           aria-valuemin={0}
           aria-valuemax={status.capUsd}
           aria-valuenow={Number(status.monthSpendUsd.toFixed(2))}
-          className="h-4 w-full border-2 border-line bg-well"
+          className="h-4 w-full overflow-hidden rounded-full border-2 border-line bg-well"
         >
           <div
-            className={share >= 1 ? 'h-full bg-warn' : 'h-full bg-leaf'}
+            className={share >= 1 ? 'h-full rounded-full bg-warn' : 'h-full rounded-full bg-success'}
             style={{ width: `${Math.max(share > 0 ? 2 : 0, share * 100)}%` }}
           />
         </div>
@@ -161,7 +161,7 @@ function InstallPanel() {
   if (state === 'ios') {
     return (
       <Panel className="flex items-start gap-3">
-        <span aria-hidden className="flex h-8 w-8 shrink-0 items-center justify-center border-2 border-line bg-well">
+        <span aria-hidden className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border-2 border-line-soft bg-well">
           <Share className="h-4 w-4" />
         </span>
         <p className="text-sm text-ink">

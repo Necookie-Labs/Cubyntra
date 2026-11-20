@@ -94,12 +94,12 @@ export function PairView() {
           </div>
 
           {qrDataUrl && !sessionEnded ? (
-            <div className="border-2 border-line bg-qr-paper p-3 shadow-block">
+            <div className="rounded-xl border-2 border-line-soft bg-qr-paper p-3 shadow-block">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={qrDataUrl} alt="Pairing QR code" className="h-56 w-56 [image-rendering:pixelated]" />
             </div>
           ) : (
-            <div aria-hidden className="vx-well flex h-64 w-64 items-center justify-center">
+            <div aria-hidden className="vx-well flex h-64 w-64 items-center justify-center rounded-xl">
               {status === 'creating' && (
                 <span className="vx-loader">
                   <span />
@@ -144,7 +144,7 @@ export function PairView() {
           )}
 
           {insecure && (
-            <p role="status" className="w-full border-2 border-warn-edge bg-warn-soft p-3 text-sm text-ink">
+            <p role="status" className="w-full rounded-md border-2 border-warn-edge bg-warn-soft p-3 text-sm text-ink">
               The phone camera only opens on an https:// address. Start the server with npm run dev (HTTPS).
             </p>
           )}
@@ -159,7 +159,7 @@ export function PairView() {
                 'Allow the camera on the phone. Pictures stay on the phone.',
               ].map((step, i) => (
                 <li key={step} className="flex items-start gap-3 text-sm text-ink">
-                  <span className="flex h-6 w-6 shrink-0 items-center justify-center border-2 border-line bg-well font-mono text-xs font-bold">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 border-line-soft bg-well font-mono text-xs font-bold">
                     {i + 1}
                   </span>
                   {step}

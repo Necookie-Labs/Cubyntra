@@ -28,12 +28,12 @@ interface Faces {
 
 const BIOMES: Record<Biome, { ground: Faces; block: Faces; slab: Faces }> = {
   meadow: {
-    ground: { top: 'var(--vx-well)', left: 'var(--vx-panel-edge)', right: 'var(--vx-warn-edge)' },
-    block: { top: 'var(--vx-leaf-soft)', left: 'var(--vx-leaf)', right: 'var(--vx-leaf-edge)' },
+    ground: { top: 'var(--vx-success-soft)', left: 'var(--vx-raised-edge)', right: 'var(--vx-line)' },
+    block: { top: 'var(--vx-success-soft)', left: 'var(--vx-success)', right: 'var(--vx-success-edge)' },
     slab: { top: 'var(--vx-panel)', left: 'var(--vx-line-soft)', right: 'var(--vx-muted)' },
   },
   sand: {
-    ground: { top: 'var(--vx-panel)', left: 'var(--vx-panel-edge)', right: 'var(--vx-warn-edge)' },
+    ground: { top: 'var(--vx-warn-soft)', left: 'var(--vx-raised-edge)', right: 'var(--vx-line)' },
     block: { top: 'var(--vx-warn-soft)', left: 'var(--vx-warn)', right: 'var(--vx-warn-edge)' },
     slab: { top: 'var(--vx-well)', left: 'var(--vx-line-soft)', right: 'var(--vx-muted)' },
   },

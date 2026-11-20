@@ -77,10 +77,10 @@ const HOLD_SEGMENTS = 4;
 type HintKind = 'fix' | 'progress' | 'ok' | 'error';
 
 const HINT_STYLE: Record<HintKind, string> = {
-  error: 'bg-warn text-on-leaf',
-  fix: 'bg-warn-soft text-ink',
-  progress: 'bg-panel text-ink',
-  ok: 'bg-leaf text-on-leaf',
+  error: 'border-warn-edge bg-warn text-on-warn',
+  fix: 'border-warn-edge bg-warn-soft text-ink',
+  progress: 'border-line-soft bg-panel text-ink',
+  ok: 'border-success-edge bg-success text-on-success',
 };
 
 /** What the phone says while it is not paired, by why (see `PairingProblem`). */
@@ -413,14 +413,18 @@ function CompanionScannerContent() {
       {captureFlash > 0 && <div key={captureFlash} className="vx-flash absolute inset-0 z-40 bg-qr-paper pointer-events-none" />}
 
       {/* Top bar: a solid strip, so it reads over any scene */}
-      <header className="relative z-40 shrink-0 flex items-center justify-between gap-3 px-4 pt-[max(0.5rem,env(safe-area-inset-top))] pb-2 bg-panel border-b-2 border-line">
+      <header className="relative z-40 shrink-0 flex items-center justify-between gap-3 px-4 pt-[max(0.5rem,env(safe-area-inset-top))] pb-2 bg-panel border-b-2 border-line-soft">
         {/* The shell's <main> wraps this screen; the viewfinder needs no visible title. */}
         <h1 className="sr-only">Phone camera</h1>
         <div className="flex items-center gap-2 min-w-0">
           <span
             className={cx(
-              'w-3 h-3 shrink-0 border-2 border-line',
-              !sessionId ? 'bg-warn' : session.connected ? 'bg-leaf' : 'bg-well'
+              'w-3 h-3 shrink-0 rounded-full border-2',
+              !sessionId
+                ? 'bg-warn border-warn-edge'
+                : session.connected
+                ? 'bg-success border-success-edge'
+                : 'bg-well border-line'
             )}
             aria-hidden
           />
@@ -454,7 +458,7 @@ function CompanionScannerContent() {
       {!sessionId && (
         <div
           role="status"
-          className="relative z-40 shrink-0 flex items-center justify-between gap-3 px-4 py-2 bg-panel border-b-2 border-line"
+          className="relative z-40 shrink-0 flex items-center justify-between gap-3 px-4 py-2 bg-panel border-b-2 border-line-soft"
         >
           <p className="text-xs text-ink">{PAIRING_HELP[pairingProblem ?? 'none']}</p>
           <BlockButton size="sm" onClick={() => setShowCodeEntry(true)} className="shrink-0">
@@ -468,7 +472,7 @@ function CompanionScannerContent() {
         <div className="relative z-20 flex-1 min-h-0 flex flex-col items-center justify-center gap-4 px-4 pointer-events-none">
           <section
             key={currentStep.face}
-            className="vx-panel vx-place flex items-center gap-3 w-full max-w-sm p-3 pb-4"
+            className="vx-panel vx-place flex items-center gap-3 w-full max-w-sm p-3"
             aria-live="polite"
           >
             <FaceGuide
@@ -479,7 +483,7 @@ function CompanionScannerContent() {
               className="vx-pop w-16 h-16 shrink-0"
             />
             <div className="flex flex-col gap-1 min-w-0">
-              <span className="font-display text-xs uppercase tracking-wider text-leaf">
+              <span className="font-display text-xs font-extrabold uppercase tracking-wider text-accent">
                 Step {stepIndex + 1} of 6 · {currentStep.title}
               </span>
               <p className="text-sm font-bold leading-snug text-ink">{currentStep.instruction}</p>
@@ -499,7 +503,7 @@ function CompanionScannerContent() {
             {currentStatus === 'accepted' ? (
               // A face already read can be taken again when a color came out wrong.
               <div className="pointer-events-auto flex flex-wrap items-center justify-center gap-2">
-                <p role="status" className={cx('inline-flex items-center gap-2 px-3 py-2 text-sm font-bold border-2 border-line shadow-block-sm', HINT_STYLE.ok)}>
+                <p role="status" className={cx('inline-flex items-center gap-2 rounded-full border-2 px-4 py-2 text-sm font-bold shadow-block-sm', HINT_STYLE.ok)}>
                   <Check className="w-4 h-4" strokeWidth={3} />
                   {currentStep.title} read
                 </p>
@@ -515,7 +519,7 @@ function CompanionScannerContent() {
               <p
                 role="status"
                 className={cx(
-                  'inline-flex items-center gap-2 px-3 py-2 text-sm font-bold border-2 border-line shadow-block-sm',
+                  'inline-flex items-center gap-2 rounded-full border-2 px-4 py-2 text-sm font-bold shadow-block-sm',
                   HINT_STYLE[hint.kind]
                 )}
               >
@@ -533,14 +537,14 @@ function CompanionScannerContent() {
       {/* Camera states */}
       {cameraStatus === 'loading' && (
         <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-3 bg-ground">
-          <Loader2 className="w-8 h-8 text-leaf animate-spin motion-reduce:animate-none" />
+          <Loader2 className="w-8 h-8 text-primary animate-spin motion-reduce:animate-none" />
           <p className="text-sm font-bold text-ink">Opening the camera…</p>
           <p className="text-xs text-muted">Allow camera access if your phone asks.</p>
         </div>
       )}
       {cameraStatus === 'error' && (
         <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-4 bg-ground px-8 text-center">
-          <span className="vx-block grid place-items-center w-16 h-16 pb-1" data-variant="danger" aria-hidden>
+          <span className="vx-block grid place-items-center w-16 h-16 rounded-full pb-0.5" data-variant="danger" aria-hidden>
             <AlertCircle className="w-8 h-8" />
           </span>
           <div className="flex flex-col gap-2">
@@ -555,7 +559,7 @@ function CompanionScannerContent() {
 
       {/* Bottom controls: a solid deck so the shutter is easy to find */}
       {!isAllComplete && cameraStatus === 'streaming' && (
-        <footer className="relative z-30 shrink-0 flex flex-col items-center gap-3 px-4 pt-3 pb-[max(0.5rem,env(safe-area-inset-bottom))] bg-panel border-t-2 border-line">
+        <footer className="relative z-30 shrink-0 flex flex-col items-center gap-3 px-4 pt-3 pb-[max(0.5rem,env(safe-area-inset-bottom))] bg-panel border-t-2 border-line-soft">
           <ol className="flex items-center gap-2" aria-label="Faces">
             {SCAN_SEQUENCE.map((step, idx) => {
               const status = session.status[step.face];
@@ -573,16 +577,16 @@ function CompanionScannerContent() {
                       className={cx(
                         'grid place-items-center border-2 transition-transform duration-100',
                         isCurrent
-                          ? 'w-8 h-8 border-line shadow-block-sm -translate-y-0.5'
+                          ? 'w-8 h-8 rounded-sm border-ink shadow-block-sm -translate-y-0.5'
                           : status === 'rejected'
-                          ? 'w-6 h-6 border-warn'
-                          : 'w-6 h-6 border-line'
+                          ? 'w-6 h-6 rounded-xs border-warn'
+                          : 'w-6 h-6 rounded-xs border-sticker-core'
                       )}
                       style={{ backgroundColor: stickerColor(step.centerColor) }}
                     >
                       {status === 'accepted' ? (
-                        <span className="grid place-items-center w-4 h-4 bg-leaf border-2 border-line">
-                          <Check className="w-3 h-3 text-on-leaf" strokeWidth={4} />
+                        <span className="grid place-items-center w-4 h-4 rounded-full bg-success border-2 border-sticker-core">
+                          <Check className="w-3 h-3 text-on-success" strokeWidth={4} />
                         </span>
                       ) : (
                         letters && (
@@ -620,7 +624,7 @@ function CompanionScannerContent() {
                 onClick={() => void takePhoto()}
                 disabled={isCapturing || isWaitingOnComputer}
                 aria-label="Take photo"
-                className="vx-block w-20 h-20 pb-1 grid place-items-center"
+                className="vx-block w-20 h-20 rounded-full pb-0.5 grid place-items-center"
               >
                 {isWaitingOnComputer ? (
                   <Loader2 className="w-8 h-8 animate-spin motion-reduce:animate-none" />
@@ -633,9 +637,9 @@ function CompanionScannerContent() {
                   <span
                     key={i}
                     className={cx(
-                      'block w-4 h-2 border-2',
+                      'block w-4 h-2 rounded-full border-2',
                       i < holdSteps
-                        ? 'bg-leaf border-line'
+                        ? 'bg-success border-success-edge'
                         : shutterNeedsFix
                         ? 'bg-warn-soft border-warn-edge'
                         : 'bg-well border-line-soft'
@@ -665,8 +669,8 @@ function CompanionScannerContent() {
             Auto-capture
             <span
               className={cx(
-                'inline-flex items-center h-6 px-2 border-2 font-mono',
-                autoCapture ? 'bg-leaf text-on-leaf border-line' : 'bg-well text-muted border-line-soft'
+                'inline-flex items-center h-6 px-2.5 rounded-full border-2 font-mono',
+                autoCapture ? 'bg-success text-on-success border-success-edge' : 'bg-well text-muted border-line-soft'
               )}
             >
               {autoCapture ? 'on' : 'off'}
@@ -678,10 +682,13 @@ function CompanionScannerContent() {
       {/* Done */}
       {isAllComplete && (
         <div className="absolute inset-0 z-40 flex flex-col items-center justify-center gap-6 p-8 bg-ground text-center">
-          <span className="vx-block vx-pop grid place-items-center w-24 h-24 pb-1" data-variant="primary" aria-hidden>
+          <span
+            className="vx-pop grid place-items-center w-24 h-24 rounded-full bg-success text-on-success shadow-[inset_0_-4px_0_0_var(--vx-success-edge)]"
+            aria-hidden
+          >
             <CheckCircle2 className="w-12 h-12" />
           </span>
-          <Panel className="vx-place flex flex-col gap-3 max-w-xs p-4 pb-6">
+          <Panel className="vx-place flex flex-col gap-3 max-w-xs">
             <h2 className="text-2xl leading-tight">
               {session.confirmed ? 'Solving on your computer' : sessionId ? 'All six faces read' : 'All six faces read here'}
             </h2>
@@ -702,7 +709,7 @@ function CompanionScannerContent() {
 
           {/* Remote control: either device can play, pause and step; the computer shows the turns. */}
           {session.confirmed && sessionId && !tutorStep && solutionMoves.length > 0 && (
-            <Panel as="section" aria-label="Solution controls" className="flex flex-col items-center gap-3 w-full max-w-xs p-4 pb-5">
+            <Panel as="section" aria-label="Solution controls" className="flex flex-col items-center gap-3 w-full max-w-xs p-4">
               <p role="status" className="text-sm font-bold text-ink">
                 {playMove
                   ? `Move ${playIndex + 1} of ${solutionMoves.length}: ${formatMove(playMove)}`

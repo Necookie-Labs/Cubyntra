@@ -60,15 +60,18 @@ function SetPicker({ value, onChange }: { value: TrainerSetId; onChange: (id: Tr
             role="radio"
             aria-checked={active}
             onClick={() => onChange(set.id)}
+            // A choice card: it stands on a 4px edge (2px rim + 2px band) and sinks when pressed.
             className={cx(
-              'flex min-h-[88px] min-w-11 flex-col items-start justify-between gap-2 border-2 border-line p-3 pb-4 text-left shadow-[inset_0_-4px_0_0_var(--vx-panel-edge),4px_4px_0_0_var(--vx-shadow)]',
-              active ? 'bg-leaf-soft' : 'bg-panel hover:bg-well'
+              'flex min-h-[88px] min-w-11 flex-col items-start justify-between gap-2 rounded-xl border-2 p-3 pb-4 text-left transition-transform duration-100 ease-press hover:-translate-y-px active:translate-y-0.5 active:shadow-none',
+              active
+                ? 'border-primary border-b-primary-edge bg-primary-soft shadow-[inset_0_-2px_0_0_var(--vx-primary-edge)]'
+                : 'border-line-soft border-b-raised-edge bg-raised shadow-[inset_0_-2px_0_0_var(--vx-raised-edge)]'
             )}
           >
             <span className="text-sm font-bold leading-tight text-ink">{set.name}</span>
             <span className="flex w-full flex-col gap-1">
-              <span aria-hidden className="block h-2 w-full border-2 border-line bg-well">
-                <span className="block h-full bg-leaf" style={{ width: `${(learned / total) * 100}%` }} />
+              <span aria-hidden className="block h-2.5 w-full overflow-hidden rounded-full border border-line-soft bg-well">
+                <span className="block h-full rounded-full bg-success" style={{ width: `${(learned / total) * 100}%` }} />
               </span>
               <span className="font-mono text-xs text-muted">
                 {learned}/{total} learned
@@ -114,7 +117,7 @@ function DrillStep({ n, title, children }: { n: number; title: string; children:
     <li className="flex gap-3">
       <span
         aria-hidden
-        className="flex h-7 w-7 shrink-0 items-center justify-center border-2 border-line bg-well font-mono text-xs font-bold text-ink"
+        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 border-line-soft bg-well font-mono text-xs font-bold text-ink"
       >
         {n}
       </span>
@@ -128,7 +131,7 @@ function DrillStep({ n, title, children }: { n: number; title: string; children:
 
 function Notation({ moves, label }: { moves: string; label: string }) {
   return (
-    <p aria-label={label} className="vx-well break-words p-2 font-mono text-sm font-bold leading-relaxed text-ink">
+    <p aria-label={label} className="vx-well break-words rounded-md px-3 py-2 font-mono text-sm font-bold leading-relaxed text-ink">
       {moves}
     </p>
   );
@@ -258,7 +261,7 @@ export function TrainerView() {
               <h2 id="drill-title" className="text-lg leading-tight text-ink">
                 {revealName ? c.name : 'Which case is this?'}
               </h2>
-              <Chip tone={level === 'new' ? 'neutral' : 'leaf'}>{LEVEL_LABEL[level]}</Chip>
+              <Chip tone={level === 'new' ? 'neutral' : 'success'}>{LEVEL_LABEL[level]}</Chip>
             </div>
 
             <ol className="flex flex-col gap-4">
@@ -341,7 +344,7 @@ export function TrainerView() {
             </ol>
 
             {mismatch && (
-              <div className="flex flex-col gap-3 border-2 border-warn-edge bg-warn-soft p-3">
+              <div className="flex flex-col gap-3 rounded-xl border-2 border-warn-edge bg-warn-soft p-4">
                 <div role="status" className="flex flex-col gap-3">
                   <p className="text-sm font-bold text-ink">Not solved yet.</p>
                   <p className="text-sm text-ink">

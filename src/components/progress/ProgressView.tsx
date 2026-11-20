@@ -70,7 +70,7 @@ function Island({
           </h3>
           <span className="text-xs font-bold text-muted">{biomeName}</span>
         </div>
-        <Chip tone={mastered === world.length ? 'solid' : mastered > 0 ? 'leaf' : 'neutral'}>
+        <Chip tone={mastered === world.length ? 'solid' : mastered > 0 ? 'success' : 'neutral'}>
           {mastered} of {world.length} mastered
         </Chip>
       </div>
@@ -83,11 +83,11 @@ function Island({
             <span
               aria-hidden
               className={cx(
-                'flex h-6 w-6 shrink-0 items-center justify-center border-2 font-mono text-xs font-bold',
+                'flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 font-mono text-xs font-bold',
                 stage.status === 'mastered'
-                  ? 'border-line bg-leaf text-on-leaf'
+                  ? 'border-success-edge bg-success text-on-success'
                   : stage.status === 'started'
-                    ? 'border-line bg-leaf-soft text-ink'
+                    ? 'border-primary bg-primary-soft text-ink'
                     : 'border-line-soft bg-well text-muted'
               )}
             >
@@ -120,9 +120,9 @@ function StreakCalendar({ days, today }: { days: readonly string[]; today: strin
               aria-label={`${day}: ${on ? 'practised' : 'no practice'}`}
               title={day}
               className={cx(
-                'block h-6 w-6 border-2',
-                on ? 'border-line bg-leaf shadow-[inset_0_-3px_0_0_var(--vx-leaf-edge)]' : 'border-line-soft bg-well',
-                day === today && 'outline-2 outline-offset-1 outline-ink'
+                'block h-6 w-6 rounded-sm border-2',
+                on ? 'border-success-edge bg-success shadow-[inset_0_-3px_0_0_var(--vx-success-edge)]' : 'border-line-soft bg-well',
+                day === today && 'outline-2 outline-offset-1 outline-primary'
               )}
             />
           </li>
@@ -134,8 +134,8 @@ function StreakCalendar({ days, today }: { days: readonly string[]; today: strin
 
 function Summary({ value, label }: { value: React.ReactNode; label: string }) {
   return (
-    <div className="vx-well flex flex-col gap-1 p-3">
-      <span className="font-display text-3xl leading-none text-ink">{value}</span>
+    <div className="vx-panel flex flex-col gap-1 p-4">
+      <span className="font-display text-3xl font-black leading-none text-ink">{value}</span>
       <span className="text-xs font-bold text-muted">{label}</span>
     </div>
   );
@@ -178,11 +178,11 @@ export function ProgressView() {
       <PageSection title="Streak">
         <Panel className="flex flex-col gap-5 sm:flex-row sm:items-center sm:gap-8">
           <div className="flex items-center gap-4">
-            <span aria-hidden data-variant={streak > 0 ? 'primary' : 'secondary'} className="vx-block flex h-14 w-14 items-center justify-center pb-1">
+            <span aria-hidden data-variant={streak > 0 ? 'primary' : 'secondary'} className="vx-block flex h-14 w-14 items-center justify-center rounded-xl pb-0.5">
               <Flame className="h-6 w-6" />
             </span>
             <div className="flex flex-col gap-1">
-              <p className="font-display text-3xl leading-none text-ink">
+              <p className="font-display text-3xl font-black leading-none text-ink">
                 {streak} {streak === 1 ? 'day' : 'days'}
               </p>
               <p className="text-xs text-muted">
@@ -210,7 +210,7 @@ export function ProgressView() {
             const ids = set.cases.map((c) => c.id);
             const progress = setProgress({ turn: 0, cards, set: null }, ids);
             return (
-              <li key={set.id} className="vx-well flex flex-col gap-2 p-3">
+              <li key={set.id} className="vx-panel flex flex-col gap-2 p-4">
                 <div className="flex items-baseline justify-between gap-2">
                   <span className="text-sm font-bold text-ink">{set.name}</span>
                   <span className="font-mono text-xs text-muted">

@@ -58,10 +58,10 @@ export function MiniCube({ centers, highlight, letters = false, className }: Min
             className={cx('relative flex flex-col items-center gap-0.5')}
             style={{ gridColumn: NET[face].col, gridRow: NET[face].row }}
           >
-            {active && <span data-picture-top className="absolute -top-3 left-0 h-1 w-full bg-ink" />}
+            {active && <span data-picture-top className="absolute -top-3 left-0 h-1 w-full rounded-full bg-ink" />}
             <div
               className={cx(
-                'grid grid-cols-3 gap-px bg-sticker-core p-px',
+                'grid grid-cols-3 gap-px rounded-xs bg-sticker-core p-px',
                 active ? 'outline-4 outline-offset-2 outline-focus' : 'border border-line-soft'
               )}
             >

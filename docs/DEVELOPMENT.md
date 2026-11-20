@@ -26,9 +26,9 @@ open https://localhost:3000
 
 > **Why HTTPS?** Phones only allow camera access on `https://` pages (`localhost` on the same device is the only exception). `npm run dev` creates a self-signed certificate for `localhost` and this computer's network addresses in `.certs/` (git-ignored), without installing anything into the system trust store. The first visit on each device shows a "connection is not private" warning: tap **Advanced → Proceed**. Use `npm run dev:http` for plain HTTP; phone scanning will not work with it.
 
-> **Fonts need the network once.** The UI fonts (Pixelify Sans, Nunito Sans, Geist Mono) load through `next/font/google`, which downloads them during `npm run dev` and `npm run build` and then serves them from this machine; the browser never contacts Google. Without network access `next build` can fail at the font step (the dev server falls back to system fonts), so run the first build online.
+> **Fonts need the network once.** The UI fonts (Nunito, Nunito Sans, Geist Mono) load through `next/font/google`, which downloads them during `npm run dev` and `npm run build` and then serves them from this machine; the browser never contacts Google. Without network access `next build` can fail at the font step (the dev server falls back to system fonts), so run the first build online.
 
-> **Design rules.** UI code may only use the voxel tokens from `src/app/globals.css` and the components in `src/components/ui/` ([ADR-011](ADR/011-voxel-design-system.md)). `tests/design-rules.test.ts` fails on gradients, blur, glass, text shadows, soft shadows, rounded corners, Tailwind's default palette and hex colors outside the token block.
+> **Design rules.** UI code may only use the design tokens from `src/app/globals.css` and the components in `src/components/ui/` ([ADR-018](ADR/018-raised-design-system.md)). `tests/design-rules.test.ts` fails on gradients and hex colors outside the token block, blur, glass, text shadows, Tailwind's default shadows and palette, corners off the radius scale, classes for retired tokens (`bg-leaf`...) and any `var(--vx-*)` that is not a declared token.
 
 ---
 
@@ -237,9 +237,10 @@ works for the visit and Settings says changes are not saved.
   (a shortcut) until the certificate is trusted (§6.4).
 - **iPhone (Safari).** Share → Add to Home Screen. Settings shows this hint on iOS Safari.
 - The manifest (`src/app/manifest.ts`, served at `/manifest.webmanifest`) asks for standalone,
-  portrait display. Icons are in `public/icons/`; regenerate them with
+  portrait display. Icons are in `public/icons/`, and the browser-tab favicon (the same cube on
+  a transparent ground, 16/32/48 px) is `src/app/favicon.ico`. Regenerate them all with
   `npx tsx scripts/generate-icons.ts` after changing the icon or the color tokens
-  (`tests/pwa-manifest.test.ts` fails if the committed PNGs are out of date).
+  (`tests/pwa-manifest.test.ts` fails if the committed PNGs or favicon are out of date).
 
 ### 6.4 Trusting the dev certificate on a phone (optional)
 Camera access works after tapping through the certificate warning. Installing as a real app and

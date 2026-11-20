@@ -16,7 +16,7 @@ The Cubyntra 3D engine provides an interactive, mathematically faithful digital 
 2. **Zero Floating-Point Accumulation Drift**: Repeated matrix multiplications during continuous face turns inevitably degrade floating-point orthogonality without rigorous snapping. All layer rotations round cubie coordinates to integer space $\{-1, 0, 1\}$ upon animation completion.
 3. **Eased turns**: each turn is interpolated with easing at the display's frame rate; under reduced motion turns are cut short.
 4. **Context Loss Resilience**: The loop pauses when the WebGL context is lost and the twin is rebuilt from the logical state when it returns (section 9).
-5. **Flat Voxel Look**: Flat colors from the design tokens, no gloss, gradients or glow ([ADR-011](ADR/011-voxel-design-system.md)).
+5. **Flat Voxel Look**: Flat colors from the design tokens, no gloss, gradients or glow ([ADR-011](ADR/011-voxel-design-system.md); the twin keeps this look under [ADR-018](ADR/018-raised-design-system.md)).
 
 ---
 
@@ -155,7 +155,7 @@ reads as a sequence of snaps.
 ## 6. Teaching Aids
 
 ### 6.1 Spotlight (`src/three/spotlight.ts`)
-`engine.setSpotlight(pieces: { position: [x, y, z] }[] | null)` keeps the cubies at the listed positions at full color and fades every other cubie, body and tiles, by washing its colors 70% toward the panel cream (`FADE_WASH`, `FADE_WASH_HEX`). Faded pieces stay solid: an earlier see-through fade (35% opacity, depth writes off) stacked the whole cube into muddy overlapping layers. The fade uses shared opaque materials from the `VoxelKit`, with no glow or outline. The "after" preview still fades see-through (`new VoxelKit({ fadeStyle: 'transparent' })`). Positions are in the twin's logical frame: x from L (-1) to R (1), y from D (-1) to U (1), z from B (-1) to F (1); anything off the grid throws. The spotlight marks positions, not physical pieces: it is re-applied after every turn. `null` lights everything; an empty list fades everything.
+`engine.setSpotlight(pieces: { position: [x, y, z] }[] | null)` keeps the cubies at the listed positions at full color and fades every other cubie, body and tiles, by washing its colors 70% toward the light ground (`FADE_WASH`, `FADE_WASH_HEX`, the light `--vx-ground`). Faded pieces stay solid: an earlier see-through fade (35% opacity, depth writes off) stacked the whole cube into muddy overlapping layers. The fade uses shared opaque materials from the `VoxelKit`, with no glow or outline. The "after" preview still fades see-through (`new VoxelKit({ fadeStyle: 'transparent' })`). Positions are in the twin's logical frame: x from L (-1) to R (1), y from D (-1) to U (1), z from B (-1) to F (1); anything off the grid throws. The spotlight marks positions, not physical pieces: it is re-applied after every turn. `null` lights everything; an empty list fades everything.
 
 ### 6.2 Slot Outline
 `engine.setSlotOutline(position | null)` draws a flat outline box around one cubie position (for example the F2L slot a pair goes into): twelve square bars, 1.12 units across, in the theme's focus color (`--vx-focus`). Bars are used because WebGL lines are one pixel wide on most platforms.

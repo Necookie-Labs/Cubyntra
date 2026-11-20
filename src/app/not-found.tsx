@@ -11,7 +11,7 @@ import { Chip } from '@/components/ui';
 export default function NotFound() {
   return (
     <main className="min-h-[100dvh] grid place-items-center p-6">
-      <div className="vx-panel vx-place w-full max-w-md p-6 pb-7 flex flex-col items-center gap-4 text-center">
+      <div className="vx-panel vx-place flex w-full max-w-md flex-col items-center gap-4 rounded-2xl p-6 text-center">
         <CubeGlyph className="w-16 h-16" />
         <Chip tone="warn" className="font-mono">404</Chip>
         <div className="flex flex-col gap-2">
@@ -20,7 +20,7 @@ export default function NotFound() {
             The link may be old or mistyped. If you were pairing a phone, scan the QR code on your computer again.
           </p>
         </div>
-        <Link href="/" data-variant="primary" className="vx-block inline-flex h-10 items-center gap-2 px-4 pb-1 text-sm font-bold">
+        <Link href="/" data-variant="primary" className="vx-block inline-flex h-11 items-center gap-2 px-5 pb-0.5 font-display text-[15px] font-extrabold tracking-wide">
           <Home className="w-4 h-4" aria-hidden />
           Back to home
         </Link>
