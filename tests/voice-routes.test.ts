@@ -136,8 +136,68 @@ describe('POST /api/voice: speaking', () => {
     expect(res.headers.get('Content-Type')).toBe('audio/mpeg');
     expect(res.headers.get('X-Voice-Cache')).toBe('miss');
     expect([...new Uint8Array(await res.arrayBuffer())]).toEqual([...MP3]);
-    expect(fake.ttsCalls()[0].body).toEqual({ text: 'Look for the white edge.', model_id: 'eleven_flash_v2_5' });
+    expect(fake.ttsCalls()[0].body).toEqual({
+      text: 'Look for the white edge.',
+      model_id: 'eleven_v4',
+      voice_settings: { stability: 0.5, similarity_boost: 0.75, style: 0, use_speaker_boost: true, speed: 1 },
+    });
+    // Alice, the default voice.
+    expect(fake.ttsCalls()[0].url).toContain('/v1/text-to-speech/Xb7hH8MSUJpSbSDYk0k2?');
+    // Eleven v4: one credit per character.
+    expect(usage().months[month()]).toEqual({ characters: 24, credits: 24, requests: 1 });
+  });
+
+  it('sends the chosen voice, model and speed to ElevenLabs, and counts credits at that model', async () => {
+    process.env.ELEVENLABS_API_KEY = 'sk-test';
+    const fake = fakeElevenLabs();
+    const body = { text: 'Look for the white edge.', voiceId: 'XrExE9yKIg1WjnnlVkGX', quality: 'fast', rate: 0.75 };
+    expect((await postVoice(voiceRequest(body))).status).toBe(200);
+    const call = fake.ttsCalls()[0];
+    expect(call.url).toContain('/v1/text-to-speech/XrExE9yKIg1WjnnlVkGX?');
+    expect(call.body).toMatchObject({ model_id: 'eleven_v4_turbo', voice_settings: { speed: 0.75 } });
+    // v4 Turbo: half a credit per character.
     expect(usage().months[month()]).toEqual({ characters: 24, credits: 12, requests: 1 });
+  });
+
+  it.each([
+    ['an arbitrary voice id', { voiceId: 'abcdefghij12' }],
+    ['a voice id with symbols', { voiceId: '../x' }],
+    ['a voice id that is not text', { voiceId: 42 }],
+    ['an unknown quality', { quality: 'ultra' }],
+    ['a speed that is not a setting', { rate: 3 }],
+    ['a model field', { model_id: 'eleven_v3' }],
+  ])('refuses %s without calling ElevenLabs', async (_name, extra) => {
+    process.env.ELEVENLABS_API_KEY = 'sk-test';
+    const fake = fakeElevenLabs();
+    expect((await postVoice(voiceRequest({ text: 'Hi', ...extra }))).status).toBe(400);
+    expect(fake.calls).toHaveLength(0);
+  });
+
+  it('accepts the laptop voice from ELEVENLABS_VOICE_ID and uses it as the default', async () => {
+    process.env.ELEVENLABS_API_KEY = 'sk-test';
+    process.env.ELEVENLABS_VOICE_ID = 'abcdefghij12';
+    const fake = fakeElevenLabs();
+    expect((await postVoice(voiceRequest({ text: 'Hi', voiceId: 'abcdefghij12' }))).status).toBe(200);
+    expect((await postVoice(voiceRequest({ text: 'Hi' }))).status).toBe(200);
+    expect(fake.ttsCalls().map((c) => c.url.split('?')[0].split('/').pop())).toEqual(['abcdefghij12', 'abcdefghij12']);
+    const status = (await (await getStatus(statusRequest('?preference=elevenlabs'))).json()) as VoiceStatus;
+    expect(status.laptopVoiceId).toBe('abcdefghij12');
+    delete process.env.ELEVENLABS_VOICE_ID;
+  });
+
+  it('makes a new phrase clip when the voice, the quality or the speed changes', async () => {
+    process.env.ELEVENLABS_API_KEY = 'sk-test';
+    const fake = fakeElevenLabs();
+    const phrase = { text: LINES.match, kind: 'phrase' };
+    const cache = async (extra: object) => (await postVoice(voiceRequest({ ...phrase, ...extra }))).headers.get('X-Voice-Cache');
+    expect(await cache({})).toBe('miss');
+    expect(await cache({})).toBe('hit');
+    expect(await cache({ voiceId: 'Xb7hH8MSUJpSbSDYk0k2', quality: 'high' })).toBe('hit');
+    expect(await cache({ voiceId: 'bIHbv24MWmeRgasZH58o' })).toBe('miss');
+    expect(await cache({ quality: 'fast' })).toBe('miss');
+    expect(await cache({ rate: 1.25 })).toBe('miss');
+    expect(await cache({ quality: 'fast' })).toBe('hit');
+    expect(fake.ttsCalls()).toHaveLength(4);
   });
 
   it('serves a cached phrase without spending credits', async () => {
@@ -168,9 +228,9 @@ describe('POST /api/voice: speaking', () => {
     process.env.ELEVENLABS_API_KEY = 'sk-test';
     process.env.ELEVENLABS_MONTHLY_CREDIT_CAP = '20';
     const fake = fakeElevenLabs();
-    // 30 characters = 15 credits: fits.
-    expect((await postVoice(voiceRequest({ text: 'a'.repeat(29) + '.' }))).status).toBe(200);
-    // Another 30 would make 30 credits, over 20: refused before calling.
+    // 30 characters with v4 Turbo = 15 credits: fits.
+    expect((await postVoice(voiceRequest({ text: 'a'.repeat(29) + '.', quality: 'fast' }))).status).toBe(200);
+    // Another 30 with v4 (30 credits) would pass 20: refused before calling.
     const res = await postVoice(voiceRequest({ text: 'b'.repeat(29) + '.' }));
     expect(res.status).toBe(503);
     expect(await res.json()).toMatchObject({ fallback: 'device', reason: 'capped' });
@@ -233,10 +293,10 @@ describe('GET /api/voice/status', () => {
     process.env.ELEVENLABS_API_KEY = 'sk-test';
     process.env.ELEVENLABS_MONTHLY_CREDIT_CAP = '100';
     fakeElevenLabs();
-    await postVoice(voiceRequest({ text: 'abc '.repeat(40) })); // 80 credits
+    await postVoice(voiceRequest({ text: 'abc '.repeat(40), quality: 'fast' })); // 80 credits
     let status = (await (await getStatus(statusRequest('?preference=elevenlabs'))).json()) as VoiceStatus;
     expect(status).toMatchObject({ mode: 'elevenlabs', monthCredits: 80, remaining: 20, warning: true });
-    await postVoice(voiceRequest({ text: 'xyz '.repeat(10) })); // 20 credits: the cap
+    await postVoice(voiceRequest({ text: 'xyz '.repeat(5) })); // 20 credits with v4: the cap
     status = (await (await getStatus(statusRequest('?preference=elevenlabs'))).json()) as VoiceStatus;
     expect(status).toMatchObject({ mode: 'device', reason: 'capped', monthCredits: 100, remaining: 0, warning: true });
   });

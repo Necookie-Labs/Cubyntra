@@ -2,10 +2,12 @@
  * Cubyntra - Voice Route (ADR-016)
  * POST /api/voice
  *
- * Body: `{ "text": string, "kind"?: "phrase" | "reply" }` (JSON, at most 4 KB; no other field).
+ * Body: `{ "text": string, "kind"?: "phrase" | "reply", "voiceId"?: string, "quality"?:
+ * "high" | "fast", "rate"?: 0.75 | 1 | 1.25 }` (JSON, at most 4 KB; no other field). `voiceId`
+ * must be a curated voice (`src/voice/catalog.ts`) or the laptop's `ELEVENLABS_VOICE_ID`.
  * Header `x-cubyntra-token` must hold the app secret. Answers `audio/mpeg` (header
- * `X-Voice-Cache: hit | miss`). A phrase-bank line made before is served from `data/voice/`
- * without spending credits. JSON errors: 400 bad body, 401 bad token, 413 too large, 429 rate
+ * `X-Voice-Cache: hit | miss`). A phrase-bank line made before with the same model, voice and
+ * speed is served from `data/voice/` without spending credits. JSON errors: 400 bad body, 401 bad token, 413 too large, 429 rate
  * limited (with Retry-After); 503 no key or credits used up and 502 ElevenLabs failed, both with
  * `{ fallback: "device", reason }` so the browser speaks with the device voice instead.
  */

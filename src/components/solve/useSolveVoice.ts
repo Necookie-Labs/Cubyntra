@@ -62,7 +62,7 @@ export function useSolveVoice(target: TutorSyncTarget, playback: PlaybackControl
   const plan = useTutorStore((s) => s.plan);
   const updateSettings = useTutorStore((s) => s.updateSettings);
   const isSpeaker = useOneSpeaker(target);
-  const voice = useVoice({ mode: settings.voiceMode, rate: settings.voiceRate, token, enabled: isSpeaker });
+  const voice = useVoice({ mode: settings.voiceMode, rate: settings.voiceRate, voiceId: settings.voiceId, quality: settings.voiceQuality, token, enabled: isSpeaker });
   const moves = settings.voiceMoves;
 
   // The latest values for the subscriptions below, which live as long as the playback.

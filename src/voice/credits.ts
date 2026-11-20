@@ -11,29 +11,24 @@
 
 import fs from 'node:fs';
 import { dataPath, writeFileAtomic } from '../lib/dataDir';
+import { DEFAULT_VOICE_MODEL, VOICE_MODELS, creditsPerCharacter } from './catalog';
 import { VOICE_WARNING_SHARE } from './types';
 
-/** Flash v2.5: the low-latency model (https://elevenlabs.io/docs/models). */
-export const VOICE_MODEL = 'eleven_flash_v2_5';
+/** The default model: Eleven v4, "High quality" in Settings (`src/voice/catalog.ts`). */
+export const VOICE_MODEL = DEFAULT_VOICE_MODEL;
 export const DEFAULT_MONTHLY_CREDIT_CAP = 20_000;
 
 /**
- * The one credit table: credits charged per character of text, by model. ElevenLabs lists Flash
- * (and Turbo) v2.5 at "50% lower price per character" than Multilingual v2, which costs one
- * credit per character: https://elevenlabs.io/docs/models and https://elevenlabs.io/pricing.
- * Re-check these pages if the model changes.
+ * Credits charged per character of text, by model: a view of the one model table in
+ * `src/voice/catalog.ts` (Eleven v4 1.0, Eleven v4 Turbo 0.5, Flash v2.5 0.5, ...).
  */
-export const CREDITS_PER_CHARACTER: Readonly<Record<string, number>> = {
-  eleven_flash_v2_5: 0.5,
-  eleven_turbo_v2_5: 0.5,
-  eleven_multilingual_v2: 1,
-};
+export const CREDITS_PER_CHARACTER: Readonly<Record<string, number>> = Object.fromEntries(
+  Object.entries(VOICE_MODELS).map(([id, info]) => [id, info.creditsPerCharacter])
+);
 
 /** Credits a text of `characters` characters costs with a model. */
 export function creditsFor(characters: number, model: string = VOICE_MODEL): number {
-  const rate = CREDITS_PER_CHARACTER[model];
-  if (rate === undefined) throw new Error(`No credit rate for model ${model}`);
-  return characters * rate;
+  return characters * creditsPerCharacter(model);
 }
 
 /** The monthly cap in credits: `ELEVENLABS_MONTHLY_CREDIT_CAP` if it is a valid number, else 20,000. */

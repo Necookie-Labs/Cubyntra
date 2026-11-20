@@ -90,7 +90,7 @@ export function VoiceSettings() {
   const updateSettings = useTutorStore((s) => s.updateSettings);
   const state = useVoiceStatus(token, settings.voiceMode);
   const deviceVoice = useSyncExternalStore(noSubscribe, isDeviceVoiceAvailable, () => true);
-  const voice = useVoice({ mode: settings.voiceMode, rate: settings.voiceRate, token });
+  const voice = useVoice({ mode: settings.voiceMode, rate: settings.voiceRate, voiceId: settings.voiceId, quality: settings.voiceQuality, token });
 
   const status = state.kind === 'ready' ? state.status : null;
   const keySet = status?.keySet ?? false;

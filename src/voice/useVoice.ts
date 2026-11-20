@@ -12,19 +12,24 @@
 
 import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 import type { VoiceMode } from '../lib/studentProfile';
+import type { VoiceQuality } from './catalog';
 import { installAudioUnlock, isAudioUnlocked, onAudioUnlock } from './audioUnlock';
 import { createDeviceSpeaker } from './deviceVoice';
-import { createElevenLabsSpeaker, createVoiceSpeaker } from './elevenLabsSpeaker';
+import { createElevenLabsSpeaker, createVoiceSpeaker, type VoiceChoice } from './elevenLabsSpeaker';
 import { SILENT_SPEAKER, SpeechQueue, type Speaker, type SpeechItem } from './speechQueue';
 
 export interface UseVoiceOptions {
   mode: VoiceMode;
   rate: number;
   token: string | null;
+  /** The ElevenLabs voice (Settings); the laptop's default when absent. */
+  voiceId?: string;
+  /** ElevenLabs quality (Settings); high when absent. */
+  quality?: VoiceQuality;
   /** False while another paired device is the one speaking. Default true. */
   enabled?: boolean;
   /** Builds the speaker (tests pass a fake). */
-  createSpeaker?: (mode: VoiceMode, rate: number, token: string | null) => Speaker;
+  createSpeaker?: (mode: VoiceMode, rate: number, token: string | null, choice?: VoiceChoice) => Speaker;
 }
 
 export interface VoiceHandle {
@@ -39,18 +44,26 @@ export interface VoiceHandle {
   interrupt: () => void;
 }
 
-export function defaultSpeaker(mode: VoiceMode, rate: number, token: string | null): Speaker {
+export function defaultSpeaker(mode: VoiceMode, rate: number, token: string | null, choice: VoiceChoice = {}): Speaker {
   if (mode === 'off') return SILENT_SPEAKER;
   return createVoiceSpeaker({
     mode,
     device: createDeviceSpeaker({ rate }),
-    elevenlabs: createElevenLabsSpeaker({ token, rate }),
+    elevenlabs: createElevenLabsSpeaker({ token, rate, voiceId: choice.voiceId, quality: choice.quality }),
   });
 }
 
 const subscribeUnlock = (onChange: () => void) => onAudioUnlock(onChange);
 
-export function useVoice({ mode, rate, token, enabled = true, createSpeaker = defaultSpeaker }: UseVoiceOptions): VoiceHandle {
+export function useVoice({
+  mode,
+  rate,
+  token,
+  voiceId,
+  quality,
+  enabled = true,
+  createSpeaker = defaultSpeaker,
+}: UseVoiceOptions): VoiceHandle {
   const queueRef = useRef<SpeechQueue | null>(null);
   queueRef.current ??= new SpeechQueue(SILENT_SPEAKER);
   const unlocked = useSyncExternalStore(subscribeUnlock, isAudioUnlocked, () => false);
@@ -69,8 +82,8 @@ export function useVoice({ mode, rate, token, enabled = true, createSpeaker = de
     createRef.current = createSpeaker;
   });
   useEffect(() => {
-    queueRef.current?.setSpeaker(createRef.current(mode, rate, token));
-  }, [mode, rate, token]);
+    queueRef.current?.setSpeaker(createRef.current(mode, rate, token, { voiceId, quality }));
+  }, [mode, rate, token, voiceId, quality]);
 
   useEffect(() => () => queueRef.current?.interrupt(), []);
 
