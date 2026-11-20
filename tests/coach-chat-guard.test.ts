@@ -58,6 +58,18 @@ describe('checkChatMoves', () => {
     ['The prime in x means the other way: x is a whole-cube turn.', true],
     ['Now do D.', false],
     ['Then turn D2.', false],
+    // Explaining a move by comparing it with its opposite is notation, not an instruction
+    // (a live Haiku answer about F' was replaced by the built-in one before this).
+    ["A prime (') reverses a move, so F' undoes F.", true],
+    ["F is clockwise, F' is counter-clockwise.", true],
+    ["The normal F turn goes clockwise, so F' goes counter-clockwise.", true],
+    ["So F' is the opposite of F.", true],
+    ['D2 turns the bottom twice, the same in either direction.', true],
+    // Told as instructions, even in a sentence about direction, they still fail.
+    ['Turn D the other way.', false],
+    ['Now do D, then the opposite.', false],
+    ["Next try L' to undo it.", false],
+    ['Do F to reverse it.', false],
     ["Next comes F'.", false],
     ['Try `B` here.', false],
     // Words that look like letters are not moves.

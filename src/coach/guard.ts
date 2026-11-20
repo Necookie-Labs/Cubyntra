@@ -347,6 +347,20 @@ const NOTATION_AFTER = /^\s*["'”]?\s*(?:means\b|meaning\b|stands\s+for\b|is\s+
 const NOTATION_BEFORE =
   /(?:\bletters?|\bnotation|\bwritten(?:\s+as)?|\blike|\bsuch\s+as|\bexample,?|\be\.g\.,?|\bcalled|\bsymbol|\bversus|\bvs\.?)\s*["'“`]?\s*$/i;
 
+// A sentence that explains what moves mean, e.g. "F' undoes F", "F is clockwise, F' is counter-clockwise".
+const NOTATION_SENTENCE =
+  /\b(?:means?|meaning|prime|clockwise|counter-?clockwise|anti-?clockwise|opposite|reverses?|reversed|undoes|undo|inverse|the\s+other\s+way|other\s+direction|stands\s+for|notation|letter)\b/i;
+// An instruction right before a move ("do D", "now turn D2", "then try L") is never an explanation.
+const INSTRUCTION_BEFORE = /\b(?:do|doing|turn|turning|now|then|next|try|make|perform|apply|use|start\s+with|finish\s+with)\s+(?:the\s+|a\s+)?["'“`(]?\s*$/i;
+
+/** The sentence around `index` (split at . ! ? and line breaks). */
+function sentenceAround(text: string, index: number): { sentence: string; start: number } {
+  const start = Math.max(text.lastIndexOf('.', index - 1), text.lastIndexOf('!', index - 1), text.lastIndexOf('?', index - 1), text.lastIndexOf('\n', index - 1)) + 1;
+  const ends = ['.', '!', '?', '\n'].map((c) => text.indexOf(c, index)).filter((i) => i !== -1);
+  const end = ends.length ? Math.min(...ends) : text.length;
+  return { sentence: text.slice(start, end), start };
+}
+
 /** Splits move tokens into runs written together (only spaces, commas, brackets or hyphens between them). */
 export function moveRuns(text: string, tokens: readonly MoveToken[]): MoveRun[] {
   const runs: MoveRun[] = [];
@@ -380,7 +394,9 @@ export function isContiguousRun(run: readonly string[], sequence: readonly strin
  *   setup moves then the algorithm, canonical), so no invented or reordered sequence can appear;
  * - a single move is allowed when it is one of the step's moves (`allowed`), or, for any other
  *   move, when the sentence explains notation around it ("R' means turn the right side down",
- *   "a letter like U2"). A lone move outside the step with no such context ("Now do D.") fails.
+ *   "a letter like U2", "F' undoes F", "F is clockwise, F' is counter-clockwise"). A lone move
+ *   outside the step with no such context, or one told as an instruction ("Now do D.",
+ *   "Turn D the other way."), fails.
  * Moves that cannot be parsed always fail. `names` (case and stage names) are blanked first.
  */
 export function checkChatMoves(
@@ -404,7 +420,12 @@ export function checkChatMoves(
     const end = token.index + token.raw.length;
     const after = normalised.slice(end, end + 24);
     const before = normalised.slice(Math.max(0, token.index - 24), token.index);
-    return !(NOTATION_AFTER.test(after) || NOTATION_BEFORE.test(before));
+    if (NOTATION_AFTER.test(after) || NOTATION_BEFORE.test(before)) return false;
+    // A sentence that explains notation may name moves next to each other's meaning
+    // ("F' undoes F"), unless the move is being told to the student ("now do D").
+    const { sentence, start } = sentenceAround(normalised, token.index);
+    const lead = sentence.slice(0, token.index - start);
+    return !(NOTATION_SENTENCE.test(sentence) && !INSTRUCTION_BEFORE.test(lead));
   });
   return { ok: offending.length === 0, runs, offending };
 }
