@@ -65,6 +65,13 @@ describe('checkChatMoves', () => {
     ["The normal F turn goes clockwise, so F' goes counter-clockwise.", true],
     ["So F' is the opposite of F.", true],
     ['D2 turns the bottom twice, the same in either direction.', true],
+    // Named only to say the step does not use them (both from live Haiku answers).
+    ["Your step only uses a single R, which turns the right side up, so you don't need R2 here.", true],
+    ["The moves you need are just the setup turn U and then R, so you won't need F' today.", true],
+    ['D is not part of this step.', true],
+    ["This step doesn't use L2.", true],
+    // ...unless an instruction comes right before them.
+    ["You don't need U, just do D instead.", false],
     // Told as instructions, even in a sentence about direction, they still fail.
     ['Turn D the other way.', false],
     ['Now do D, then the opposite.', false],

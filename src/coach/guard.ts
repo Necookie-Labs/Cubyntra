@@ -350,8 +350,13 @@ const NOTATION_BEFORE =
 // A sentence that explains what moves mean, e.g. "F' undoes F", "F is clockwise, F' is counter-clockwise".
 const NOTATION_SENTENCE =
   /\b(?:means?|meaning|prime|clockwise|counter-?clockwise|anti-?clockwise|opposite|reverses?|reversed|undoes|undo|inverse|the\s+other\s+way|other\s+direction|stands\s+for|notation|letter)\b/i;
+// A move named only to say the step does not use it ("so you don't need R2").
+const NOT_NEEDED_SENTENCE =
+  /\b(?:(?:do|does|did|will|would)\s*n[o']?t\s+need|(?:do|does|will)\s+not\s+need|won'?t\s+need|no\s+need\s+for|(?:is|are)\s*n[o']?t\s+(?:part\s+of|in|used\s+in)|not\s+part\s+of|not\s+(?:in|used\s+in)\s+this\s+step|(?:does|do)\s*n[o']?t\s+use|never\s+uses?)\b/i;
 // An instruction right before a move ("do D", "now turn D2", "then try L") is never an explanation.
-const INSTRUCTION_BEFORE = /\b(?:do|doing|turn|turning|now|then|next|try|make|perform|apply|use|start\s+with|finish\s+with)\s+(?:the\s+|a\s+)?["'“`(]?\s*$/i;
+// A negated verb ("doesn't use L2", "never turn D") is not an instruction.
+const INSTRUCTION_BEFORE =
+  /(?<!(?:n't|\bnot|\bnever)\s+)\b(?:do|doing|turn|turning|now|then|next|try|make|perform|apply|use|start\s+with|finish\s+with)\s+(?:the\s+|a\s+)?["'“`(]?\s*$/i;
 
 /** The sentence around `index` (split at . ! ? and line breaks). */
 function sentenceAround(text: string, index: number): { sentence: string; start: number } {
@@ -425,7 +430,8 @@ export function checkChatMoves(
     // ("F' undoes F"), unless the move is being told to the student ("now do D").
     const { sentence, start } = sentenceAround(normalised, token.index);
     const lead = sentence.slice(0, token.index - start);
-    return !(NOTATION_SENTENCE.test(sentence) && !INSTRUCTION_BEFORE.test(lead));
+    const explains = NOTATION_SENTENCE.test(sentence) || NOT_NEEDED_SENTENCE.test(sentence);
+    return !(explains && !INSTRUCTION_BEFORE.test(lead));
   });
   return { ok: offending.length === 0, runs, offending };
 }
