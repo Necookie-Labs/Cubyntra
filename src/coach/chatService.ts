@@ -11,7 +11,7 @@
  */
 
 import type Anthropic from '@anthropic-ai/sdk';
-import { CHAT_NOTICES, CHAT_RULES, chatMessages, chatTemplate, checkChatAnswer, type ChatRequest } from './chat';
+import { CHAT_NOTICES, CHAT_RULES, chatMessages, chatRelayableLength, chatTemplate, checkChatAnswer, type ChatRequest } from './chat';
 import { coachMode, streamGuardedReply, type CoachReplyOptions } from './service';
 import { CHAT_MAX_TOKENS, COACH_MODEL, estimateCallCost, getSpendTracker } from './spend';
 import { COACH_SYSTEM_PROMPT } from './systemPrompt';
@@ -60,6 +60,7 @@ export async function* coachChatReply(request: ChatRequest, options: CoachReplyO
     inputChars,
     estimate,
     passes: (text) => checkChatAnswer(text, request.facts).ok,
+    relayable: (text) => chatRelayableLength(text, request.facts),
     fallbackText: () => chatTemplate(request.facts, request.question),
     fallbackNotice: CHAT_NOTICES.fallback,
     tracker,

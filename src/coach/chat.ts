@@ -23,7 +23,7 @@ import { moveName } from '../cube/moveNames';
 import { parseMove } from '../cube/transforms';
 import { caseTip } from './caseNotes';
 import { allowedMoves, guardNames, parseCoachFacts, planSequence, type ParseResult } from './facts';
-import { checkChatMoves, type ChatGuardResult } from './guard';
+import { checkChatMoves, extractMoveTokens, relayableLength, type ChatGuardResult } from './guard';
 import type { CoachFacts, HintLevel } from './types';
 
 /** Who said a turn of the conversation. */
@@ -150,6 +150,28 @@ export function chatMessages(request: ChatRequest): Anthropic.MessageParam[] {
 /** The chat guardrail for this step's facts (see `checkChatMoves`). */
 export function checkChatAnswer(text: string, facts: CoachFacts): ChatGuardResult {
   return checkChatMoves(text, planSequence(facts), allowedMoves(facts), guardNames(facts));
+}
+
+/**
+ * How much of a chat answer that is still streaming may be checked and shown now. Like
+ * `relayableLength`, but an unfinished sentence that names a move outside the step is held back
+ * whole: "F' ..." may be a notation explanation whose "means" has not arrived yet, so it is judged
+ * (and shown) only once the sentence ends. Sentences without such a move flow word by word.
+ */
+export function chatRelayableLength(text: string, facts: CoachFacts): number {
+  const cut = relayableLength(text);
+  const shown = text.slice(0, cut);
+  const sentenceStart =
+    Math.max(shown.lastIndexOf('.'), shown.lastIndexOf('!'), shown.lastIndexOf('?'), shown.lastIndexOf('\n')) + 1;
+  const tail = shown.slice(sentenceStart);
+  if (!tail.trim()) return cut;
+  const allowed = allowedMoves(facts);
+  let scanned = tail;
+  for (const name of guardNames(facts).filter((n) => n.trim().length > 1)) {
+    scanned = scanned.split(name).join(' '.repeat(name.length));
+  }
+  const outside = extractMoveTokens(scanned).some((t) => t.canonical === null || !allowed.has(t.canonical));
+  return outside ? sentenceStart : cut;
 }
 
 // ---------------------------------------------------------------------------------------------

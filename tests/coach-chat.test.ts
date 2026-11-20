@@ -208,6 +208,35 @@ describe('coachChatReply', () => {
     expect(streamMock.mock.calls[0][0]).toEqual(buildChatRequest(request));
   });
 
+  // The live API streams a few words at a time. An answer that opens a sentence with a move
+  // outside the step ("F' ...") used to be replaced before its "means" arrived.
+  const words = (text: string) => text.split(/(?<= )/);
+
+  it('keeps a word-by-word notation answer that opens a sentence with a move outside the step', async () => {
+    const answer =
+      "The first U lines the piece up. F' means turn the front side the other way: the opposite of F. Then look for the edge.";
+    const events = await collect({ chunks: words(answer) });
+    expect(events.at(-1)).toMatchObject({ type: 'done', source: 'live' });
+    expect(shown(events)).toBe(answer);
+    // The F' sentence is shown only once it is complete, never half-way.
+    const deltas = events.filter((e) => e.type === 'delta').map((e) => (e as { text: string }).text);
+    const withF = deltas.find((d) => d.includes("F'"))!;
+    expect(withF).toContain("F' means turn the front side the other way: the opposite of F.");
+  });
+
+  it('still replaces a word-by-word instruction with a move outside the step, unshown', async () => {
+    const events = await collect({ chunks: words('Good start. Now do D to finish. Then check it.') });
+    const before = events.slice(0, events.findIndex((e) => e.type === 'replace'));
+    expect(before.map((e) => (e.type === 'delta' ? e.text : '')).join('')).not.toContain('D');
+    expect(events.at(-1)).toMatchObject({ type: 'done', source: 'template', reason: 'guard' });
+  });
+
+  it('streams sentences without outside moves word by word', async () => {
+    const events = await collect({ chunks: words('Look at the top layer first. Find the corner with yellow.') });
+    expect(events.filter((e) => e.type === 'delta').length).toBeGreaterThan(5);
+    expect(events.at(-1)).toMatchObject({ source: 'live' });
+  });
+
   it('allows the plan sequence in an answer', async () => {
     const events = await collect({ chunks: ["Do R U R' ", 'U R U2 ', "R' smoothly."] });
     expect(events.at(-1)).toMatchObject({ source: 'live' });

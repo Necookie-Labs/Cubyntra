@@ -117,6 +117,12 @@ export interface GuardedStreamOptions {
   signal?: AbortSignal;
   /** Log prefix, e.g. `coach` or `coach-chat`. */
   tag?: string;
+  /**
+   * How much of the text so far may be checked and shown now (default `relayableLength`). The
+   * chat holds back an unfinished sentence that names a move outside the step, because the words
+   * that explain it ("means", "the other way") may still be coming.
+   */
+  relayable?: (text: string) => number;
 }
 
 /**
@@ -128,6 +134,7 @@ export interface GuardedStreamOptions {
  */
 export async function* streamGuardedReply(o: GuardedStreamOptions): AsyncGenerator<CoachStreamEvent> {
   const { request, inputChars, estimate, passes, fallbackText, tracker, signal } = o;
+  const relayable = o.relayable ?? relayableLength;
   const tag = o.tag ?? 'coach';
   const maxTokens = request.max_tokens;
   // Usage is taken from the stream as it arrives, so a call that is aborted or fails part-way
@@ -169,7 +176,7 @@ export async function* streamGuardedReply(o: GuardedStreamOptions): AsyncGenerat
       if (rejected || event.type !== 'content_block_delta' || event.delta.type !== 'text_delta') continue;
       full += event.delta.text;
       // Relay only complete tokens, holding back a bare letter that may start a run of moves.
-      const cut = relayableLength(full);
+      const cut = relayable(full);
       if (cut <= sent) continue;
       if (!passes(full.slice(0, cut))) {
         // Swap in the fallback now; keep reading so the call's usage can be recorded.
