@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Student profile schema v4 (`savedCubes`, with the `addSavedCube`, `renameSavedCube`, `setSavedCubeMethod` and `deleteSavedCube` operations, merged and validated on the server: a valid cube, a name of 1 to 40 characters); version 3 profiles are migrated on read.
 - Student profile schema v3 (`voiceMode`, `voiceRate`, `voiceMoves`); version 2 profiles are migrated on read.
 - `SegmentedControl` options can be disabled.
+- **Favicon**: the browser tab shows the Cubyntra voxel cube (16, 32 and 48 px on a transparent ground) instead of the default Next.js icon. `scripts/generate-icons.ts` writes `src/app/favicon.ico` alongside the app icons, and `tests/pwa-manifest.test.ts` checks it is up to date.
 
 ## [2.0.0] - 2026-11-17
 

@@ -9,7 +9,7 @@ import { describe, expect, it } from 'vitest';
 import manifest from '../src/app/manifest';
 import { APP_METADATA as metadata, APP_VIEWPORT as viewport } from '../src/app/appMetadata';
 import { APP_CHROME_HEX } from '../src/lib/tokens';
-import { ICONS, encodePng, renderIcon } from '../scripts/generate-icons';
+import { FAVICON, ICONS, buildFavicon, encodePng, renderIcon } from '../scripts/generate-icons';
 
 /** Width and height from a PNG's IHDR chunk. */
 function pngSize(file: string): [number, number] {
@@ -63,5 +63,23 @@ describe('icon generator', () => {
       const png = encodePng(icon.size, icon.size, renderIcon(icon.size, icon.scale));
       expect(png.equals(fs.readFileSync(publicPath(`icons/${icon.file}`))), icon.file).toBe(true);
     }
+  });
+
+  it('produces the committed favicon exactly: an ICO of transparent 16, 32 and 48 px PNGs', () => {
+    const ico = fs.readFileSync(path.join(__dirname, '..', FAVICON.file));
+    expect(buildFavicon().equals(ico)).toBe(true);
+    expect(ico.readUInt16LE(2)).toBe(1); // type: icon
+    const count = ico.readUInt16LE(4);
+    expect(count).toBe(FAVICON.sizes.length);
+    for (let k = 0; k < count; k++) {
+      const entry = 6 + k * 16;
+      const size = ico[entry];
+      const offset = ico.readUInt32LE(entry + 12);
+      const png = ico.subarray(offset, offset + ico.readUInt32LE(entry + 8));
+      expect(png.subarray(1, 4).toString('ascii')).toBe('PNG');
+      expect([png.readUInt32BE(16), png.readUInt32BE(20)]).toEqual([size, size]);
+      expect(png[25], `${size} px is RGBA`).toBe(6);
+    }
+    expect(FAVICON.sizes.map((s) => s.size)).toEqual([16, 32, 48]);
   });
 });

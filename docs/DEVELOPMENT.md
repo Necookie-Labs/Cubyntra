@@ -231,9 +231,10 @@ works for the visit and Settings says changes are not saved.
   (a shortcut) until the certificate is trusted (§6.4).
 - **iPhone (Safari).** Share → Add to Home Screen. Settings shows this hint on iOS Safari.
 - The manifest (`src/app/manifest.ts`, served at `/manifest.webmanifest`) asks for standalone,
-  portrait display. Icons are in `public/icons/`; regenerate them with
+  portrait display. Icons are in `public/icons/`, and the browser-tab favicon (the same cube on
+  a transparent ground, 16/32/48 px) is `src/app/favicon.ico`. Regenerate them all with
   `npx tsx scripts/generate-icons.ts` after changing the icon or the color tokens
-  (`tests/pwa-manifest.test.ts` fails if the committed PNGs are out of date).
+  (`tests/pwa-manifest.test.ts` fails if the committed PNGs or favicon are out of date).
 
 ### 6.4 Trusting the dev certificate on a phone (optional)
 Camera access works after tapping through the certificate warning. Installing as a real app and
