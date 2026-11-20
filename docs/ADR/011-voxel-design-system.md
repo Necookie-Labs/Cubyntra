@@ -1,6 +1,6 @@
 # ADR-011: Voxel Design System
 
-**Status**: Accepted
+**Status**: Superseded by [ADR-018](018-raised-design-system.md) (2026-11-20) for the UI's look: rounded, raised controls on a navy-to-indigo gradient. Its token discipline (one token block, tokens only, enforced by a test) and the voxel look of the 3D twin still stand.
 **Date**: 2026-11-17
 **Deciders**: Necookie Labs Core Engineering Team
 **Supersedes**: the visual direction of [ADR-008](008-speedcube-pbr-geometry-digital-twin.md) (glossy PBR look). ADR-008's drift-free snapping still stands; its geometry was replaced by the Phase 4 voxel twin.

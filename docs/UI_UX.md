@@ -7,46 +7,54 @@
 
 ---
 
-## 1. Design Philosophy: a Flat Voxel World
+## 1. Design Philosophy: Raised Controls on a Night Sky
 
-Cubyntra is a cube tutor for a young student, so the interface is a calm, light-green world made
-of flat blocks ([ADR-011](ADR/011-voxel-design-system.md)). It is an original voxel style with no
-borrowed game names, logos, textures or fonts.
+Cubyntra is a cube tutor for a young student. The interface is a calm night-navy page that fades
+into indigo, with rounded cards and big friendly buttons that stand slightly raised on a solid
+edge, the way game apps and Duolingo make every action feel pressable
+([ADR-018](ADR/018-raised-design-system.md), which replaced the voxel look of ADR-011). Light mode
+is the same system on lavender and white.
 
 ### Guiding Principles:
-1. **Flat colors only.** No gradients, blur, glow, glass or text shadows. Depth comes from two-tone
-   block faces (a light top lip, a darker bottom edge) and hard offset shadows with zero blur.
-2. **Clarity over clutter.** Every element shows real state; plain words over jargon.
-3. **Tactile feedback.** Blocks sink 2px when pressed; things that land drop in with a small
-   overshoot.
+1. **Pressed things have an edge; content floats.** Buttons, choice cards and toggles stand on a
+   4px solid bottom edge and sink onto it when pressed. Cards, dialogs and toasts float on a soft
+   shadow tinted to the indigo ground. Nothing uses glass, blur or text shadows.
+2. **Blue acts, green confirms.** Blue is for what to do next (main buttons, the current move, the
+   selected option); green is for what is done or right (a placed step, a learned case).
+3. **Clarity over clutter.** Every element shows real state; plain words over jargon.
 4. **Continuous spatial orientation.** The student always knows which face to show next and which
    turn to make.
 
-The rules are enforced: `tests/design-rules.test.ts` fails on gradients, blur, backdrop filters,
-text shadows, soft shadows, rounded corners, Tailwind's default palette and any hex color outside
-the token block of `src/app/globals.css`.
+The rules are enforced: `tests/design-rules.test.ts` fails on gradients or hex colors outside the
+token block of `src/app/globals.css`, blur, backdrop filters, text shadows, Tailwind's default
+shadows and palette, corners off the radius scale, classes for retired tokens and undeclared
+`var(--vx-*)` names.
 
 ---
 
 ## 2. Tokens, Type, Shape and Motion
 
 ### 2.1 Color Tokens
-All colors are CSS variables in one block of `src/app/globals.css` (`/* tokens:start */` …
-`/* tokens:end */`), exposed to Tailwind as classes. Tailwind's default palette is switched off.
+All colors, the page gradient and the shadows are CSS variables in one block of
+`src/app/globals.css` (`/* tokens:start */` … `/* tokens:end */`), exposed to Tailwind as
+classes. Tailwind's default palette and shadows are switched off.
 
 | Role | Class | Light | Dark |
 |---|---|---|---|
-| Page | `bg-ground` | mint `#EAF4E2` | deep moss `#16210F` |
-| Panel / button face | `bg-panel` | cream `#F7F3E3` | `#1F2D16` |
-| Sunken well | `bg-well` | `#DCEBCF` | `#111A0B` |
-| Text | `text-ink` | moss `#2E4A22` | `#E4EFD8` |
-| Secondary text | `text-muted` | `#4D6841` | `#A7BF98` |
-| Outline / divider | `border-line` / `border-line-soft` | `#2E4A22` / `#B9CFA8` | `#6E8C5C` / `#33472A` |
-| Primary | `bg-leaf`, `bg-leaf-edge`, `bg-leaf-soft`, `text-on-leaf` | `#5FA83A`, `#3F7A24`, `#CFE6BD`, `#1B2E13` | soft `#2B4420` |
-| Warning | `bg-warn`, `bg-warn-soft` | `#E8B730`, `#F6E7B8` | soft `#3D3210` |
-| Error | `bg-danger`, `bg-danger-soft`, `text-on-danger` | `#B83A26`, `#F5D6CC`, `#FFF8EC` | soft `#43190F` |
-| Focus ring | `--vx-focus` | `#1D5FB8` | `#8CC4FF` |
-| Hard shadow | `shadow-block` (4px) / `shadow-block-sm` (2px) | `#B5CCA2` | `#0B1306` |
+| Page gradient | `--vx-backdrop` (from `--vx-ground` to `--vx-ground-deep`, with `--vx-glow` on top) | lavender `#F3F2FF` to `#E4E1FB` | night navy `#120F2B` to indigo `#2A1B6B` |
+| Card, dialog, nav | `bg-panel` | `#FFFFFF` | `#1D1A42` |
+| Sunken well | `bg-well` | `#EDEBFA` | `#0C0A22` |
+| Secondary button | `bg-raised`, `--vx-raised-edge` | `#FFFFFF`, `#D3CFEB` | `#2A2659`, `#3E3984` |
+| Text | `text-ink` | `#1B1842` | `#F4F3FF` |
+| Secondary text | `text-muted` | `#56527F` | `#B4B0DC` |
+| Control outline / divider | `border-line` / `border-line-soft` | `#7F7BAD` / `#E0DDF3` | `#7D77C6` / `#322E66` |
+| Primary (act) | `bg-primary`, `--vx-primary-edge`, `bg-primary-soft`, `text-on-primary` | `#1D6FE8`, `#1652B8`, `#DCE8FF`, white | soft `#1C2C66` |
+| Success (done) | `bg-success`, `--vx-success-edge`, `bg-success-soft`, `text-on-success` | `#3DBA58`, `#2A8E41`, `#D8F3DE`, `#072410` | soft `#173A2B` |
+| Accent (brand) | `bg-accent`, `text-on-accent`, `.vx-pill` | `#22D3B4`, `#05302B` | same |
+| Warning | `bg-warn`, `bg-warn-soft`, `text-on-warn` | `#F2B230`, `#FFEFC4`, `#2B1E00` | soft `#3C3014` |
+| Error | `bg-danger`, `bg-danger-soft`, `text-on-danger` | `#D7343D`, `#FFE0E2`, white | soft `#471C26` |
+| Focus ring | `--vx-focus` | `#1F5FCC` | `#8FC1FF` |
+| Elevation | `shadow-block` / `shadow-block-sm` | indigo-tinted soft shadows | deep navy shadows |
 
 ### 2.2 Cube Sticker Colors
 Flat and identical in both themes; use `stickerColor(color)` from `@/components/ui` or the
@@ -56,36 +64,41 @@ the core color, or sticker white on red and blue (`STICKER_LETTER_INK` in `src/l
 every letter reaches 4.5:1 on its sticker.
 
 ### 2.3 Typography
-- **Headings and display:** Pixelify Sans (`font-display`; `h1`–`h3` use it automatically).
+- **Headings, buttons and big numbers:** Nunito, rounded (`font-display`; `h1` to `h3` use it
+  automatically at weight 800; buttons are extra bold with a touch of tracking).
 - **Body:** Nunito Sans (`font-sans`), never smaller than 12px.
 - **Move notation and numbers:** Geist Mono (`font-mono`).
 All three are self-hosted through `next/font`.
 
 ### 2.4 Shape and Spacing
-- Square corners everywhere; borders are 2px (controls, panels) or 4px (camera frames).
-- 8px spacing grid, with 4px half-steps only inside compact controls.
-- **Block** (`.vx-block`): face + 2px outline + 2px light lip + 4px darker bottom edge + 2px hard
-  shadow. Pressed: down 2px, edge shrinks to 2px.
-- **Panel** (`.vx-panel`): cream face, 2px outline, 4px bottom edge, 4px hard shadow.
-  **Well** (`.vx-well`): the sunken variant.
+- One radius scale: `rounded-xs` 4px (tiny marks, sticker cells), `rounded-sm` 8px, `rounded-md`
+  12px (tiles, inputs, small buttons), `rounded-lg` 14px (buttons, wells), `rounded-xl` 20px
+  (cards), `rounded-2xl` 28px (dialogs, hero cards), `rounded-full` (pills, pips, switches).
+- 8px spacing grid, with 4px half-steps only inside compact controls. Borders are 2px.
+- **Block** (`.vx-block`): a rounded face, a 2px rim and a 4px solid bottom edge (the rim's
+  bottom side in the edge color plus a 2px inset band). Pressed: the face sinks 2px and the edge
+  shrinks to the 2px rim; border widths never change, so nothing around it moves.
+- **Panel** (`.vx-panel`): a rounded card with a 2px soft border on a soft tinted shadow.
+  **Well** (`.vx-well`): the sunken variant. **Pill** (`.vx-pill`): the teal brand badge.
 
 ### 2.5 Motion
-Quick steps rather than smooth fades: `vx-place` (a block drops in with a small overshoot),
-`vx-pop` (a block lands), `vx-flash` (camera shutter) and `vx-loader` (three blocks light up in
-turn while waiting). Hover and press transitions use `steps()` timing and last 80 ms. Under
-`prefers-reduced-motion`, or the student's Reduce motion setting, every animation and transition
-is cut to 0.01 ms and blocks no longer lift on hover (see §5.2).
+Presses ease over 90 ms (`--ease-press`) and hover lifts a control 1px. `vx-place` (a surface
+drops in with a small overshoot), `vx-pop` (a mark lands), `vx-flash` (camera shutter) and
+`vx-loader` (three dots hop in turn while waiting). Under `prefers-reduced-motion`, or the
+student's Reduce motion setting, every animation and transition is cut to 0.01 ms and controls no
+longer lift on hover (see §5.2).
 
 ### 2.6 Components (`src/components/ui/`)
 | Component | Notes |
 |---|---|
-| `BlockButton` | `primary`, `secondary`, `danger`, `ghost`; sizes `sm` 32px, `md` 40px, `lg` 48px; disabled sinks into a well |
-| `IconButton` | square block; `label` is required and becomes `aria-label` and the tooltip |
-| `Panel` | `panel` or `well` tone |
-| `Chip` | `neutral`, `leaf`, `warn`, `danger`, `solid`; ink text on a tint for AA contrast |
-| `ProgressBlocks` | a row of filled / current / empty blocks, announced as a progressbar |
+| `BlockButton` | `primary` (blue), `secondary` (white, or indigo in dark), `danger`, `ghost`; sizes `sm` 36px, `md` 44px, `lg` 52px (`BLOCK_BUTTON_SIZE`, shared with `BlockLink`); disabled flattens into a well |
+| `IconButton` | square raised button; `label` is required and becomes `aria-label` and the tooltip |
+| `Panel` | `panel` (card) or `well` tone |
+| `Chip` | pill; `neutral`, `success`, `warn`, `danger` (ink on a tint), `solid` (blue), `accent` (teal) |
+| `ProgressBlocks` | a row of rounded pips (done green, current outlined blue, empty), announced as a progressbar |
+| `Switch` | a rounded track (blue when on) with a white knob |
 | `Dialog` | `role="dialog"`, `aria-modal`, labelled title; focus moves in, Tab is trapped, Escape and the flat scrim close it, focus returns to the opener |
-| `Toast` | a polite live region (`status`, or `alert` for errors) that dismisses itself |
+| `Toast` | a polite live region (`status`, or `alert` for errors) with a colored icon badge, that dismisses itself |
 
 ---
 
@@ -114,16 +127,16 @@ screen with its own camera layout and no navigation.
             ──Solve it with me──► Solve (that scramble, the Home method)
 ```
 
-- **Phone (< 1024px).** A 56px top bar (logo, theme switch) and a fixed bottom tab bar with
-  five tabs: Home, Scan, Solve, Progress, Settings. The active tab has a 4px leaf-edge bar on top
-  and its icon in a leaf-soft block. My cubes, Trainer, Timer and Pair are reached from Home's
-  "More".
-- **Desktop (>= 1024px).** A 240px side nav with all nine screens in three groups (Learn,
-  Practice, This device). The active item is a leaf-soft row with a 4px leaf-edge bar on its left.
+- **Phone (< 1024px).** A 64px top bar (logo, theme switch) and a fixed bottom tab bar with
+  five tabs: Home, Scan, Solve, Progress, Settings. The active tab's icon sits in a solid blue
+  pill on a small edge. My cubes, Trainer, Timer and Pair are reached from Home's "More".
+- **Desktop (>= 1024px).** A 256px side nav over the page gradient, with the wordmark and the
+  tagline as a teal pill, and all nine screens in three groups (Learn, Practice, This device).
+  The active item is a rounded row outlined in blue on a blue tint.
 - **Accessibility.** "Skip to content" is the first Tab stop and jumps to `<main id="content">`.
   Both navs are `<nav aria-label="Main">` (only one is displayed at a time); the current link has
   `aria-current="page"`. Every page has exactly one `<h1>`.
-- **Page scaffolding** (`src/components/shell/Page.tsx`): optional small label, one pixel-font
+- **Page scaffolding** (`src/components/shell/Page.tsx`): optional small label, one rounded
   heading, at most one line of plain text; sections have a small heading. Widths: `md` 672px,
   `lg` 896px, `xl` 1152px; gutters 16px (phone), 24px, 32px.
 
@@ -184,7 +197,7 @@ lighting and glare tips with Scan again and Use a demo cube.
     face fits only turned and a turn of that layer would look the same, "… again, with … at the
     top of the picture";
   - *wrong face* → which face to show instead;
-  - *match* → a leaf block drops onto the row ("Block placed"), next step after 1.8 s or on
+  - *match* → a green block drops onto the row ("Block placed"), next step after 1.8 s or on
     "Next step";
   - *mismatch* → the sheet closes; the solve screen shows **Not quite yet** with the most likely
     mistake in words, the read faces with wrong tiles marked (tap to correct, then "Check with my
@@ -232,7 +245,7 @@ install button, iOS "Share → Add to Home Screen" hint, or "Installed").
   screen with "Case solved" and "Next case"). A camera mismatch shows "Not solved yet." with the
   likely mistake, Check again and Count it as missed.
 - **Case grid**: one square per case of the set or group: empty well (not drilled yet), half full
-  (drilling), solid leaf (learned) and leaf with a dark base (known well), with a key; the fill
+  (drilling), solid green (learned) and green on a dark edge (known well), with a key; the fill
   level tells the states apart without color. Each square is a button (44px on phones) that drills
   that case next, and its name says the state.
 - Missed cases come back within two drills (Leitner boxes, `docs/tutor/METHODS.md` §10.3).
@@ -243,7 +256,7 @@ install button, iOS "Share → Add to Home Screen" hint, or "Installed").
   after hydration (the server render shows none).
 - **Pad**: a large block, the whole area is the button (pointer and touch), and Space works the
   same anywhere except on another control (Enter too, on the focused pad); Escape cancels. Tap to start the 15 s inspection (a
-  countdown); hold until the pad turns leaf ("Let go to start", after 0.3 s; it is warn-tinted
+  countdown); hold until the pad turns green ("Let go to start", after 0.3 s; it is warn-tinted
   while held but not ready); let go to start; tap or Space to stop. Chips call out 8 seconds and 12
   seconds, then "Start now: +2" and DNF. The clock is Geist Mono, tabular figures.
 - **Last solve**: +2, DNF (toggles) and Delete.
@@ -399,7 +412,7 @@ checkpoint-driven `/solve`.
   scan review and its swatches, the trainer's checkpoint sheet), in the live camera grid and on
   the phone-scan thumbnails. Letters use the core color, or sticker white on red and blue.
 - **Contrast.** Every text pair reaches 4.5:1 and every control outline and focus-ring pair 3:1,
-  in both themes, including each sticker letter on its sticker. Ratios are in ADR-011.
+  in both themes, including each sticker letter on its sticker. Ratios are in ADR-018.
 - **Tap targets.** Below 1024px (or with a coarse pointer) every block button and link, and every
   control marked `.vx-hit`, has a hit area of at least 44×44 px: an invisible `::after` grows it
   without growing the block. Controls that sit edge to edge (correctable sticker tiles, trainer
@@ -473,9 +486,9 @@ State is never carried by color alone: each state also has an icon or a word.
 ### 6.2 Phone Capture (`/companion`)
 - **First-run coach** (`CaptureCoach.tsx`): three cards (hold, light, order). Shown once per device, reopenable from the help button.
 - **Step card**: an isometric mini cube (`FaceGuide.tsx`) showing which center faces the camera, which is on top and which is on the right, plus a one-move instruction and an end-position check.
-- **Reticle**: square 4px corner brackets, ink when idle, warn when something needs fixing, leaf while holding steady; a solid leaf frame pops in once the face is read. Square live dots show that the phone sees each tile.
+- **Reticle**: rounded 4px corner brackets, ink when idle, warn when something needs fixing, green while holding steady; a solid green frame pops in once the face is read. Small live dots show that the phone sees each tile.
 - **Hint line**: exactly one instruction, naming the fix rather than the fault ("Glare on the bottom row. Tilt the cube slightly.").
-- **Shutter**: an 80px leaf block, always usable by hand. A four-segment meter under it fills while every check holds; at 600 ms the shutter fires by itself and the face is read on the phone. Auto-capture can be turned off.
+- **Shutter**: an 80px round blue raised button, always usable by hand. A four-segment meter under it fills while every check holds; at 600 ms the shutter fires by itself and the face is read on the phone. Auto-capture can be turned off.
 - **Scanning a face again**: tapping a read face in the face strip opens it and stays on it (the phone moves on only at the moment a face is read). A read face shows "Top read" with **Scan this face again**, which forgets that reading on the phone; the new reading replaces the old one on the laptop when it arrives. On the laptop, the phone-scan panel shows **Rescan** under every face read so far: it drops that face there and sends the phone back to it (`scan-control` rescan, ADR-015).
 - **Layout**: a column of header, guidance, reticle, hint and controls. The reticle is sized to the remaining height so nothing overlaps on short screens. Safe-area insets are respected and touch targets are at least 44 px.
 
@@ -494,11 +507,11 @@ Entrances are short stepped animations (`vx-place`, `vx-pop`, `vx-flash`; see §
 
 - **Switch.** The theme button (top bar on phones, foot of the side nav on desktop) cycles Light → Dark → System; Settings has the same choice as a segmented control. System follows the OS setting, including live changes. The choice is stored per device (`localStorage["cubyntra.theme"]`) and synced across tabs.
 - **No flash.** A script in `<head>` (`THEME_BOOT_SCRIPT` in `src/lib/theme.ts`) sets `<html data-theme>` before first paint.
-- **How colors switch.** The voxel tokens are defined on `:root` (light) and redefined under `:root[data-theme="dark"]`; Tailwind classes such as `bg-panel` resolve to those variables, so components carry no theme-specific classes.
-- **Fixed colors.** Sticker tokens, `text-on-leaf`, `text-on-danger` and the QR paper are the same in both themes, so the logo (`CubeGlyph`) and QR code never change.
+- **How colors switch.** The design tokens are defined on `:root` (light) and redefined under `:root[data-theme="dark"]`; Tailwind classes such as `bg-panel` resolve to those variables, so components carry no theme-specific classes.
+- **Fixed colors.** Sticker tokens, the accent, `text-on-primary`, `text-on-success`, `text-on-danger` and the QR paper are the same in both themes, so the logo (`CubeGlyph`) and QR code never change.
 - **Error page.** `global-error.tsx` replaces the root layout, so it imports `globals.css` and runs the boot script itself.
 - **Phone companion.** Always dark: a viewfinder reads best dark, and its overlays sit on live video as solid blocks.
-- **Contrast.** Every text pair passes WCAG AA in both themes; see the table in ADR-011.
+- **Contrast.** Every text pair passes WCAG AA in both themes; see the table in ADR-018.
 
 ## 8. Navigation & Recovery
 

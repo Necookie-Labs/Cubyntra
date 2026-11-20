@@ -16,7 +16,7 @@ All contributors are expected to uphold the core principles of Cubyntra:
 3. **No Pixels Leave the Capturing Device**: Camera frames are sampled to tile colors in the tab that owns the camera. Sync messages carry states only; no route may accept, store or return image data (ADR-015, `tests/sync-privacy.test.ts`).
 4. **Pure Cores**: `src/cube`, `src/tutor` and `src/learn` import no DOM, React, Three.js or network code.
 5. **Zero Floating-Point Drift**: All 3D layer rotations must snap cubie positions and orientations back to exact integer axes.
-6. **Flat Voxel Design**: Tokens and `src/components/ui/` only; no gradients, blur, glass, glow or text shadows (ADR-011, `tests/design-rules.test.ts`).
+6. **Raised Design**: Tokens and `src/components/ui/` only; gradients, colors and shadows exist only as tokens, corners come from the radius scale, and there is no blur, glass or text shadow (ADR-018, `tests/design-rules.test.ts`).
 7. **Documentation Synchronization**: Code changes must be paired with updates to the corresponding documents in `/docs`.
 
 ---

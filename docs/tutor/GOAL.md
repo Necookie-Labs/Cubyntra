@@ -11,7 +11,7 @@ localhost:
   **CFOP**.
 - An AI coach (Claude) explains each step in plain language.
 - **Checkpoint scans** confirm the student did each step correctly.
-- The whole app gets a **light-green voxel redesign** with flat colors only.
+- The whole app gets a **light-green voxel redesign** with flat colors only. *(Superseded on 2026-11-20 by [ADR-018](../ADR/018-raised-design-system.md) at the owner's request: rounded, raised controls on a navy-to-indigo gradient. The 3D twin keeps its voxel look.)*
 
 ## Locked decisions (do not revisit)
 | Area | Decision |
