@@ -12,6 +12,9 @@
  * With `voice`, a speaker button in the header turns the tutor's voice on and off, a finished
  * reply is read out with the device voice (only once it is final and passes the move guardrail,
  * ADR-016), and in ElevenLabs mode "Read with ElevenLabs" reads it with ElevenLabs instead.
+ *
+ * Below the hint buttons, "Ask the coach" (collapsed at first) holds a short conversation about
+ * this step (`CoachChat`); its answers are read aloud with the same voice.
  */
 
 import React, { useEffect, useMemo, useRef } from 'react';
@@ -21,6 +24,7 @@ import type { AttemptRecord, HintLevel } from '@/coach/types';
 import { useCoach } from '@/coach/useCoach';
 import { allowedMoves, buildCoachFacts, guardNames } from '@/coach/facts';
 import { BlockButton, Chip, IconButton, Panel, cx } from '@/components/ui';
+import { CoachChat, type ChatVoiceControls } from '@/components/coach/CoachChat';
 import { coachSpeech, type MoveSpeech } from '@/voice/speechText';
 import type { SpeechItem } from '@/voice/speechQueue';
 
@@ -36,6 +40,20 @@ export interface CoachVoiceControls {
   moves: MoveSpeech;
   say: (item: SpeechItem) => void;
   replace: (item: SpeechItem) => void;
+  /** Stops what is being said (a new chat question). */
+  interrupt?: () => void;
+}
+
+/** The chat's view of the panel's voice: on only when this device is the one speaking. */
+export function chatVoiceFrom(voice: CoachVoiceControls | undefined): ChatVoiceControls | null {
+  if (!voice) return null;
+  return {
+    on: voice.on && !voice.otherDeviceSpeaks,
+    elevenlabs: voice.elevenlabs,
+    moves: voice.moves,
+    replace: voice.replace,
+    interrupt: voice.interrupt ?? (() => {}),
+  };
 }
 
 export interface CoachPanelProps {
@@ -49,6 +67,8 @@ export interface CoachPanelProps {
   onHint?: (level: HintLevel) => void;
   /** The tutor's voice (solve screen only). */
   voice?: CoachVoiceControls;
+  /** The voice for chat answers when there is no `voice` (e.g. the trainer). */
+  chatVoice?: ChatVoiceControls | null;
   className?: string;
 }
 
@@ -66,6 +86,7 @@ export function CoachPanel({
   explainDiagnosis = false,
   onHint,
   voice,
+  chatVoice,
   className,
 }: CoachPanelProps) {
   const coach = useCoach({ plan, token, attempts, diagnosis });
@@ -176,6 +197,16 @@ export function CoachPanel({
           </BlockButton>
         ))}
       </div>
+
+      <CoachChat
+        plan={plan}
+        token={token}
+        attempts={attempts}
+        diagnosis={diagnosis}
+        voice={voice ? chatVoiceFrom(voice) : chatVoice}
+        collapsible
+        className="border-t-2 border-line-soft pt-3"
+      />
     </Panel>
   );
 }

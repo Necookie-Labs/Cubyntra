@@ -313,6 +313,71 @@ describe('accessibility (axe, serious and critical)', () => {
     expect(problems).toEqual([]);
   });
 
+  it('Solve, with Ask the coach open, a conversation and the mic', async () => {
+    const profile = sampleProfile();
+    profile.currentSolve!.state = scrambledState(5, 3);
+    profile.currentSolve!.grip = { top: 'white', front: 'green' };
+    profile.settings.talkToCoach = true;
+    useTutorStore.setState({ profile });
+    vi.stubGlobal('webkitSpeechRecognition', class {
+      start() {}
+      stop() {}
+      abort() {}
+    });
+    renderInShell('/solve', <SolveView />);
+    await flush();
+    fireEvent.click(screen.getByRole('button', { name: 'Ask the coach' }));
+    expect(screen.getByRole('button', { name: 'Talk to the coach' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Why does this work?' }));
+    await flush();
+    expect(screen.getByRole('list', { name: 'Conversation with the coach' })).toBeTruthy();
+    expect(await audit()).toEqual([]);
+  });
+
+  it('Trainer, with the coach and Ask the coach open', async () => {
+    renderInShell('/trainer', <TrainerView />);
+    await flush();
+    fireEvent.click(screen.getByRole('button', { name: 'Show the coach' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Ask the coach' }));
+    expect(screen.getByRole('textbox', { name: 'Your question' })).toBeTruthy();
+    expect(await audit()).toEqual([]);
+  });
+
+  it('Full solution of a saved cube, with Ask the coach open', async () => {
+    const profile = defaultStudentProfile();
+    profile.savedCubes = [
+      { id: 'a', name: 'Scan · 19 Nov, 14:32', state: scrambledState(5, 20), scannedAt: '2026-11-19T14:32:00.000Z', source: 'webcam' },
+    ];
+    useTutorStore.setState({ profile });
+    renderInShell('/cubes/a', <CubeSolutionView id="a" />);
+    await flush();
+    await flush();
+    fireEvent.click(screen.getByRole('button', { name: 'Ask the coach' }));
+    fireEvent.click(screen.getByRole('button', { name: 'How do I spot this case?' }));
+    await flush();
+    expect(await audit()).toEqual([]);
+  });
+
+  it('Settings, with ElevenLabs voices and Talk to the coach on', async () => {
+    const profile = defaultStudentProfile();
+    profile.settings.voiceMode = 'elevenlabs';
+    profile.settings.talkToCoach = true;
+    useTutorStore.setState({ profile });
+    const base = globalThis.fetch as unknown as (url: string, init?: RequestInit) => Promise<Response>;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init?: RequestInit) =>
+        url.startsWith('/api/voice/status')
+          ? Response.json({ mode: 'elevenlabs', keySet: true, monthCredits: 0, capCredits: 20000, remaining: 20000, warning: false, month: '2026-11' })
+          : base(url, init)
+      )
+    );
+    renderInShell('/settings', <SettingsView />);
+    await flush();
+    expect(screen.getByRole('radiogroup', { name: 'ElevenLabs voice' })).toBeTruthy();
+    expect(await audit()).toEqual([]);
+  });
+
   it('Settings in the dark theme with the coach offline', async () => {
     document.documentElement.dataset.theme = 'dark';
     renderInShell('/settings', <SettingsView />);

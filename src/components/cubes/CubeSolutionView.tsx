@@ -15,6 +15,8 @@
  * chips, "In words" and After preview. "Play all" plays each step to the end and moves on to the
  * next until the cube is solved (pause, resume and stop); with the voice on it names each stage
  * and move as they play. "Copy all moves" puts the whole solution, by stage, on the clipboard.
+ * "Ask the coach" under the selected step holds a short conversation about that step; a new
+ * step starts a new conversation.
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -44,6 +46,9 @@ import { BlockButton, Panel, SegmentedControl, cx } from '@/components/ui';
 import { BlockLink } from '@/components/shell/BlockLink';
 import { Busy, PageContainer } from '@/components/shell/Page';
 import { useWalkthroughVoice } from './useWalkthroughVoice';
+import { CoachChat } from '@/components/coach/CoachChat';
+import { useChatVoice } from '@/components/coach/useChatVoice';
+import { useCompanion } from '@/sync/CompanionSyncProvider';
 
 type Result = { status: 'ready'; walkthrough: Walkthrough } | { status: 'error'; message: string };
 type AutoPlay = 'off' | 'playing' | 'paused';
@@ -180,6 +185,8 @@ function StepList({
 
 function SolutionWalkthrough({ cube }: { cube: SavedCube }) {
   const settings = useTutorStore((s) => s.profile.settings);
+  const token = useTutorStore((s) => s.token);
+  const chatVoice = useChatVoice(useCompanion());
   const setSavedCubeMethod = useTutorStore((s) => s.setSavedCubeMethod);
   const lastLayer = settings.lastLayer;
   const [method, setMethod] = useState<SolutionMethod>(cube.lastMethod ?? settings.methodDefault);
@@ -499,6 +506,7 @@ function SolutionWalkthrough({ cube }: { cube: SavedCube }) {
             <p role="status" className="sr-only">
               {liveMessage}
             </p>
+            <CoachChat plan={plan} token={token} voice={chatVoice} collapsible className="border-t-2 border-line-soft pt-3" />
           </Panel>
         )}
       </div>
