@@ -165,6 +165,72 @@ describe('Settings: Voice', () => {
     expect(screen.getAllByText(/device voice speaks/).length).toBeGreaterThan(0);
   });
 
+  it('offers the five curated voices and both qualities in ElevenLabs mode, and saves the choice', async () => {
+    voiceStatus.value = { mode: 'elevenlabs', keySet: true, monthCredits: 0, capCredits: 20000, remaining: 20000, warning: false, month: '2026-11' };
+    useTutorStore.setState({ profile: { ...defaultStudentProfile(), settings: { ...defaultStudentProfile().settings, voiceMode: 'elevenlabs' } } });
+    render(<SettingsView />);
+    await flush();
+    const voices = screen.getByRole('radiogroup', { name: 'ElevenLabs voice' });
+    const radios = within(voices).getAllByRole('radio');
+    expect(radios.map((r) => r.textContent)).toEqual([
+      expect.stringContaining('Alice'),
+      expect.stringContaining('Matilda'),
+      expect.stringContaining('Jessica'),
+      expect.stringContaining('Will'),
+      expect.stringContaining('George'),
+    ]);
+    expect(within(voices).getByRole('radio', { name: /Alice/ }).getAttribute('aria-checked')).toBe('true');
+    expect(within(voices).getByRole('radio', { name: /Alice/ }).getAttribute('aria-describedby')).toBeTruthy();
+    fireEvent.click(within(voices).getByRole('radio', { name: /Jessica/ }));
+    // Arrow keys move the choice.
+    fireEvent.keyDown(within(voices).getByRole('radio', { name: /Jessica/ }), { key: 'ArrowDown' });
+    expect(useTutorStore.getState().profile.settings.voiceId).toBe('bIHbv24MWmeRgasZH58o');
+    const quality = screen.getByRole('radiogroup', { name: 'Voice quality' });
+    expect(within(quality).getByRole('radio', { name: 'High quality' }).getAttribute('aria-checked')).toBe('true');
+    expect(screen.getByText(/One credit per character/)).toBeTruthy();
+    fireEvent.click(within(quality).getByRole('radio', { name: 'Faster, half the credits' }));
+    expect(useTutorStore.getState().profile.settings.voiceQuality).toBe('fast');
+    expect(screen.getByText(/Half a credit per character/)).toBeTruthy();
+  });
+
+  it('hides the voice picker unless ElevenLabs is chosen and available', async () => {
+    voiceStatus.value = { mode: 'device', keySet: false, monthCredits: 0, capCredits: 20000, warning: false, reason: 'no-key', month: '2026-11' };
+    render(<SettingsView />);
+    await flush();
+    expect(screen.queryByRole('radiogroup', { name: 'ElevenLabs voice' })).toBeNull();
+    expect(screen.queryByRole('radiogroup', { name: 'Voice quality' })).toBeNull();
+  });
+
+  it('offers the laptop voice when ELEVENLABS_VOICE_ID names another', async () => {
+    voiceStatus.value = { mode: 'elevenlabs', keySet: true, monthCredits: 0, capCredits: 20000, remaining: 20000, warning: false, month: '2026-11', laptopVoiceId: 'abcdefghij12' };
+    useTutorStore.setState({ profile: { ...defaultStudentProfile(), settings: { ...defaultStudentProfile().settings, voiceMode: 'elevenlabs' } } });
+    render(<SettingsView />);
+    await flush();
+    fireEvent.click(screen.getByRole('radio', { name: /Laptop voice/ }));
+    expect(useTutorStore.getState().profile.settings.voiceId).toBe('abcdefghij12');
+  });
+
+  it('Test voice asks ElevenLabs for a sample in the chosen voice and quality', async () => {
+    voiceStatus.value = { mode: 'elevenlabs', keySet: true, monthCredits: 0, capCredits: 20000, remaining: 20000, warning: false, month: '2026-11' };
+    const settings = { ...defaultStudentProfile().settings, voiceMode: 'elevenlabs' as const, voiceId: 'XrExE9yKIg1WjnnlVkGX', voiceQuality: 'fast' as const };
+    useTutorStore.setState({ profile: { ...defaultStudentProfile(), settings } });
+    render(<SettingsView />);
+    await flush();
+    fireEvent.click(screen.getByRole('button', { name: 'Test voice' }));
+    await flush();
+    const fetchMock = globalThis.fetch as unknown as ReturnType<typeof vi.fn>;
+    const voiceCalls = fetchMock.mock.calls.filter(([url]) => url === '/api/voice');
+    expect(voiceCalls.length).toBeGreaterThan(0);
+    expect(JSON.parse(String((voiceCalls[0][1] as RequestInit).body))).toEqual({
+      text: 'Hi! I am your cube coach. Let us solve it together.',
+      kind: 'phrase',
+      voiceId: 'XrExE9yKIg1WjnnlVkGX',
+      quality: 'fast',
+    });
+    // The laptop answered "not found" here, so the device voice said the sample instead.
+    expect(spoken[0]).toBe('Hi! I am your cube coach. Let us solve it together.');
+  });
+
   it('tests the device voice with the chosen move style', async () => {
     voiceStatus.value = { mode: 'device', keySet: false, monthCredits: 0, capCredits: 20000, warning: false, reason: 'no-key', month: '2026-11' };
     render(<SettingsView />);

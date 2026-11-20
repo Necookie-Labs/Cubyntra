@@ -5,7 +5,10 @@
  * Necookie Labs (c) 2026
  *
  * Who speaks (off, the device voice, ElevenLabs), how fast, and whether moves are said in words
- * or as letters, with a "Test voice" button and this month's ElevenLabs credits. ElevenLabs can
+ * or as letters, with a "Test voice" button and this month's ElevenLabs credits. In ElevenLabs
+ * mode the student also picks one of the curated stock voices and the quality: "High quality"
+ * (Eleven v4, one credit per character) or "Faster, half the credits" (Eleven v4 Turbo); Test
+ * voice then speaks a short sample in that voice and quality. ElevenLabs can
  * only be chosen when the laptop has a key; at 80% of the credits a notice says so, and at the
  * cap the device voice takes over until the next month.
  */
@@ -15,6 +18,8 @@ import { AlertTriangle, Volume2 } from 'lucide-react';
 import { BlockButton, Chip, Panel, SegmentedControl } from '@/components/ui';
 import { useTutorStore } from '@/stores/useTutorStore';
 import { VOICE_RATES, type VoiceMode, type VoiceMoves, type VoiceRate } from '@/lib/studentProfile';
+import { QUALITY_LABEL, QUALITY_MODEL, VOICE_MODELS, VOICE_QUALITIES, type VoiceQuality } from '@/voice/catalog';
+import { VoicePicker } from './VoicePicker';
 import { isDeviceVoiceAvailable } from '@/voice/deviceVoice';
 import { LINES, movePhrase } from '@/voice/phrases';
 import { parseMove } from '@/cube/transforms';
@@ -114,7 +119,9 @@ export function VoiceSettings() {
   else if (settings.voiceMode === 'device') explanation = 'The browser’s own voice: free, works offline, no key needed.';
   else if (status?.reason === 'no-key') explanation = 'No ElevenLabs key is set on this laptop, so the device voice speaks instead.';
   else if (status?.reason === 'capped') explanation = 'The credits are used up this month, so the device voice speaks instead.';
-  else explanation = 'Step narration and checkpoints use ElevenLabs. Coach replies use the device voice unless you tap “Read with ElevenLabs”.';
+  else explanation = 'Step narration, checkpoints and chat answers use ElevenLabs. Hint replies use the device voice unless you tap “Read with ElevenLabs”.';
+  const elevenOn = settings.voiceMode === 'elevenlabs' && keySet;
+  const perChar = VOICE_MODELS[QUALITY_MODEL[settings.voiceQuality]].creditsPerCharacter;
 
   return (
     <Panel className="flex flex-col gap-6">
@@ -138,6 +145,28 @@ export function VoiceSettings() {
           <p className="text-xs text-ink">This browser has no built-in voice, so only ElevenLabs can speak here.</p>
         )}
       </div>
+
+      {elevenOn && (
+        <div className="flex flex-col gap-2">
+          <span className="text-sm font-bold text-ink">ElevenLabs voice</span>
+          <VoicePicker
+            value={settings.voiceId}
+            laptopVoiceId={status?.laptopVoiceId}
+            onChange={(voiceId) => updateSettings({ voiceId })}
+          />
+          <span className="pt-2 text-sm font-bold text-ink">Quality</span>
+          <SegmentedControl<VoiceQuality>
+            label="Voice quality"
+            value={settings.voiceQuality}
+            options={VOICE_QUALITIES.map((q) => ({ value: q, label: QUALITY_LABEL[q] }))}
+            onChange={(voiceQuality) => updateSettings({ voiceQuality })}
+          />
+          <p className="text-xs text-muted">
+            {perChar === 1 ? 'One credit per character.' : 'Half a credit per character, a little less natural.'} Saved
+            clips are made again once for a new voice or quality.
+          </p>
+        </div>
+      )}
 
       <div className="flex flex-col gap-2">
         <span className="text-sm font-bold text-ink">Speed</span>
