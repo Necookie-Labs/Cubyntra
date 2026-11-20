@@ -141,6 +141,15 @@ export function withDerivedFields(facts: CoachFacts): CoachFacts {
   };
 }
 
+/**
+ * The step's moves in order, canonical: setup moves, then the algorithm. A sequence of moves in a
+ * chat answer must be a contiguous run of this list (`checkChatMoves`).
+ */
+export function planSequence(facts: Pick<CoachFacts, 'setupMoves' | 'algorithm'>): string[] {
+  const notation = [facts.setupMoves, facts.algorithm].join(' ').trim();
+  return notation ? parseAlgorithm(notation).map((m) => m.notation) : [];
+}
+
 /** Phrases blanked out before the guardrail scan: the step's own case and stage names. */
 export function guardNames(facts: Pick<CoachFacts, 'caseName' | 'stageName'>): string[] {
   return [facts.caseName, facts.stageName];

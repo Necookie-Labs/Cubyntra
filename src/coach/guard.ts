@@ -29,6 +29,10 @@
  * ("R3" is `R'`); a count that comes to no turn at all ("R4") cannot be checked and so is
  * rejected. "F2L", "3x3" and possessives ("R's") stay words; `x` with a count other than 2 is a
  * repeat count ("x3").
+ *
+ * Chat answers ("Ask the coach") use `checkChatMoves` instead: any sequence of two or more moves
+ * must be a contiguous run of the step's setup and algorithm, and a lone move outside the step
+ * is allowed only where the sentence explains notation ("D' means ..."). See the end of the file.
  */
 
 import { parseMove } from '../cube/transforms';
@@ -315,4 +319,92 @@ export function checkReplyMoves(
   const tokens = extractMoveTokens(scanned);
   const offending = tokens.filter((t) => t.canonical === null || !allowed.has(t.canonical));
   return { ok: offending.length === 0, tokens, offending };
+}
+
+// ---------------------------------------------------------------------------------------------
+// Chat guardrail ("Ask the coach")
+// ---------------------------------------------------------------------------------------------
+
+/** A run of move tokens written together ("R U R' U'", "RUR'U'"). */
+export interface MoveRun {
+  tokens: MoveToken[];
+  /** Canonical notation of each token (null where it cannot be parsed). */
+  moves: (string | null)[];
+}
+
+export interface ChatGuardResult {
+  ok: boolean;
+  runs: MoveRun[];
+  /** Runs that broke a rule (a sequence that is not the plan's, or a lone move out of context). */
+  offending: MoveRun[];
+}
+
+// Between two tokens of one run: spaces, commas, brackets or the hyphen of "R-U-R'".
+const CHAT_RUN_GAP = /^[\s,()[\]-]*$/;
+// "R' means ...", "R = ...", "R stands for ...", "R is short for ...", "R is the right side".
+const NOTATION_AFTER = /^\s*["'”]?\s*(?:means\b|meaning\b|stands\s+for\b|is\s+short\s+for\b|=|is\s+(?:a|an|the|one|just|when|how|what|where)\b|tells\s+you\b|says\b|turns\b)/i;
+// "a letter like R'", "for example R2", "written as U'", "the move R'".
+const NOTATION_BEFORE =
+  /(?:\bletters?|\bnotation|\bwritten(?:\s+as)?|\blike|\bsuch\s+as|\bexample,?|\be\.g\.,?|\bcalled|\bsymbol|\bversus|\bvs\.?)\s*["'“`]?\s*$/i;
+
+/** Splits move tokens into runs written together (only spaces, commas, brackets or hyphens between them). */
+export function moveRuns(text: string, tokens: readonly MoveToken[]): MoveRun[] {
+  const runs: MoveRun[] = [];
+  let prevEnd = -1;
+  for (const t of tokens) {
+    const run = runs.at(-1);
+    if (run && CHAT_RUN_GAP.test(text.slice(prevEnd, t.index))) {
+      run.tokens.push(t);
+      run.moves.push(t.canonical);
+    } else {
+      runs.push({ tokens: [t], moves: [t.canonical] });
+    }
+    prevEnd = t.index + t.raw.length;
+  }
+  return runs;
+}
+
+/** True when `run` appears, in order and without gaps, inside `sequence`. */
+export function isContiguousRun(run: readonly string[], sequence: readonly string[]): boolean {
+  if (!run.length || run.length > sequence.length) return false;
+  for (let start = 0; start + run.length <= sequence.length; start++) {
+    if (run.every((m, i) => sequence[start + i] === m)) return true;
+  }
+  return false;
+}
+
+/**
+ * The chat guardrail. Claude may answer questions about notation, so the rules differ from the
+ * hint guard (`checkReplyMoves`, unchanged):
+ * - a sequence of two or more moves must be a contiguous run of the plan's own moves (`sequence`:
+ *   setup moves then the algorithm, canonical), so no invented or reordered sequence can appear;
+ * - a single move is allowed when it is one of the step's moves (`allowed`), or, for any other
+ *   move, when the sentence explains notation around it ("R' means turn the right side down",
+ *   "a letter like U2"). A lone move outside the step with no such context ("Now do D.") fails.
+ * Moves that cannot be parsed always fail. `names` (case and stage names) are blanked first.
+ */
+export function checkChatMoves(
+  text: string,
+  sequence: readonly string[],
+  allowed: ReadonlySet<string>,
+  names: readonly string[] = []
+): ChatGuardResult {
+  let scanned = text;
+  for (const name of names.filter((n) => n.trim().length > 1)) {
+    scanned = scanned.replace(new RegExp(escapeRegExp(name), 'gi'), (match) => ' '.repeat(match.length));
+  }
+  const normalised = codeSpans(scanned).text.replace(PRIMES, "'");
+  const runs = moveRuns(normalised, extractMoveTokens(scanned));
+  const offending = runs.filter((run) => {
+    if (run.moves.some((m) => m === null)) return true;
+    const moves = run.moves as string[];
+    if (moves.length >= 2) return !isContiguousRun(moves, sequence);
+    const [token] = run.tokens;
+    if (allowed.has(moves[0])) return false;
+    const end = token.index + token.raw.length;
+    const after = normalised.slice(end, end + 24);
+    const before = normalised.slice(Math.max(0, token.index - 24), token.index);
+    return !(NOTATION_AFTER.test(after) || NOTATION_BEFORE.test(before));
+  });
+  return { ok: offending.length === 0, runs, offending };
 }
