@@ -82,7 +82,8 @@ export function PairView() {
         lede="Use your phone as the camera while this screen shows the twin. Only colors and cube states travel between them, never photos."
       />
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+      {/* minmax(0, …) keeps a long unbreakable address from widening the column past a phone. */}
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
         <Panel as="section" aria-labelledby="pair-code-title" className="flex flex-col items-center gap-6 p-6 pb-7">
           <div className="flex w-full items-center justify-between gap-2">
             <h2 id="pair-code-title" className="text-lg leading-tight text-ink">
@@ -113,7 +114,7 @@ export function PairView() {
           {code && companionBaseUrl && !sessionEnded && (
             <div className="flex flex-col items-center gap-2 text-center">
               <span className="text-sm text-muted">
-                Can’t scan it? On the phone open <span className="font-mono text-ink">{companionBaseUrl}</span> and type
+                Can’t scan it? On the phone open <span className="font-mono text-ink break-all">{companionBaseUrl}</span> and type
               </span>
               <span
                 aria-label={`Pairing code ${code.split('').join(' ')}`}

@@ -266,6 +266,23 @@ describe('more screens', () => {
     expect(companion.value.initSession).not.toHaveBeenCalled();
   });
 
+  it('Pair keeps a long hosted address from widening the page on a phone', () => {
+    // Live at 390px, https://cubyntra.necookie.dev/companion could not wrap and pushed the
+    // column 6px past the screen. (jsdom has no layout, so this checks the structure.)
+    Object.assign(companion.value, {
+      sessionId: 's1',
+      qrDataUrl: 'data:image/png;base64,AAAA',
+      code: 'ABCDEF',
+      codeExpiresAt: Date.now() + 9 * 60_000,
+      companionBaseUrl: 'https://cubyntra.necookie.dev/companion',
+    });
+    render(<PairView />);
+    const address = screen.getByText('https://cubyntra.necookie.dev/companion');
+    expect(address.className).toContain('break-all');
+    const grid = address.closest('section')!.parentElement!;
+    expect(grid.className).toContain('grid-cols-[minmax(0,1fr)]');
+  });
+
   it('Pair tells of an ended pairing politely and of a real error as an alert', () => {
     Object.assign(companion.value, { sessionId: null, qrDataUrl: null, code: null, sessionEnded: true, error: null });
     const { unmount } = render(<PairView />);
