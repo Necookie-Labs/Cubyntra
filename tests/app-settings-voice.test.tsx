@@ -245,3 +245,24 @@ describe('Settings: Voice', () => {
     expect(spoken).toEqual(['Hi! I am your cube coach. Let us solve it together.', 'R']);
   });
 });
+
+describe('Settings: Talk to the coach', () => {
+  it('is off by default, says the browser turns speech into text and no audio is kept, and saves both switches', async () => {
+    render(<SettingsView />);
+    await flush();
+    const talk = screen.getByRole('switch', { name: 'Talk to the coach' });
+    expect(talk.getAttribute('aria-checked')).toBe('false');
+    const hint = document.getElementById(talk.getAttribute('aria-describedby')!)!;
+    expect(hint.textContent).toMatch(/browser.s own speech service turns what you say into text/);
+    expect(hint.textContent).toMatch(/never records or stores audio/);
+    const autoSend = screen.getByRole('switch', { name: 'Send when I stop talking' }) as HTMLButtonElement;
+    expect(autoSend.getAttribute('aria-checked')).toBe('true');
+    expect(autoSend.disabled).toBe(true);
+    fireEvent.click(talk);
+    expect(useTutorStore.getState().profile.settings.talkToCoach).toBe(true);
+    // jsdom has no speech recognition: the mic will be hidden, and Settings says so.
+    expect(screen.getByText(/cannot turn speech into text/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('switch', { name: 'Send when I stop talking' }));
+    expect(useTutorStore.getState().profile.settings.chatAutoSend).toBe(false);
+  });
+});

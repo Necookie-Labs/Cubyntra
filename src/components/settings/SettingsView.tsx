@@ -5,7 +5,7 @@
  * Necookie Labs (c) 2026
  *
  * Name, default method (and CFOP's last layer), how moves and stickers are shown, theme and motion, the voice, the coach's mode
- * and spend this month, and installing the app on a phone. Every change saves to the
+ * and spend this month, talking to the coach (speech to text for Ask the coach), and installing the app on a phone. Every change saves to the
  * student's profile on the laptop.
  */
 
@@ -22,6 +22,7 @@ import { THEME_CHANGE_EVENT, readThemePreference, setThemePreference, type Theme
 import type { CoachMode } from '@/coach/types';
 import type { LastLayerMode, MethodId } from '@/tutor/types';
 import { VoiceSettings } from './VoiceSettings';
+import { TalkSettings } from './TalkSettings';
 import { AccountPanel } from './AccountPanel';
 
 function subscribeTheme(onChange: () => void) {
@@ -289,6 +290,10 @@ export function SettingsView() {
 
       <PageSection title="Coach">
         <CoachStatusPanel />
+      </PageSection>
+
+      <PageSection title="Talk to the coach">
+        <TalkSettings />
       </PageSection>
 
       <PageSection title="Install">
