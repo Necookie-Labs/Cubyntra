@@ -81,10 +81,10 @@ export const FaceGuide: React.FC<FaceGuideProps> = ({ front, top, right, classNa
         <polygon key={`f${i}`} points={pts} style={{ fill: stickerColor(front) }} />
       ))}
 
-      {/* Camera lens pointing at the front face: a square pixel block */}
+      {/* Camera lens pointing at the front face: a rounded blue camera with a round lens */}
       <g transform="translate(0 82)">
-        <rect width="10" height="10" style={{ fill: 'var(--vx-leaf)', stroke: CORE }} strokeWidth="1.5" />
-        <rect x="3" y="3" width="4" height="4" style={{ fill: CORE }} />
+        <rect width="10" height="10" rx="2.5" style={{ fill: 'var(--vx-primary)', stroke: CORE }} strokeWidth="1.5" />
+        <circle cx="5" cy="5" r="2" style={{ fill: CORE }} />
       </g>
     </svg>
   );

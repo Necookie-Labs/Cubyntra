@@ -65,9 +65,9 @@ function PlanError() {
   const requestRescan = useTutorStore((s) => s.requestRescan);
   return (
     <PageContainer width="md">
-      <Panel role="alert" className="flex flex-col gap-4 p-6 pb-7">
+      <Panel role="alert" className="flex flex-col gap-4 p-6">
         <div className="flex items-start gap-3">
-          <span aria-hidden data-variant="danger" className="vx-block flex h-10 w-10 shrink-0 items-center justify-center pb-1">
+          <span aria-hidden data-variant="danger" className="vx-block flex h-11 w-11 shrink-0 items-center justify-center pb-0.5">
             <AlertTriangle className="h-5 w-5" />
           </span>
           <div className="flex flex-col gap-1">
@@ -232,7 +232,7 @@ export function SolveView() {
           className="flex-1"
         />
         {loading && (
-          <div className="absolute inset-0 z-10 flex items-center justify-center bg-ground">
+          <div className="absolute inset-0 z-10 flex items-center justify-center rounded-2xl bg-panel">
             <Busy label="Planning the next step" />
           </div>
         )}
@@ -263,7 +263,7 @@ export function SolveView() {
       )}
 
       {plan && !loading && !mismatch && (
-        <div className="sticky bottom-20 z-20 -mx-4 border-t-2 border-line-soft bg-ground px-4 py-3 lg:static lg:col-start-2 lg:row-start-3 lg:mx-0 lg:border-0 lg:p-0">
+        <div className="sticky bottom-20 z-20 -mx-4 border-t-2 border-line-soft bg-panel px-4 py-3 lg:static lg:col-start-2 lg:row-start-3 lg:mx-0 lg:border-0 lg:bg-transparent lg:p-0">
           <BlockButton
             variant="primary"
             size="lg"

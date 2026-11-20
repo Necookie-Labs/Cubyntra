@@ -62,7 +62,7 @@ export function SignInForm({ next }: { next?: string }) {
           autoComplete="username"
           maxLength={40}
           required
-          className="h-12 px-3 border-2 border-line bg-panel text-ink text-base"
+          className="h-12 rounded-md border-2 border-line bg-well px-3.5 text-base text-ink"
         />
       </div>
       <div className="flex flex-col gap-1.5">
@@ -78,11 +78,11 @@ export function SignInForm({ next }: { next?: string }) {
           required
           aria-invalid={error ? true : undefined}
           aria-describedby={error ? 'signin-error' : undefined}
-          className="h-12 px-3 border-2 border-line bg-panel text-ink text-base"
+          className="h-12 rounded-md border-2 border-line bg-well px-3.5 text-base text-ink"
         />
       </div>
       {error && (
-        <p id="signin-error" role="alert" className="text-sm text-ink bg-warn-soft border-2 border-warn-edge p-2">
+        <p id="signin-error" role="alert" className="rounded-md border-2 border-warn-edge bg-warn-soft p-3 text-sm text-ink">
           {error}
         </p>
       )}

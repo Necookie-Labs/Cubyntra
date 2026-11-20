@@ -42,7 +42,7 @@ type Connection = 'ended' | 'reconnecting' | 'phone' | 'waiting';
 const CONNECTION_STYLE: Record<Connection, { tone: ChipTone; Icon: typeof Link2; label: string }> = {
   ended: { tone: 'danger', Icon: AlertTriangle, label: 'Pairing ended' },
   reconnecting: { tone: 'warn', Icon: Loader2, label: 'Reconnecting…' },
-  phone: { tone: 'leaf', Icon: Link2, label: 'Phone connected' },
+  phone: { tone: 'success', Icon: Link2, label: 'Phone connected' },
   waiting: { tone: 'neutral', Icon: Smartphone, label: 'Waiting for your phone' },
 };
 
@@ -73,7 +73,7 @@ export const CompanionScanPanel: React.FC<CompanionScanPanelProps> = ({
   const StatusIcon = style.Icon;
 
   return (
-    <Panel as="section" className="vx-place flex flex-col gap-6 w-full max-w-lg mx-auto lg:mx-0 p-6 pb-8">
+    <Panel as="section" className="vx-place flex flex-col gap-6 w-full max-w-lg mx-auto lg:mx-0 p-6">
       <header className="flex items-start justify-between gap-4">
         <div className="flex flex-col gap-2">
           <Chip
@@ -128,18 +128,22 @@ export const CompanionScanPanel: React.FC<CompanionScanPanelProps> = ({
             <li key={step.face} className="flex flex-col gap-2">
               <div
                 className={cx(
-                  'relative aspect-square overflow-hidden border-2 transition-colors duration-100',
-                  scanned ? 'border-leaf-edge shadow-block-sm' : isNext ? 'border-line shadow-block-sm' : 'border-line-soft'
+                  'relative aspect-square overflow-hidden rounded-xl border-2 border-b-4 transition-colors duration-100',
+                  scanned
+                    ? 'border-success border-b-success-edge shadow-block-sm'
+                    : isNext
+                    ? 'border-primary border-b-primary-edge shadow-block-sm'
+                    : 'border-line-soft'
                 )}
               >
                 {scanned ? (
                   <div
                     role="img"
                     aria-label={`${FACE_LABEL[step.face]} face colors: ${scanned.stickers.join(', ')}`}
-                    className="grid grid-cols-3 gap-0.5 w-full h-full p-1 bg-line"
+                    className="grid grid-cols-3 gap-0.5 w-full h-full p-1 bg-sticker-core"
                   >
                     {scanned.stickers.map((color, i) => (
-                      <span key={i} className="grid place-items-center" style={{ backgroundColor: stickerColor(color) }}>
+                      <span key={i} className="grid place-items-center rounded-xs" style={{ backgroundColor: stickerColor(color) }}>
                         {letters && (
                           <span aria-hidden className={cx('font-mono text-xs font-bold leading-none', stickerLetterClass(color))}>
                             {stickerLetter(color)}
@@ -149,23 +153,23 @@ export const CompanionScanPanel: React.FC<CompanionScanPanelProps> = ({
                     ))}
                   </div>
                 ) : (
-                  <div className="w-full h-full grid place-items-center bg-well">
+                  <div className={cx('w-full h-full grid place-items-center', isNext ? 'bg-primary-soft' : 'bg-well')}>
                     <span
-                      className={cx('w-8 h-8 border-2', isNext ? 'border-line' : 'border-line-soft opacity-40')}
+                      className={cx('w-8 h-8 rounded-sm border-2', isNext ? 'border-sticker-core' : 'border-line-soft opacity-40')}
                       style={{ backgroundColor: sticker }}
                     />
                   </div>
                 )}
 
                 {scanned && (
-                  <span className="absolute top-1 right-1 grid place-items-center w-6 h-6 border-2 border-line bg-leaf text-on-leaf">
+                  <span className="absolute top-1.5 right-1.5 grid place-items-center w-6 h-6 rounded-full border-2 border-success-edge bg-success text-on-success">
                     <CheckCircle2 className="w-4 h-4" aria-label="Read" />
                   </span>
                 )}
               </div>
 
               <div className="flex items-center gap-2 text-xs">
-                <span aria-hidden className="w-3 h-3 border-2 border-line" style={{ backgroundColor: sticker }} />
+                <span aria-hidden className="w-3 h-3 rounded-full border-2 border-sticker-core" style={{ backgroundColor: sticker }} />
                 <span className={isNext ? 'text-ink font-bold' : 'text-muted'}>{FACE_LABEL[step.face]}</span>
               </div>
 

@@ -1,50 +1,76 @@
 @import "tailwindcss";
 
 /*
- * Cubyntra voxel design system (ADR-011).
+ * Cubyntra raised design system (ADR-018, which replaces the voxel look of ADR-011).
  *
- * Flat colors only: no gradients, blur, glow, glass or text shadows. Depth comes from
- * two-tone block faces (a light top lip, a darker bottom edge) and hard offset shadows with
- * zero blur. Every color in the app is one of the tokens below; tests/design-rules.test.ts
- * fails on a hex color anywhere outside this block.
+ * Night navy fading into indigo, rounded surfaces, and controls you can press: every button
+ * stands on a solid darker bottom edge and sinks onto it when pressed. Two depth rules:
+ *   - things you press (buttons, chips you pick, toggles) have a hard bottom edge;
+ *   - things that hold content (cards, dialogs, toasts) float on a soft tinted shadow.
+ * Every color, gradient and shadow in the app is one of the tokens below;
+ * tests/design-rules.test.ts fails on a hex color or a gradient anywhere outside this block.
+ * Glass, blur and text shadows stay out.
  *
+ * The `vx` prefix is historical (it named the voxel system); it now just marks a design token.
  * The resolved theme lives on <html data-theme> (src/lib/theme.ts), set before first paint.
  */
 
 /* tokens:start */
 :root {
-  /* Ground and surfaces */
-  --vx-ground: #EAF4E2;       /* mint page */
-  --vx-panel: #F7F3E3;        /* cream panel face */
-  --vx-panel-edge: #DCD3B0;   /* panel bottom edge */
-  --vx-well: #DCEBCF;         /* sunken wells, tracks, inputs */
+  /* Ground: a soft lavender page in light mode, fading slightly darker toward the bottom */
+  --vx-ground: #F3F2FF;
+  --vx-ground-deep: #E4E1FB;
+  --vx-glow: #FFFFFFB3;        /* light pooled at the top of the page */
+  --vx-backdrop:
+    radial-gradient(120% 55% at 50% -12%, var(--vx-glow) 0%, transparent 62%),
+    linear-gradient(180deg, var(--vx-ground) 0%, var(--vx-ground-deep) 100%);
+
+  /* Surfaces */
+  --vx-panel: #FFFFFF;         /* cards, dialogs, nav */
+  --vx-well: #EDEBFA;          /* sunken wells, tracks, inputs */
+  --vx-raised: #FFFFFF;        /* face of a secondary button */
+  --vx-raised-edge: #D3CFEB;   /* its bottom edge */
 
   /* Text and lines */
-  --vx-ink: #2E4A22;          /* moss ink: body text, borders */
-  --vx-muted: #4D6841;        /* secondary text */
-  --vx-line: #2E4A22;         /* 2px and 4px block outlines */
-  --vx-line-soft: #B9CFA8;    /* dividers inside a panel */
-  --vx-shadow: #B5CCA2;       /* hard offset shadow, an ink tint */
-  --vx-lip: #FFFFFF59;        /* light top lip of a block face */
+  --vx-ink: #1B1842;           /* body text */
+  --vx-muted: #56527F;         /* secondary text */
+  --vx-line: #7F7BAD;          /* outlines that identify a control: inputs, switches, tiles */
+  --vx-line-soft: #E0DDF3;     /* card borders and dividers */
 
-  /* Primary leaf */
-  --vx-leaf: #5FA83A;
-  --vx-leaf-edge: #3F7A24;
-  --vx-leaf-soft: #CFE6BD;
-  --vx-on-leaf: #1B2E13;
+  /* Soft elevation for content surfaces, tinted to the indigo ground */
+  --vx-elevation: 0 1px 2px #1B184214, 0 10px 28px -10px #3B2FA042;
+  --vx-elevation-sm: 0 1px 2px #1B18421A, 0 4px 12px -6px #3B2FA03D;
+
+  /* Primary: the blue of every main action */
+  --vx-primary: #1D6FE8;
+  --vx-primary-edge: #1652B8;
+  --vx-primary-soft: #DCE8FF;
+  --vx-on-primary: #FFFFFF;
+
+  /* Success: correct, learned, done, progress */
+  --vx-success: #3DBA58;
+  --vx-success-edge: #2A8E41;
+  --vx-success-soft: #D8F3DE;
+  --vx-on-success: #072410;
+
+  /* Accent: the teal of brand pills and highlights */
+  --vx-accent: #22D3B4;
+  --vx-accent-edge: #139C84;
+  --vx-on-accent: #05302B;
 
   /* Status */
-  --vx-warn: #E8B730;
-  --vx-warn-edge: #A9821A;
-  --vx-warn-soft: #F6E7B8;
-  --vx-danger: #B83A26;
-  --vx-danger-edge: #7E2516;
-  --vx-danger-soft: #F5D6CC;
-  --vx-on-danger: #FFF8EC;
+  --vx-warn: #F2B230;
+  --vx-warn-edge: #B9841A;
+  --vx-warn-soft: #FFEFC4;
+  --vx-on-warn: #2B1E00;
+  --vx-danger: #D7343D;
+  --vx-danger-edge: #A1222A;
+  --vx-danger-soft: #FFE0E2;
+  --vx-on-danger: #FFFFFF;
 
-  --vx-focus: #1D5FB8;
-  --vx-scrim: #16210FB3;      /* dialog backdrop: flat, no blur */
-  --vx-qr-paper: #FFFFFF;     /* QR codes need a white quiet zone in every theme */
+  --vx-focus: #1F5FCC;
+  --vx-scrim: #1B1842A6;       /* dialog backdrop: flat, no blur */
+  --vx-qr-paper: #FFFFFF;      /* QR codes need a white quiet zone in every theme */
 
   /* Cube stickers: the same flat colors in both themes */
   --vx-sticker-white: #F4F4EE;
@@ -53,37 +79,44 @@
   --vx-sticker-orange: #F07A1A;
   --vx-sticker-blue: #2F6CD0;
   --vx-sticker-green: #24A64F;
-  --vx-sticker-core: #1B2E13; /* plastic between stickers */
+  --vx-sticker-core: #1B2E13;  /* plastic between stickers */
 
   color-scheme: light;
 }
 
 :root[data-theme="dark"] {
-  --vx-ground: #16210F;       /* deep moss */
-  --vx-panel: #1F2D16;
-  --vx-panel-edge: #121C0C;
-  --vx-well: #111A0B;
+  /* Night navy at the top, indigo at the bottom, a violet glow pooled behind the header */
+  --vx-ground: #120F2B;
+  --vx-ground-deep: #2A1B6B;
+  --vx-glow: #5B45E659;
 
-  --vx-ink: #E4EFD8;
-  --vx-muted: #A7BF98;
-  --vx-line: #6E8C5C;         /* sage: outlines keep 3:1 on every dark surface */
-  --vx-line-soft: #33472A;
-  --vx-shadow: #0B1306;
-  --vx-lip: #FFFFFF1F;
+  --vx-panel: #1D1A42;
+  --vx-well: #0C0A22;
+  --vx-raised: #2A2659;
+  --vx-raised-edge: #3E3984;   /* lighter than the face, so the edge reads on the night ground */
 
-  --vx-leaf-soft: #2B4420;
-  --vx-warn-soft: #3D3210;
-  --vx-danger-soft: #43190F;
+  --vx-ink: #F4F3FF;
+  --vx-muted: #B4B0DC;
+  --vx-line: #7D77C6;
+  --vx-line-soft: #322E66;
 
-  --vx-focus: #8CC4FF;
-  --vx-scrim: #05080399;
+  --vx-elevation: 0 1px 0 #FFFFFF0D, 0 14px 34px -12px #020110B3;
+  --vx-elevation-sm: 0 1px 0 #FFFFFF0D, 0 6px 16px -8px #020110A6;
+
+  --vx-primary-soft: #1C2C66;
+  --vx-success-soft: #173A2B;
+  --vx-warn-soft: #3C3014;
+  --vx-danger-soft: #471C26;
+
+  --vx-focus: #8FC1FF;
+  --vx-scrim: #060414B3;
 
   color-scheme: dark;
 }
 /* tokens:end */
 
 @theme inline {
-  /* Only the voxel tokens exist: Tailwind's default palette, shadows and radii are switched off. */
+  /* Only the tokens exist: Tailwind's default palette, shadows and radii are switched off. */
   --color-*: initial;
   --shadow-*: initial;
   --inset-shadow-*: initial;
@@ -92,21 +125,30 @@
   --radius-*: initial;
 
   --color-ground: var(--vx-ground);
+  --color-ground-deep: var(--vx-ground-deep);
   --color-panel: var(--vx-panel);
-  --color-panel-edge: var(--vx-panel-edge);
   --color-well: var(--vx-well);
+  --color-raised: var(--vx-raised);
+  --color-raised-edge: var(--vx-raised-edge);
   --color-ink: var(--vx-ink);
   --color-muted: var(--vx-muted);
   --color-line: var(--vx-line);
   --color-line-soft: var(--vx-line-soft);
-  --color-shadow: var(--vx-shadow);
-  --color-leaf: var(--vx-leaf);
-  --color-leaf-edge: var(--vx-leaf-edge);
-  --color-leaf-soft: var(--vx-leaf-soft);
-  --color-on-leaf: var(--vx-on-leaf);
+  --color-primary: var(--vx-primary);
+  --color-primary-edge: var(--vx-primary-edge);
+  --color-primary-soft: var(--vx-primary-soft);
+  --color-on-primary: var(--vx-on-primary);
+  --color-success: var(--vx-success);
+  --color-success-edge: var(--vx-success-edge);
+  --color-success-soft: var(--vx-success-soft);
+  --color-on-success: var(--vx-on-success);
+  --color-accent: var(--vx-accent);
+  --color-accent-edge: var(--vx-accent-edge);
+  --color-on-accent: var(--vx-on-accent);
   --color-warn: var(--vx-warn);
   --color-warn-edge: var(--vx-warn-edge);
   --color-warn-soft: var(--vx-warn-soft);
+  --color-on-warn: var(--vx-on-warn);
   --color-danger: var(--vx-danger);
   --color-danger-edge: var(--vx-danger-edge);
   --color-danger-soft: var(--vx-danger-soft);
@@ -122,34 +164,61 @@
   --color-sticker-green: var(--vx-sticker-green);
   --color-sticker-core: var(--vx-sticker-core);
 
-  --shadow-block: 4px 4px 0 0 var(--vx-shadow);
-  --shadow-block-sm: 2px 2px 0 0 var(--vx-shadow);
+  /* Soft elevation for content surfaces (cards, a picked tile). */
+  --shadow-block: var(--vx-elevation);
+  --shadow-block-sm: var(--vx-elevation-sm);
+
+  /*
+   * One radius scale. Tiny marks (sticker cells, progress pips) take xs, chips and inputs md,
+   * buttons and wells lg, cards xl, dialogs 2xl; pills and switches use rounded-full.
+   */
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+  --radius-2xl: 28px;
 
   --font-sans: var(--font-body);
-  --font-display: var(--font-pixel);
+  --font-display: var(--font-rounded);
   --font-mono: var(--font-code);
 
-  /* Motion: quick steps, and a small overshoot when a block lands. */
+  /* Motion: quick presses, and a small overshoot when something lands. */
   --ease-place: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-press: cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+
+/* The flat ground is on <html> only: a body background would paint over the gradient layer. */
+html {
+  background-color: var(--vx-ground);
 }
 
 body {
-  background-color: var(--vx-ground);
   color: var(--vx-ink);
   overflow-x: hidden;
+}
+
+/* The page gradient sits on a fixed layer, so long screens never stretch or repaint it. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: var(--vx-backdrop);
+  pointer-events: none;
 }
 
 h1,
 h2,
 h3 {
-  font-family: var(--font-pixel), var(--font-body), sans-serif;
-  font-weight: 600;
-  letter-spacing: 0.01em;
+  font-family: var(--font-rounded), var(--font-body), sans-serif;
+  font-weight: 800;
+  letter-spacing: -0.01em;
 }
 
 ::selection {
-  background: var(--vx-leaf);
-  color: var(--vx-on-leaf);
+  background: var(--vx-primary);
+  color: var(--vx-on-primary);
 }
 
 /* One focus ring for everything: a solid 2px outline with a gap, never a glow. */
@@ -164,105 +233,148 @@ h3 {
   outline: none;
 }
 
-/* Square, flat scrollbars */
+/* Slim rounded scrollbars */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--vx-well);
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
   background: var(--vx-line-soft);
+  border: 2px solid transparent;
+  border-radius: 9999px;
+  background-clip: padding-box;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--vx-muted);
+  background-color: var(--vx-muted);
 }
 
 /*
- * Blocks. A block is a flat face inside a 2px outline, with a light lip along the top and a
- * darker edge along the bottom. Variants only swap the three face colors.
+ * Raised controls. A block is a rounded face standing on a solid bottom edge: a 2px rim on
+ * every side, the rim's bottom side in the edge color plus a 2px inset band above it, so the
+ * edge is 4px deep. Pressing sinks the face 2px onto its edge. Border widths never change, so
+ * pressing never moves anything around it. Variants only swap the four colors.
+ *
+ * The primitives live in the components layer, so a Tailwind utility on the same element
+ * (`rounded-full`, `rounded-2xl`, `bg-danger-soft`) overrides them, as utilities should.
+ * Unlayered, they would beat every utility whatever its specificity.
  */
-.vx-block {
-  --vx-face: var(--vx-panel);
-  --vx-edge: var(--vx-panel-edge);
-  --vx-text: var(--vx-ink);
-  background-color: var(--vx-face);
-  color: var(--vx-text);
-  border: 2px solid var(--vx-line);
-  box-shadow:
-    inset 0 2px 0 0 var(--vx-lip),
-    inset 0 -4px 0 0 var(--vx-edge),
-    2px 2px 0 0 var(--vx-shadow);
-  transition:
-    transform 80ms steps(2, end),
-    box-shadow 80ms steps(2, end);
+@layer components {
+  .vx-block {
+    --vx-face: var(--vx-raised);
+    --vx-edge: var(--vx-raised-edge);
+    --vx-rim: var(--vx-line-soft);
+    --vx-text: var(--vx-ink);
+    background-color: var(--vx-face);
+    color: var(--vx-text);
+    border: 2px solid var(--vx-rim);
+    border-bottom-color: var(--vx-edge);
+    border-radius: var(--radius-lg);
+    box-shadow: inset 0 -2px 0 0 var(--vx-edge);
+    transition:
+      transform 90ms var(--ease-press),
+      box-shadow 90ms var(--ease-press),
+      background-color 120ms ease-out,
+      filter 120ms ease-out;
+  }
+
+  .vx-block[data-variant="primary"] {
+    --vx-face: var(--vx-primary);
+    --vx-edge: var(--vx-primary-edge);
+    --vx-rim: var(--vx-primary);
+    --vx-text: var(--vx-on-primary);
+  }
+
+  .vx-block[data-variant="danger"] {
+    --vx-face: var(--vx-danger);
+    --vx-edge: var(--vx-danger-edge);
+    --vx-rim: var(--vx-danger);
+    --vx-text: var(--vx-on-danger);
+  }
+
+  .vx-block[data-variant="ghost"] {
+    --vx-face: transparent;
+    --vx-edge: transparent;
+    --vx-rim: transparent;
+    box-shadow: none;
+  }
+
+  .vx-block[data-variant="ghost"]:hover:not(:disabled) {
+    --vx-face: var(--vx-well);
+  }
+
+  /* A ghost toggle that is on (aria-pressed) shows it: a blue tint inside a blue rim. */
+  .vx-block[data-variant="ghost"][aria-pressed="true"] {
+    --vx-face: var(--vx-primary-soft);
+    --vx-rim: var(--vx-primary);
+    --vx-edge: var(--vx-primary);
+  }
+
+  .vx-block:hover:not(:disabled):not([data-variant="ghost"]) {
+    transform: translateY(-1px);
+  }
+
+  /* A secondary face takes a breath of blue on hover; colored faces brighten a little. */
+  .vx-block:not([data-variant]):hover:not(:disabled),
+  .vx-block[data-variant="secondary"]:hover:not(:disabled) {
+    --vx-face: color-mix(in oklab, var(--vx-raised), var(--vx-primary) 7%);
+  }
+
+  .vx-block[data-variant="primary"]:hover:not(:disabled),
+  .vx-block[data-variant="danger"]:hover:not(:disabled) {
+    filter: brightness(1.07);
+  }
+
+  /* Pressed: the face sinks 2px and its edge shrinks from 4px to the 2px rim. */
+  .vx-block:active:not(:disabled):not([data-variant="ghost"]),
+  .vx-block[aria-pressed="true"]:not([data-variant="ghost"]) {
+    transform: translateY(2px);
+    box-shadow: none;
+  }
+
+  .vx-block:disabled {
+    cursor: not-allowed;
+    --vx-face: var(--vx-well);
+    --vx-edge: var(--vx-line-soft);
+    --vx-rim: var(--vx-line-soft);
+    --vx-text: var(--vx-muted);
+    box-shadow: none;
+    filter: none;
+  }
+
+  /* A panel is a content card: a rounded face that floats on a soft tinted shadow. */
+  .vx-panel {
+    background-color: var(--vx-panel);
+    color: var(--vx-ink);
+    border: 2px solid var(--vx-line-soft);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--vx-elevation);
+  }
+
+  /* A well is the sunken variant: content set into a card. */
+  .vx-well {
+    background-color: var(--vx-well);
+    border: 2px solid var(--vx-line-soft);
+    border-radius: var(--radius-lg);
+  }
+
+  /* The brand pill: teal, like a badge under a logo. */
+  .vx-pill {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 9999px;
+    background-color: var(--vx-accent);
+    color: var(--vx-on-accent);
+    box-shadow: inset 0 -2px 0 0 var(--vx-accent-edge);
+  }
 }
 
-.vx-block[data-variant="primary"] {
-  --vx-face: var(--vx-leaf);
-  --vx-edge: var(--vx-leaf-edge);
-  --vx-text: var(--vx-on-leaf);
-}
-
-.vx-block[data-variant="danger"] {
-  --vx-face: var(--vx-danger);
-  --vx-edge: var(--vx-danger-edge);
-  --vx-text: var(--vx-on-danger);
-}
-
-.vx-block[data-variant="ghost"] {
-  --vx-face: transparent;
-  --vx-edge: transparent;
-  border-color: transparent;
-  box-shadow: none;
-}
-
-.vx-block[data-variant="ghost"]:hover:not(:disabled) {
-  --vx-face: var(--vx-well);
-}
-
-.vx-block:hover:not(:disabled):not([data-variant="ghost"]) {
-  transform: translateY(-1px);
-}
-
-/* Pressed: the block sinks 2px and its bottom edge shrinks from 4px to 2px. */
-.vx-block:active:not(:disabled):not([data-variant="ghost"]),
-.vx-block[aria-pressed="true"]:not([data-variant="ghost"]) {
-  transform: translateY(2px);
-  box-shadow:
-    inset 0 2px 0 0 var(--vx-lip),
-    inset 0 -2px 0 0 var(--vx-edge);
-}
-
-.vx-block:disabled {
-  cursor: not-allowed;
-  --vx-face: var(--vx-well);
-  --vx-edge: var(--vx-well);
-  --vx-text: var(--vx-muted);
-  border-color: var(--vx-line-soft);
-  box-shadow: none;
-}
-
-/* A panel is a large block: thicker bottom edge, 4px hard shadow. */
-.vx-panel {
-  background-color: var(--vx-panel);
-  color: var(--vx-ink);
-  border: 2px solid var(--vx-line);
-  box-shadow:
-    inset 0 -4px 0 0 var(--vx-panel-edge),
-    4px 4px 0 0 var(--vx-shadow);
-}
-
-.vx-well {
-  background-color: var(--vx-well);
-  border: 2px solid var(--vx-line-soft);
-}
-
-/* Motion: a block drops in with a small overshoot, in visible steps. */
+/* Motion: a surface drops in with a small overshoot. */
 @keyframes vx-place {
   0% { opacity: 0; transform: translateY(-8px); }
   60% { opacity: 1; transform: translateY(2px); }
@@ -280,10 +392,10 @@ h3 {
   to { opacity: 0; }
 }
 
-/* Busy indicator: three blocks light up in turn. */
+/* Busy indicator: three dots hop in turn. */
 @keyframes vx-step {
-  0%, 100% { background-color: var(--vx-well); }
-  33% { background-color: var(--vx-leaf); }
+  0%, 100% { background-color: var(--vx-line-soft); transform: none; }
+  33% { background-color: var(--vx-primary); transform: translateY(-4px); }
 }
 
 .vx-loader {
@@ -292,19 +404,19 @@ h3 {
 }
 
 .vx-loader > span {
-  width: 16px;
-  height: 16px;
-  border: 2px solid var(--vx-line);
-  background-color: var(--vx-well);
-  animation: vx-step 900ms steps(1, end) infinite;
+  width: 14px;
+  height: 14px;
+  border-radius: 9999px;
+  background-color: var(--vx-line-soft);
+  animation: vx-step 900ms ease-in-out infinite;
 }
 
-.vx-loader > span:nth-child(2) { animation-delay: 300ms; }
-.vx-loader > span:nth-child(3) { animation-delay: 600ms; }
+.vx-loader > span:nth-child(2) { animation-delay: 150ms; }
+.vx-loader > span:nth-child(3) { animation-delay: 300ms; }
 
-.vx-place { animation: vx-place 200ms steps(3, end) both; }
+.vx-place { animation: vx-place 260ms var(--ease-place) both; }
 .vx-pop { animation: vx-pop 240ms var(--ease-place) both; }
-.vx-flash { animation: vx-flash 180ms steps(3, end) both; }
+.vx-flash { animation: vx-flash 180ms ease-out both; }
 
 @media (prefers-reduced-motion: reduce) {
   *,

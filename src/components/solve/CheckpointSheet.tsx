@@ -186,12 +186,12 @@ export function CheckpointSheetView({
       </div>
 
       {/* shrink-0: in the scrolling sheet an empty video (camera off or blocked) would collapse. */}
-      <div className="relative aspect-square w-full shrink-0 overflow-hidden border-4 border-line bg-sticker-core">
+      <div className="relative aspect-square w-full shrink-0 overflow-hidden rounded-xl border-2 border-line-soft bg-sticker-core">
         <video ref={videoRef} playsInline muted autoPlay className="h-full w-full object-cover" />
         {cameraStatus === 'live' && (
           <div aria-hidden className="pointer-events-none absolute inset-0 flex items-center justify-center">
             <div
-              className="grid grid-cols-3 grid-rows-3 border-4 border-sticker-white"
+              className="grid grid-cols-3 grid-rows-3 overflow-hidden rounded-md border-4 border-sticker-white"
               style={{ width: `${RETICLE_SHARE * 100}%`, height: `${RETICLE_SHARE * 100}%` }}
             >
               {Array.from({ length: 9 }, (_, i) => (

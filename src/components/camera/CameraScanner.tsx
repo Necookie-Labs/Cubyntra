@@ -289,9 +289,9 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({ onBack }) => {
 
   const isFace = cubeDetection?.classification === 'face';
   const isCube = Boolean(cubeDetection?.isCube);
-  // Frame color follows what the detector sees: danger for a face, leaf for a cube.
-  const frameBorder = isFace ? 'border-danger' : isCube ? 'border-leaf' : 'border-sticker-white';
-  const cornerFill = isFace ? 'bg-danger' : isCube ? 'bg-leaf' : 'bg-sticker-white';
+  // Frame color follows what the detector sees: danger for a face, success for a cube.
+  const frameBorder = isFace ? 'border-danger' : isCube ? 'border-success' : 'border-sticker-white';
+  const cornerFill = isFace ? 'bg-danger' : isCube ? 'bg-success' : 'bg-sticker-white';
 
   return (
     <div className="flex flex-col h-full w-full max-w-xl mx-auto p-4 select-none">
@@ -306,7 +306,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({ onBack }) => {
       </BlockButton>
 
       {/* Viewfinder Container */}
-      <div className="relative w-full aspect-square overflow-hidden bg-sticker-core border-4 border-line shadow-block flex items-center justify-center">
+      <div className="relative w-full aspect-square overflow-hidden rounded-2xl bg-well border-2 border-line-soft shadow-block flex items-center justify-center">
         {/* Hidden processing canvas */}
         <canvas ref={canvasRef} className="hidden" />
 
@@ -321,9 +321,9 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({ onBack }) => {
 
         {/* Loading State */}
         {cameraStatus === 'loading' && (
-          <div className="absolute inset-0 flex items-center justify-center bg-sticker-core p-4">
-            <div className="vx-panel vx-place flex items-center gap-3 px-4 py-3 pb-4">
-              <RefreshCw className="w-5 h-5 animate-spin text-leaf-edge" />
+          <div className="absolute inset-0 flex items-center justify-center bg-well p-4">
+            <div className="vx-panel vx-place flex items-center gap-3 px-4 py-3">
+              <RefreshCw className="w-5 h-5 animate-spin text-primary" />
               <p className="text-sm font-bold text-ink">Starting the camera…</p>
             </div>
           </div>
@@ -331,12 +331,12 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({ onBack }) => {
 
         {/* Error Fallback */}
         {cameraStatus === 'error' && (
-          <div className="absolute inset-0 flex items-center justify-center bg-sticker-core p-4">
-            <div className="vx-panel vx-place flex w-full max-w-sm flex-col items-center gap-4 p-6 pb-7 text-center">
+          <div className="absolute inset-0 flex items-center justify-center bg-well p-4">
+            <div className="vx-panel vx-place flex w-full max-w-sm flex-col items-center gap-4 p-6 text-center">
               <div
                 aria-hidden
                 data-variant="danger"
-                className="vx-block flex h-12 w-12 items-center justify-center pb-1"
+                className="vx-block flex h-12 w-12 items-center justify-center rounded-full pb-0.5"
               >
                 <AlertTriangle className="w-6 h-6" />
               </div>
@@ -374,7 +374,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({ onBack }) => {
                   Face detected. Show the cube instead
                 </Chip>
               ) : isCube && cubeDetection ? (
-                <Chip tone="leaf" icon={<Box className="w-4 h-4" />} className="h-8 px-3">
+                <Chip tone="success" icon={<Box className="w-4 h-4" />} className="h-8 px-3">
                   Cube found{' '}
                   <span className="font-mono">({Math.round(cubeDetection.cubeConfidence * 100)}%)</span>
                 </Chip>
@@ -385,11 +385,11 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({ onBack }) => {
               )}
             </div>
 
-            {/* Central square target: a block frame with solid pixel corners */}
-            <div className={`relative w-[65%] h-[65%] border-4 p-1 grid grid-cols-3 gap-1 ${frameBorder}`}>
+            {/* Central square target: a rounded frame with solid round corner marks */}
+            <div className={`relative w-[65%] h-[65%] rounded-2xl border-4 p-1 grid grid-cols-3 gap-1 ${frameBorder}`}>
               {(['-top-2 -left-2', '-top-2 -right-2', '-bottom-2 -left-2', '-bottom-2 -right-2'] as const).map(
                 (pos) => (
-                  <span key={pos} aria-hidden className={`absolute ${pos} w-4 h-4 border-2 border-line ${cornerFill}`} />
+                  <span key={pos} aria-hidden className={`absolute ${pos} w-4 h-4 rounded-full border-2 border-sticker-core ${cornerFill}`} />
                 )
               )}
 
@@ -403,7 +403,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({ onBack }) => {
                 return (
                   <div
                     key={index}
-                    className={`relative border-2 flex flex-col items-center justify-center overflow-hidden ${
+                    className={`relative rounded-md border-2 flex flex-col items-center justify-center overflow-hidden ${
                       isValidCubeColor ? '' : isFace ? 'border-danger' : 'border-sticker-white'
                     }`}
                     style={cellColor ? { borderColor: cellColor } : undefined}
@@ -412,7 +412,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({ onBack }) => {
                     {isValidCubeColor ? (
                       <div
                         className={cx(
-                          'flex items-center justify-center border-2 border-line transition-transform duration-150',
+                          'flex items-center justify-center rounded-xs border-2 border-sticker-core transition-transform duration-150',
                           letters ? 'h-6 w-6' : 'h-4 w-4'
                         )}
                         style={{
@@ -430,12 +430,12 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({ onBack }) => {
                         )}
                       </div>
                     ) : (
-                      <div className={`w-2 h-2 ${isFace ? 'bg-danger' : 'bg-sticker-white'}`} />
+                      <div className={`w-2 h-2 rounded-full ${isFace ? 'bg-danger' : 'bg-sticker-white'}`} />
                     )}
 
                     {/* Center piece indicator */}
                     {isCenter && (
-                      <span className="absolute bottom-1 border-2 border-line bg-panel px-1 text-xs font-bold leading-none text-ink">
+                      <span className="absolute bottom-1 rounded-full border-2 border-sticker-core bg-panel px-1.5 text-xs font-bold leading-none text-ink">
                         Center
                       </span>
                     )}
@@ -468,7 +468,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({ onBack }) => {
             <div className="flex items-center gap-2">
               <span
                 aria-hidden
-                className="w-4 h-4 shrink-0 border-2 border-line"
+                className="w-4 h-4 shrink-0 rounded-xs border-2 border-sticker-core"
                 style={{ backgroundColor: stickerColor(currentStep.centerColor) }}
               />
               <h2 className="text-lg leading-tight text-ink">{currentStep.title}</h2>
@@ -491,7 +491,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({ onBack }) => {
             ) : !isCube ? (
               <Chip tone="neutral">Line the cube up with the grid</Chip>
             ) : isStable ? (
-              <Chip tone="leaf">✓ Hold still (ready)</Chip>
+              <Chip tone="success">✓ Hold still (ready)</Chip>
             ) : (
               <Chip tone="warn">Reading the colors…</Chip>
             )}
@@ -502,10 +502,10 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({ onBack }) => {
             </span>
           </div>
 
-          <div className="w-full h-4 bg-well border-2 border-line overflow-hidden">
+          <div className="w-full h-4 rounded-full bg-well border-2 border-line-soft overflow-hidden">
             <div
-              className={`h-full border-r-2 border-line transition-[width] duration-150 ${
-                isFace ? 'bg-danger' : isStable ? 'bg-leaf' : 'bg-warn'
+              className={`h-full rounded-full transition-[width] duration-150 ${
+                isFace ? 'bg-danger' : isStable ? 'bg-success' : 'bg-warn'
               }`}
               style={{ width: `${Math.max(5, stabilityProgress * 100)}%` }}
             />
@@ -553,18 +553,18 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({ onBack }) => {
               key={seq.face}
               type="button"
               onClick={() => rescanFace(seq.face)}
-              className={`vx-hit relative aspect-square p-1 border-2 flex flex-col items-center justify-center transition-transform duration-75 hover:-translate-y-px ${
+              className={`vx-hit relative aspect-square rounded-md p-1 border-2 border-b-4 flex flex-col items-center justify-center transition-transform duration-75 hover:-translate-y-px active:translate-y-0.5 ${
                 isCurrent
-                  ? 'border-line bg-leaf-soft shadow-block-sm'
+                  ? 'border-primary border-b-primary-edge bg-primary-soft'
                   : isCaptured
-                  ? 'border-line bg-panel'
-                  : 'border-line-soft bg-well'
+                  ? 'border-success border-b-success-edge bg-panel'
+                  : 'border-line-soft border-b-raised-edge bg-raised'
               }`}
               title={`Face ${seq.face} (${seq.centerColor}) - Click to rescan`}
               aria-label={`Scan the ${seq.centerColor} center face (${isCaptured ? 'read' : isCurrent ? 'scanning now' : 'not read yet'})`}
             >
               {isCaptured && capturedData ? (
-                <div className="grid grid-cols-3 gap-0.5 w-full h-full bg-sticker-core p-0.5">
+                <div className="grid grid-cols-3 gap-0.5 w-full h-full overflow-hidden rounded-xs bg-sticker-core p-0.5">
                   {capturedData.stickers.map((col, idx) => (
                     <div key={idx} style={{ backgroundColor: stickerColor(col) }} />
                   ))}
@@ -578,7 +578,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({ onBack }) => {
               {isCaptured && (
                 <span
                   aria-hidden
-                  className="vx-pop absolute -top-2 -right-2 flex h-4 w-4 items-center justify-center border-2 border-line bg-leaf text-on-leaf"
+                  className="vx-pop absolute -top-2 -right-2 flex h-5 w-5 items-center justify-center rounded-full border-2 border-success-edge bg-success text-on-success"
                 >
                   <Check className="w-3 h-3" strokeWidth={3} />
                 </span>

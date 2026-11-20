@@ -11,7 +11,7 @@
 
 import React, { useState, useSyncExternalStore } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, GraduationCap, Library, ScanLine, Shuffle, Smartphone, Target, Timer } from 'lucide-react';
+import { ArrowRight, Check, GraduationCap, Library, ScanLine, Shuffle, Smartphone, Target, Timer } from 'lucide-react';
 import { BlockButton, Chip, Dialog, Panel, ProgressBlocks, cx } from '@/components/ui';
 import { BlockLink } from '@/components/shell/BlockLink';
 import { PageContainer, PageHeader, PageSection } from '@/components/shell/Page';
@@ -52,8 +52,8 @@ function GraduationCard() {
     updateSettings(suggestion === 'try-cfop' ? { methodDefault: 'cfop', lastLayer: '2-look' } : { lastLayer: 'full' });
 
   return (
-    <Panel as="section" aria-labelledby="graduation-title" className="vx-place flex flex-col gap-4 p-6 pb-7 sm:flex-row sm:items-start">
-      <span aria-hidden data-variant="primary" className="vx-block flex h-12 w-12 shrink-0 items-center justify-center pb-1">
+    <Panel as="section" aria-labelledby="graduation-title" className="vx-place flex flex-col gap-4 rounded-2xl p-6 sm:flex-row sm:items-start">
+      <span aria-hidden data-variant="primary" className="vx-block flex h-12 w-12 shrink-0 items-center justify-center rounded-md pb-0.5">
         <GraduationCap className="h-6 w-6" />
       </span>
       <div className="flex flex-col gap-3">
@@ -92,9 +92,9 @@ function ContinueCard() {
   const stageName = progress && !progress.done ? stages[progress.stageIndex]?.name : null;
 
   return (
-    <Panel as="section" aria-labelledby="continue-title" className="vx-place flex flex-col gap-4 p-6 pb-7">
+    <Panel as="section" aria-labelledby="continue-title" className="vx-place flex flex-col gap-4 rounded-2xl p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <Chip tone="leaf">In progress</Chip>
+        <Chip tone="accent">In progress</Chip>
         <span className="font-mono text-xs text-muted">Step {solve.stepIndex + 1}</span>
       </div>
       <div className="flex flex-col gap-1">
@@ -162,24 +162,32 @@ function MethodPicker() {
             role="radio"
             aria-checked={active}
             onClick={() => updateSettings({ methodDefault: id })}
+            // A choice card: it stands on a 4px edge (2px rim + 2px band) and sinks when pressed.
             className={cx(
-              'vx-hit flex flex-col items-start gap-3 border-2 border-line p-4 pb-5 text-left shadow-[inset_0_-4px_0_0_var(--vx-panel-edge),4px_4px_0_0_var(--vx-shadow)]',
-              active ? 'bg-leaf-soft' : 'bg-panel hover:bg-well'
+              'vx-hit flex flex-col items-start gap-3 rounded-xl border-2 p-4 pb-5 text-left transition-transform duration-100 ease-press hover:-translate-y-px active:translate-y-0.5 active:shadow-none',
+              active
+                ? 'border-primary border-b-primary-edge bg-primary-soft shadow-[inset_0_-2px_0_0_var(--vx-primary-edge)]'
+                : 'border-line-soft border-b-raised-edge bg-raised shadow-[inset_0_-2px_0_0_var(--vx-raised-edge)]'
             )}
           >
             <span className="flex w-full items-center justify-between gap-2">
-              <span className="font-display text-xl leading-none text-ink">{info.name}</span>
+              <span className="font-display text-xl font-extrabold leading-tight text-ink">{info.name}</span>
               <span
                 aria-hidden
-                className={cx('h-5 w-5 border-2 border-line', active ? 'bg-leaf shadow-[inset_0_-3px_0_0_var(--vx-leaf-edge)]' : 'bg-well')}
-              />
+                className={cx(
+                  'flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2',
+                  active ? 'border-primary-edge bg-primary text-on-primary' : 'border-line bg-well'
+                )}
+              >
+                {active && <Check className="h-3.5 w-3.5" strokeWidth={3} />}
+              </span>
             </span>
             <span className="text-sm font-bold text-ink">{info.summary}</span>
             <span className="text-sm text-muted">{info.detail}</span>
             <span className="mt-auto flex items-center gap-2 pt-1 text-xs text-muted">
               <span aria-hidden className="flex gap-1">
                 {info.stages.map((s) => (
-                  <span key={s.id} className="h-2 w-2 border border-line-soft bg-well" />
+                  <span key={s.id} className="h-2 w-2 rounded-full bg-line" />
                 ))}
               </span>
               {info.stages.length} stages
@@ -193,8 +201,8 @@ function MethodPicker() {
 
 function Stat({ value, label }: { value: React.ReactNode; label: string }) {
   return (
-    <div className="vx-well flex flex-col gap-1 p-3">
-      <span className="font-display text-3xl leading-none text-ink">{value}</span>
+    <div className="vx-panel flex flex-col gap-1 p-4">
+      <span className="font-display text-3xl font-black leading-none text-ink">{value}</span>
       <span className="text-xs font-bold text-muted">{label}</span>
     </div>
   );
@@ -270,12 +278,12 @@ export function HomeView() {
             <li key={href}>
               <BlockLink
                 href={href}
-                className="h-auto w-full justify-start gap-3 whitespace-normal px-3 py-3 pb-4 text-left"
+                className="h-auto w-full justify-start gap-3 whitespace-normal px-4 py-3.5 text-left"
                 icon={<Icon aria-hidden className="h-5 w-5 shrink-0" />}
               >
                 <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                  <span className="text-sm">{label}</span>
-                  <span className="text-xs font-normal text-muted">{blurb}</span>
+                  <span className="text-[15px]">{label}</span>
+                  <span className="font-sans text-xs font-normal tracking-normal text-muted">{blurb}</span>
                 </span>
               </BlockLink>
             </li>

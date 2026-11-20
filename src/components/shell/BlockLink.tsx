@@ -7,13 +7,13 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { cx, type BlockButtonSize, type BlockButtonVariant } from '@/components/ui';
-
-const SIZE: Record<BlockButtonSize, string> = {
-  sm: 'h-8 px-3 pb-0.5 text-xs gap-1.5',
-  md: 'h-10 px-4 pb-1 text-sm gap-2',
-  lg: 'h-12 px-6 pb-1 text-base gap-2',
-};
+import {
+  BLOCK_BUTTON_BASE,
+  BLOCK_BUTTON_SIZE,
+  cx,
+  type BlockButtonSize,
+  type BlockButtonVariant,
+} from '@/components/ui';
 
 export interface BlockLinkProps extends Omit<React.ComponentProps<typeof Link>, 'className'> {
   variant?: BlockButtonVariant;
@@ -35,12 +35,7 @@ export function BlockLink({
   return (
     <Link
       data-variant={variant}
-      className={cx(
-        'vx-block inline-flex shrink-0 items-center justify-center font-bold whitespace-nowrap select-none',
-        SIZE[size],
-        fullWidth && 'w-full',
-        className
-      )}
+      className={cx(BLOCK_BUTTON_BASE, BLOCK_BUTTON_SIZE[size], fullWidth && 'w-full', className)}
       {...rest}
     >
       {icon}

@@ -26,7 +26,7 @@ export function StageHeader({ plan }: { plan: StepPlan }) {
       </div>
       <ProgressBlocks total={total} done={plan.stageIndex} label={`${info.name} stages`} />
       <div className="flex flex-col gap-1">
-        <h1 ref={headingRef} tabIndex={-1} className="text-3xl leading-none text-ink outline-none">
+        <h1 ref={headingRef} tabIndex={-1} className="text-3xl font-black leading-tight tracking-tight text-ink outline-none">
           {plan.stageName}
         </h1>
         <p className="text-sm text-muted">{plan.caseName}</p>

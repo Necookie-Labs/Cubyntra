@@ -2,8 +2,8 @@
  * Cubyntra - Page scaffolding
  * Necookie Labs (c) 2026
  *
- * Every screen starts the same way: an optional small label, one pixel-font heading and at
- * most one line of plain text, on the 8px grid.
+ * Every screen starts the same way: an optional small label, one rounded heading and at most
+ * one line of plain text, on the 8px grid.
  */
 
 import React from 'react';
@@ -38,8 +38,8 @@ export function PageHeader({
   return (
     <header className="flex flex-wrap items-end justify-between gap-4">
       <div className="flex min-w-0 flex-col gap-2">
-        {eyebrow && <p className="text-xs font-bold tracking-wide text-muted">{eyebrow}</p>}
-        <h1 id={titleId} className="text-3xl leading-none text-ink sm:text-4xl">
+        {eyebrow && <p className="font-display text-sm font-extrabold tracking-wide text-muted">{eyebrow}</p>}
+        <h1 id={titleId} className="text-3xl font-black leading-tight tracking-tight text-ink sm:text-4xl">
           {title}
         </h1>
         {lede && <p className="max-w-prose text-base leading-relaxed text-muted">{lede}</p>}
@@ -65,7 +65,7 @@ export function PageSection({
   return (
     <section aria-labelledby={id} className={cx('flex flex-col gap-3', className)}>
       <div className="flex items-baseline justify-between gap-4">
-        <h2 id={id} className="text-lg leading-tight text-ink">
+        <h2 id={id} className="text-xl leading-tight text-ink">
           {title}
         </h2>
         {aside}
@@ -75,7 +75,7 @@ export function PageSection({
   );
 }
 
-/** The flat busy indicator with a status message. */
+/** The busy indicator (three hopping dots) with a status message. */
 export function Busy({ label }: { label: string }) {
   return (
     <div role="status" className="flex flex-col items-center justify-center gap-4 py-16 text-center">

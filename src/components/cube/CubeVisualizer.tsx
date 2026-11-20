@@ -157,14 +157,14 @@ export const CubeVisualizer = forwardRef<CubeVisualizerRef, CubeVisualizerProps>
         ref={panelRef}
         className={`vx-panel relative w-full h-full min-h-[320px] overflow-hidden flex items-center justify-center select-none ${className}`}
       >
-        {/* Flat floor: a sunken well across the lower third, so the cube sits on a block. */}
-        <div aria-hidden className="absolute inset-x-0 bottom-1 h-1/3 bg-well border-t-2 border-line-soft" />
+        {/* Flat floor: a sunken well across the lower third, so the cube sits on a surface. */}
+        <div aria-hidden className="absolute inset-x-0 bottom-0 h-1/3 bg-well border-t-2 border-line-soft" />
 
         {/* Three.js canvas container */}
         <div ref={containerRef} className="w-full h-full absolute inset-0 cursor-grab active:cursor-grabbing" />
 
         {/* Ambient overlay hint */}
-        <div className="absolute top-3 left-3 pointer-events-none flex items-center gap-2 bg-panel border-2 border-line-soft px-2 h-6 text-xs font-bold text-muted">
+        <div className="absolute top-3 left-3 pointer-events-none flex items-center gap-2 rounded-full bg-panel border-2 border-line-soft px-2.5 h-7 text-xs font-bold text-muted">
           <Eye className="w-3.5 h-3.5" aria-hidden />
           <span>Drag to orbit · Scroll to zoom</span>
         </div>

@@ -99,14 +99,14 @@ export const Dialog: React.FC<DialogProps> = ({
         tabIndex={-1}
         onKeyDown={onKeyDown}
         className={cx(
-          'vx-panel vx-place relative flex max-h-[90vh] w-full flex-col gap-4 p-6 pb-7 outline-none',
+          'vx-panel vx-place relative flex max-h-[90vh] w-full flex-col gap-4 rounded-2xl p-6 outline-none',
           WIDTH[size],
           className
         )}
       >
         <div className="flex shrink-0 items-start gap-3">
           {icon && (
-            <div aria-hidden className="vx-block flex h-10 w-10 shrink-0 items-center justify-center pb-1" data-variant="primary">
+            <div aria-hidden className="vx-block flex h-11 w-11 shrink-0 items-center justify-center rounded-md pb-0.5" data-variant="primary">
               {icon}
             </div>
           )}

@@ -4,7 +4,7 @@
  * Cubyntra - Segmented Control
  * Necookie Labs (c) 2026
  *
- * A row of block buttons where exactly one is chosen: a radiogroup. Arrow keys move the
+ * A row of raised buttons where exactly one is chosen: a radiogroup. Arrow keys move the
  * choice (roving tabindex), so the whole group is one Tab stop. A disabled option is shown but
  * skipped by the arrow keys and cannot be chosen.
  */
@@ -73,7 +73,7 @@ export function SegmentedControl<T extends string>({
             disabled={option.disabled}
             data-variant={active ? 'primary' : 'secondary'}
             onClick={() => onChange(option.value)}
-            className="vx-block inline-flex h-10 min-w-0 flex-1 items-center justify-center gap-2 px-3 pb-1 text-sm font-bold"
+            className="vx-block inline-flex h-11 min-w-0 flex-1 items-center justify-center gap-2 px-3 pb-0.5 font-display text-sm font-extrabold tracking-wide"
           >
             {option.icon}
             {option.label}

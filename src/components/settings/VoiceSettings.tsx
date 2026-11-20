@@ -52,10 +52,10 @@ function CreditsPanel({ status }: { status: VoiceStatus }) {
         aria-valuemin={0}
         aria-valuemax={status.capCredits}
         aria-valuenow={Math.round(status.monthCredits)}
-        className="h-4 w-full border-2 border-line bg-well"
+        className="h-4 w-full overflow-hidden rounded-full border-2 border-line bg-well"
       >
         <div
-          className={status.warning ? 'h-full bg-warn' : 'h-full bg-leaf'}
+          className={status.warning ? 'h-full rounded-full bg-warn' : 'h-full rounded-full bg-success'}
           style={{ width: `${Math.max(share > 0 ? 2 : 0, share * 100)}%` }}
         />
       </div>

@@ -45,7 +45,7 @@ export const StickerGrid: React.FC<StickerGridProps> = ({
   <div
     role="group"
     aria-label={label}
-    className={cx('inline-grid grid-cols-3 gap-0.5 border-2 border-line bg-sticker-core p-0.5', className)}
+    className={cx('inline-grid grid-cols-3 gap-0.5 rounded-sm bg-sticker-core p-1', className)}
   >
     {tiles.map((color, index) => {
       const isMarked = marked.includes(index);
@@ -56,11 +56,15 @@ export const StickerGrid: React.FC<StickerGridProps> = ({
               {stickerLetter(color)}
             </span>
           )}
-          {isMarked && <span aria-hidden className="absolute -right-1 -top-1 h-3 w-3 border-2 border-line bg-warn" />}
+          {isMarked && <span aria-hidden className="absolute -right-1 -top-1 h-3 w-3 rounded-full border-2 border-sticker-core bg-warn" />}
         </>
       );
       const style = color ? { backgroundColor: stickerColor(color) } : undefined;
-      const base = cx('relative flex items-center justify-center', (onTileClick ? TAP_TILE : TILE)[size], !color && 'bg-well');
+      const base = cx(
+        'relative flex items-center justify-center rounded-xs',
+        (onTileClick ? TAP_TILE : TILE)[size],
+        !color && 'bg-well'
+      );
       const name = `${tileName(index, color)}${isMarked ? ', needs a look' : ''}`;
       return onTileClick ? (
         <button

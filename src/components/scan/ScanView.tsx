@@ -156,9 +156,9 @@ export function ScanView() {
       )}
 
       {appState === 'error' && (
-        <Panel role="alert" className="vx-place flex flex-col gap-4 p-6 pb-7">
+        <Panel role="alert" className="vx-place flex flex-col gap-4 p-6">
           <div className="flex items-start gap-3">
-            <span aria-hidden data-variant="danger" className="vx-block flex h-10 w-10 shrink-0 items-center justify-center pb-1">
+            <span aria-hidden data-variant="danger" className="vx-block flex h-10 w-10 shrink-0 items-center justify-center rounded-full pb-0.5">
               <AlertTriangle className="h-5 w-5" />
             </span>
             <div className="flex flex-col gap-1">

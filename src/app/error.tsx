@@ -20,8 +20,8 @@ export default function Error({ error, retry }: { error: Error & { digest?: stri
 
   return (
     <main className="min-h-[100dvh] grid place-items-center p-6">
-      <div className="vx-panel vx-place w-full max-w-md p-6 pb-7 flex flex-col items-center gap-4 text-center">
-        <div aria-hidden data-variant="danger" className="vx-block flex h-12 w-12 items-center justify-center pb-1">
+      <div className="vx-panel vx-place flex w-full max-w-md flex-col items-center gap-4 rounded-2xl p-6 text-center">
+        <div aria-hidden data-variant="danger" className="vx-block flex h-12 w-12 items-center justify-center rounded-md pb-0.5">
           <AlertTriangle className="w-6 h-6" />
         </div>
         <div className="flex flex-col gap-2">
@@ -35,7 +35,7 @@ export default function Error({ error, retry }: { error: Error & { digest?: stri
           <BlockButton variant="primary" onClick={() => retry()} icon={<RefreshCw className="w-4 h-4" aria-hidden />}>
             Try again
           </BlockButton>
-          <Link href="/" className="vx-block inline-flex h-10 items-center gap-2 px-4 pb-1 text-sm font-bold">
+          <Link href="/" className="vx-block inline-flex h-11 items-center gap-2 px-5 pb-0.5 font-display text-[15px] font-extrabold tracking-wide">
             <Home className="w-4 h-4" aria-hidden />
             Back to home
           </Link>

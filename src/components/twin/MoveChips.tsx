@@ -23,9 +23,11 @@ export function moveChipState(index: number, current: number): MoveChipState {
 }
 
 const STATE_CLASS: Record<MoveChipState, string> = {
-  done: 'bg-well text-muted border-line-soft',
-  current: 'bg-leaf text-on-leaf border-line shadow-block-sm',
-  upcoming: 'bg-panel text-ink border-line',
+  // Done chips sit flat and sunk; the current one is a blue face on its edge; upcoming ones are
+  // raised like a secondary button.
+  done: 'border-line-soft bg-well text-muted',
+  current: 'border-primary border-b-primary-edge bg-primary text-on-primary shadow-[inset_0_-2px_0_0_var(--vx-primary-edge)]',
+  upcoming: 'border-line-soft border-b-raised-edge bg-raised text-ink shadow-[inset_0_-2px_0_0_var(--vx-raised-edge)]',
 };
 
 export interface MoveChipsProps {
@@ -62,7 +64,7 @@ export const MoveChips: React.FC<MoveChipsProps> = ({
           const state = moveChipState(i, current);
           const name = moveName(move);
           const chipClass = cx(
-            'inline-flex h-8 min-w-10 items-center justify-center border-2 px-2 font-mono text-sm font-bold',
+            'inline-flex h-9 min-w-10 items-center justify-center rounded-md border-2 px-2.5 pb-0.5 font-mono text-sm font-bold',
             STATE_CLASS[state]
           );
           const common = {
