@@ -167,7 +167,7 @@ page (browsers block autoplay).
 1. Add to `.env.local` (git-ignored; see `.env.example`):
    ```bash
    ELEVENLABS_API_KEY=sk_...
-   ELEVENLABS_VOICE_ID=                  # optional; default a stock premade voice
+   ELEVENLABS_VOICE_ID=                  # optional; overrides the default voice (Alice)
    ELEVENLABS_MONTHLY_CREDIT_CAP=20000   # optional, default 20,000 credits
    ```
 2. Restart `npm run dev`. The key is read only by the server (`src/voice/elevenlabs.ts`) and never
@@ -175,20 +175,26 @@ page (browsers block autoplay).
 3. Settings → Voice now allows ElevenLabs and shows the month's credits. `GET /api/voice/status`
    (app token) returns `{ mode, keySet, monthCredits, capCredits, remaining?, warning, ... }`.
 
-**Credits math.** ElevenLabs bills by characters of text. Flash v2.5 (`eleven_flash_v2_5`, the
-model used) costs **0.5 credit per character**, half of Multilingual v2 (one table in
-`src/voice/credits.ts`). About **1,000 characters ≈ 1 minute of audio ≈ 500 credits**.
+**Credits math.** ElevenLabs bills by characters of text, at a rate per model (one table in
+`src/voice/catalog.ts`). The default, Eleven v4 (`eleven_v4`, Settings "High quality"), costs
+**1 credit per character**; Eleven v4 Turbo (`eleven_v4_turbo`, "Faster, half the credits")
+**0.5**. About **1,000 characters ≈ 1 minute of audio ≈ 1,000 credits with v4 (500 with Turbo)**.
 - The phrase bank (every move in both styles, stage intros, checkpoint and praise lines) is
-  142 lines, 3,118 characters ≈ **1,559 credits**, spent once: each clip is kept in
-  `data/voice/<hash>.mp3` and replayed for free afterwards.
-- Coach replies use the device voice. "Read with ElevenLabs" sends that one reply (often 300-700
-  characters, 150-350 credits) and does not keep it.
+  142 lines, 3,118 characters ≈ **3,118 credits with v4 (1,559 with Turbo)**, spent once per
+  voice and quality: each clip is kept in `data/voice/<hash>.mp3` and replayed for free afterwards.
+- Hint replies use the device voice. "Read with ElevenLabs" sends that one reply (often 300-700
+  characters) and does not keep it. In ElevenLabs mode, "Ask the coach" answers (a few short
+  sentences, about 200-500 characters) are read with ElevenLabs too.
+- The voice is one of five curated stock voices (Settings → Voice; Alice by default) or
+  `ELEVENLABS_VOICE_ID`; `/api/voice` refuses any other voice id.
 
 **Prewarming the bank.** `npm run voice:prewarm` prints the number of lines, characters and
 credits it would send and how many are cached already, and sends nothing. Run
 `npm run voice:prewarm -- --yes` to make the missing clips in one go (it stops at the cap).
-Without prewarming, each clip is made the first time it is needed. Changing the voice or model
-makes new clips (the hash covers both).
+`--voice <name|id>` (e.g. `--voice Matilda`) and `--model <high|fast|model id>` prewarm another
+voice or quality; credits are printed at that model's rate. Without prewarming, each clip is
+made the first time it is needed. Changing the voice, model or speed makes new clips (the hash
+covers them).
 
 **The cap.** Characters sent are counted per UTC month in `data/voice-usage.json` (cached clips
 are free and not counted). Before each call its credits are reserved; a call that could pass the
