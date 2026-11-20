@@ -163,6 +163,29 @@ lighting and glare tips with Scan again and Use a demo cube.
   The reply streams into a polite live region. The highest hint asked for on a stage is saved for
   mastery (Progress). "Templates" or "Cap reached" chips and the
   route's notice show when the coach answers from templates.
+- **Ask the coach** (`CoachChat`, [ADR-014](ADR/014-claude-coach.md)): below the hint buttons, a
+  collapsible section (a block button with `aria-expanded`, closed at first) for a short
+  conversation about this step. Student questions are flat `bg-well` bubbles on the right with a
+  `line` border; coach answers are `bg-panel` bubbles on the left with a `line-soft` border (no
+  rounding, no shadow), in an ordered list named "Conversation with the coach", each with a
+  screen-reader prefix ("You asked:", "Coach:"). The answer streams into its bubble (the voxel
+  loader while waiting); a finished answer is announced once through a polite live region, so the
+  stream itself is not read word by word. Suggested-question chips: **Why does this work?**,
+  **How do I spot this case?**, **What does X mean?** (X is a move of the step, a prime one
+  first) and **What if I mess up?**. A labelled text field ("Your question", 400 characters; Enter
+  sends, Shift+Enter is a new line), **Send** (becomes **Stop** while an answer streams) and
+  **Clear**. A built-in answer carries its notice (no key, cap reached, or the AI's answer could
+  not be used). The conversation belongs to the step: a new step clears it and says "New step,
+  new conversation." Errors ("a lot of questions", not paired, cannot be reached) and offline
+  ("You are offline. The step notes still work") are shown in words; the chips and Send are
+  disabled offline.
+- **Talk to the coach** (only with the setting on and where the browser has speech
+  recognition): a mic `IconButton` ("Talk to the coach", `aria-pressed`, "Stop listening" while
+  on) beside Send. Hold it to talk and let go to stop, or tap to start and tap again to stop;
+  Enter or Space toggles it from the keyboard. The words heard fill the field as they come
+  ("Listening…" placeholder); with "Send when I stop talking" on, the question is sent when the
+  speech ends, otherwise it waits in the field. A blocked microphone, no speech or no microphone
+  is explained in a sentence; typing always works.
 - **Voice** ([ADR-016](ADR/016-voice-tutoring.md)): a speaker button (`IconButton`, name "Voice",
   `aria-pressed`) in the coach panel's header turns the tutor's voice on (the voice used last, the
   device voice the first time) and off. While on, the twin's moves are named as they start
@@ -170,7 +193,9 @@ lighting and glare tips with Scan again and Use a demo cube.
   every checkpoint result is spoken (match and praise, show it again, the wrong face and which to
   show, a mismatch), and each finished coach reply is read with the device voice, only after the
   move guardrail. In ElevenLabs mode a **Read with ElevenLabs** button reads the reply with
-  ElevenLabs. A new step stops whatever is still being said. Nothing is said before the first
+  ElevenLabs. Each finished, guard-approved "Ask the coach" answer is read aloud too (with
+  ElevenLabs in ElevenLabs mode, otherwise the device voice), and a new question, the mic or
+  Clear stops the reading. A new step stops whatever is still being said. Nothing is said before the first
   tap on the page. When paired, only the device driving the solve speaks; the other shows "Your
   other device is speaking." The voice repeats what the screen already shows, so nothing is
   available by ear only.
@@ -213,10 +238,17 @@ Name; method to start with; CFOP last layer (2-look or Full OLL and PLL, shown o
 the method; passed to every plan as the tutor's `lastLayer` option); Moves in words; Letters on stickers (with a preview grid); Theme
 (Light / Dark / System); Reduce motion; Voice (Off / Device voice / ElevenLabs, with ElevenLabs
 disabled and explained when the laptop has no key; Speed Slow / Normal / Fast; Moves In words /
-As letters; Test voice; with a key, "x of 20,000" ElevenLabs credits this month with a meter,
+As letters; in ElevenLabs mode with a key, **ElevenLabs voice**, a radiogroup of five blocks
+(Alice, Matilda, Jessica, Will, George, each with a one-line description; arrow keys move the
+choice; plus "Laptop voice" when `ELEVENLABS_VOICE_ID` names another) and **Quality**, High
+quality / Faster, half the credits, with a line on the credit cost; Test voice, which says a
+short sample in the chosen voice and quality; with a key, "x of 20,000" ElevenLabs credits this month with a meter,
 the credits left, an "80% used" notice and a "Cap reached" notice when the device voice has taken
 over); Coach (Live, Templates only or Monthly cap reached, with
-"$x of $10.00" spent this month, or Offline: "the built-in notes still work"); Install (Android
+"$x of $10.00" spent this month, or Offline: "the built-in notes still work"); Talk to the coach (a switch, off
+by default, whose hint says the browser's own speech service turns speech into text and Cubyntra
+never records or stores audio; "Send when I stop talking", on by default and disabled while
+talking is off; a line when the browser cannot turn speech into text); Install (Android
 install button, iOS "Share → Add to Home Screen" hint, or "Installed").
 
 ### 3.6 Trainer (`/trainer`)
@@ -227,7 +259,8 @@ install button, iOS "Share → Add to Home Screen" hint, or "Installed").
   lit and its moves hidden. The drill card has four numbered rows: *Set it up* (hold a solved cube
   with this color on top, green in front, and do the setup moves), *Name it* (Show the name: the
   name, group and recognition text), *Solve it* (Show the algorithm: the notation, and the twin's
-  move chips and playback appear; Ask the coach opens the coach panel with this case's plan),
+  move chips and playback appear; Show the coach opens the coach panel with this case's plan,
+  where Ask the coach talks about the current case),
   *Check it* (Got it / Missed it, or Check with the camera, the same checkpoint sheet as the solve
   screen with "Case solved" and "Next case"). A camera mismatch shows "Not solved yet." with the
   likely mistake, Check again and Count it as missed.
@@ -322,6 +355,9 @@ checkpoint-driven `/solve`.
   stops it. A screen-reader status line says which step is playing. The screen stays awake while it
   plays. With the voice on ([ADR-016](ADR/016-voice-tutoring.md)) Play all, and only Play all,
   names each stage as it starts and each move as it turns; it follows the one-speaker rule.
+- **Ask the coach** under the selected step (collapsible, the same `CoachChat` as on `/solve`):
+  questions about that step; picking another step starts a new conversation. Answers are read
+  aloud with the voice on (one speaker when paired).
 - **All steps:** grouped by stage (`h3` "Stage n: name" with its counts), each step a button with
   its number, move count, case name and moves as small notation blocks; the selected one is
   highlighted and has `aria-current="step"`. Its accessible name reads "Step k: case. n moves:
@@ -514,7 +550,7 @@ Every screen has a labeled way forward; the logo and the Home tab always return 
 | Mismatch | Replay the step, Show me how to fix it, Rescan the cube, It actually matches |
 | Planning failed | Try again, Scan again |
 | Solved | Solve another, Home |
-| Trainer | Set picker, group filter, Show the name, Show the algorithm, Ask the coach, Got it, Missed it, Check with the camera, case grid |
+| Trainer | Set picker, group filter, Show the name, Show the algorithm, Show the coach (with Ask the coach), Got it, Missed it, Check with the camera, case grid |
 | Timer | Pad (tap / hold / release, Space, Escape), New scramble, +2, DNF, Delete |
 | Progress | Open the trainer |
 | Phone after a scan | Play / Pause, Previous / Next move, a move chip, Solve on this phone, Scan another cube |
@@ -572,7 +608,7 @@ list is in `docs/tutor/PROGRESS.md` (Phase 12).
    Use demo cube or Back. The scanner's **Demo cube** button is labelled on phones too.
 
 ### 9.5 Trainer, Timer, Progress
-1. Trainer: each set picks a fresh case; Show the name / Show the algorithm / Ask the coach;
+1. Trainer: each set picks a fresh case; Show the name / Show the algorithm / Show the coach;
    Got it and Missed it move to the next case and update the session count and case grid;
    Check with the camera opens the same sheet ("Case solved", Next case). The set is saved.
 2. Timer: tap or Space → 15 s inspection → hold until "Let go to start" → release → tap to stop.
@@ -584,7 +620,20 @@ list is in `docs/tutor/PROGRESS.md` (Phase 12).
 Name, method, CFOP last layer, Moves in words, Letters on stickers, Theme, Reduce motion: each
 change is saved at once and survives a reload; clicking a switch's words toggles it. Theme is set
 before first paint (no flash) and System follows the OS. Letters show on the twin's stickers;
-Reduce motion sets `data-motion="reduce"` and the twin turns instantly.
+Reduce motion sets `data-motion="reduce"` and the twin turns instantly. In ElevenLabs mode the
+voice picker and quality save at once and Test voice speaks in the chosen voice; Talk to the
+coach shows the mic in Ask the coach (where the browser supports it).
+
+### 9.6.1 Ask the coach
+1. On `/solve`, open **Ask the coach** under the hints; tap **What does R' mean?** (or the step's
+   move): the question shows on the right, the answer streams in on the left and is announced
+   once; without an API key it is a built-in answer with its note.
+2. Type a question and press Enter; Shift+Enter makes a new line. **Stop** cuts a long answer
+   short ("Stopped."); **Clear** empties the conversation.
+3. Press I did it and finish the step: the next step shows "New step, new conversation."
+4. With Talk to the coach on: hold the mic, ask, let go; the words appear and are sent. Block the
+   microphone in the browser: a sentence says so, and typing still works.
+5. With the voice on, the answer is read aloud; asking again stops it.
 
 ### 9.7 Pair and the phone
 1. Pair: the QR code, the six-character code with its expiry, a status chip, the laptop
