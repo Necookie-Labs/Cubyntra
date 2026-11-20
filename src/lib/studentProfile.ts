@@ -16,6 +16,10 @@
  *
  * Version 3 added the voice settings (`voiceMode`, `voiceRate`, `voiceMoves`, ADR-016). A version
  * 2 profile is migrated when read (`migrateProfileV2`): voice off, normal speed, moves in words.
+ *
+ * Version 4 added `savedCubes`. Version 5 added the chat and voice-picker settings
+ * (`talkToCoach`, `chatAutoSend`, `voiceId`, `voiceQuality`); a version 4 profile is migrated
+ * when read (`migrateProfileV4`): talking to the coach off, auto-send on, Alice, high quality.
  */
 
 import type { CubeColor, CubeState, Face } from '../cube/types';
@@ -26,6 +30,13 @@ import type { AttemptRecord, MistakeKind } from '../coach/types';
 import { MISTAKE_KINDS } from '../coach/types';
 import type { LastLayerMode, MethodId } from '../tutor/types';
 import { parsePalette, type StudentPalette } from '../vision/palette';
+import {
+  DEFAULT_VOICE_ID,
+  DEFAULT_VOICE_QUALITY,
+  VOICE_ID_PATTERN,
+  isVoiceQuality,
+  type VoiceQuality,
+} from '../voice/catalog';
 import {
   MAX_BOX,
   MAX_TIMER_HISTORY,
@@ -42,7 +53,7 @@ import {
   type TrainerState,
 } from '../learn/types';
 
-export const STUDENT_PROFILE_VERSION = 4;
+export const STUDENT_PROFILE_VERSION = 5;
 /** Largest body `/api/student` accepts and the largest file it writes. */
 export const MAX_STUDENT_BYTES = 128 * 1024;
 export const MAX_NAME_LENGTH = 40;
@@ -90,7 +101,17 @@ export interface StudentSettings {
   voiceRate: VoiceRate;
   /** Moves spoken as plain-language names or as notation ("R prime"). */
   voiceMoves: VoiceMoves;
+  /** ElevenLabs voice (a curated stock voice, or the laptop's `ELEVENLABS_VOICE_ID`). */
+  voiceId: string;
+  /** ElevenLabs quality: `high` (Eleven v4) or `fast` (Eleven v4 Turbo, half the credits). */
+  voiceQuality: VoiceQuality;
+  /** The mic button in "Ask the coach" (the browser's speech recognition) is offered. */
+  talkToCoach: boolean;
+  /** A spoken question is sent as soon as the student stops talking. */
+  chatAutoSend: boolean;
 }
+
+export type { VoiceQuality } from '../voice/catalog';
 
 /** Where a saved cube came from. */
 export type SavedCubeSource = 'webcam' | 'phone' | 'demo';
@@ -172,6 +193,10 @@ export const DEFAULT_SETTINGS: StudentSettings = {
   voiceMode: 'off',
   voiceRate: 1,
   voiceMoves: 'words',
+  voiceId: DEFAULT_VOICE_ID,
+  voiceQuality: DEFAULT_VOICE_QUALITY,
+  talkToCoach: false,
+  chatAutoSend: true,
 };
 
 export function defaultStats(): StudentStats {
@@ -241,6 +266,22 @@ export function migrateProfileV3(input: unknown): unknown {
   return { ...input, version: 4, savedCubes: [] };
 }
 
+/**
+ * Brings a version 4 profile up to version 5: the chat and voice-picker settings get their
+ * defaults (no talking to the coach, auto-send on, Alice, high quality). Anything that is not a
+ * version 4 object is returned as is.
+ */
+export function migrateProfileV4(input: unknown): unknown {
+  if (!isRecord(input) || input.version !== 4) return input;
+  const added = {
+    voiceId: DEFAULT_SETTINGS.voiceId,
+    voiceQuality: DEFAULT_SETTINGS.voiceQuality,
+    talkToCoach: DEFAULT_SETTINGS.talkToCoach,
+    chatAutoSend: DEFAULT_SETTINGS.chatAutoSend,
+  };
+  return { ...input, version: 5, settings: isRecord(input.settings) ? { ...added, ...input.settings } : input.settings };
+}
+
 class SchemaError extends Error {}
 
 function need(condition: unknown, message: string): asserts condition {
@@ -250,7 +291,7 @@ function need(condition: unknown, message: string): asserts condition {
 function parseSettings(v: unknown): StudentSettings {
   need(isRecord(v), 'settings must be an object');
   need(isMethod(v.methodDefault), 'settings.methodDefault must be beginner or cfop');
-  for (const key of ['plainLanguage', 'stickerLetters', 'reducedMotion'] as const) {
+  for (const key of ['plainLanguage', 'stickerLetters', 'reducedMotion', 'talkToCoach', 'chatAutoSend'] as const) {
     need(typeof v[key] === 'boolean', `settings.${key} must be true or false`);
   }
   need(v.theme === 'light' || v.theme === 'dark' || v.theme === 'system', 'settings.theme must be light, dark or system');
@@ -258,6 +299,8 @@ function parseSettings(v: unknown): StudentSettings {
   need((VOICE_MODES as readonly unknown[]).includes(v.voiceMode), 'settings.voiceMode must be off, device or elevenlabs');
   need((VOICE_RATES as readonly unknown[]).includes(v.voiceRate), `settings.voiceRate must be one of ${VOICE_RATES.join(', ')}`);
   need(v.voiceMoves === 'words' || v.voiceMoves === 'notation', 'settings.voiceMoves must be words or notation');
+  need(typeof v.voiceId === 'string' && VOICE_ID_PATTERN.test(v.voiceId), 'settings.voiceId must be a voice id');
+  need(isVoiceQuality(v.voiceQuality), 'settings.voiceQuality must be high or fast');
   return {
     methodDefault: v.methodDefault,
     plainLanguage: v.plainLanguage as boolean,
@@ -268,6 +311,10 @@ function parseSettings(v: unknown): StudentSettings {
     voiceMode: v.voiceMode as VoiceMode,
     voiceRate: v.voiceRate as VoiceRate,
     voiceMoves: v.voiceMoves,
+    voiceId: v.voiceId as string,
+    voiceQuality: v.voiceQuality as VoiceQuality,
+    talkToCoach: v.talkToCoach as boolean,
+    chatAutoSend: v.chatAutoSend as boolean,
   };
 }
 
@@ -435,12 +482,12 @@ function parseSavedCubes(v: unknown): SavedCube[] {
 }
 
 /**
- * Validates a profile (parsed JSON). A version 1, 2 or 3 profile is migrated first. Unknown fields are
+ * Validates a profile (parsed JSON). A version 1, 2, 3 or 4 profile is migrated first. Unknown fields are
  * dropped; anything malformed is an error.
  */
 export function parseStudentProfile(raw: unknown): ProfileParse {
   try {
-    const input = migrateProfileV3(migrateProfileV2(migrateProfileV1(raw)));
+    const input = migrateProfileV4(migrateProfileV3(migrateProfileV2(migrateProfileV1(raw))));
     need(isRecord(input), 'the profile must be an object');
     need(input.version === STUDENT_PROFILE_VERSION, `version must be ${STUDENT_PROFILE_VERSION}`);
     need(typeof input.name === 'string' && input.name.length <= MAX_NAME_LENGTH, `name must be at most ${MAX_NAME_LENGTH} characters`);
