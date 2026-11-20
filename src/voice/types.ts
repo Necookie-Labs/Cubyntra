@@ -2,10 +2,12 @@
  * Cubyntra - Voice wire types (ADR-016)
  * Necookie Labs (c) 2026
  *
- * Shared by `/api/voice`, `/api/voice/status` and the browser. Only text travels to the laptop
- * and on to ElevenLabs: `{ text, kind? }`, never images, cube state or student data.
+ * Shared by `/api/voice`, `/api/voice/status` and the browser. Only text and the voice choice
+ * travel to the laptop (`{ text, kind?, voiceId?, quality?, rate? }`), and only the text, model
+ * and voice settings go on to ElevenLabs: never images, cube state or student data.
  */
 
+import type { VoiceQuality } from './catalog';
 import type { SpeechKind } from './speechQueue';
 
 /**
@@ -35,12 +37,33 @@ export interface VoiceStatus {
   reason?: VoiceFallbackReason;
   /** `YYYY-MM` in UTC. */
   month: string;
+  /** The laptop's own `ELEVENLABS_VOICE_ID`, when it is set and is not a curated voice. */
+  laptopVoiceId?: string;
 }
 
-/** The body of `POST /api/voice`. `phrase` texts must be lines of the phrase bank. */
+/**
+ * The body of `POST /api/voice`. `phrase` texts must be lines of the phrase bank. `voiceId` must
+ * be a curated voice or the laptop's `ELEVENLABS_VOICE_ID`; `quality` picks Eleven v4 (`high`)
+ * or v4 Turbo (`fast`); `rate` is the Speed setting (0.75, 1 or 1.25).
+ */
 export interface VoiceRequestBody {
   text: string;
   kind?: SpeechKind;
+  voiceId?: string;
+  quality?: VoiceQuality;
+  rate?: number;
+}
+
+/** A checked `/api/voice` request (see `parseVoiceRequest`). */
+export interface VoiceRequest {
+  text: string;
+  kind: SpeechKind;
+  /** Null: the laptop's default voice. */
+  voiceId: string | null;
+  /** Null: the laptop's default model. */
+  quality: VoiceQuality | null;
+  /** The Speed setting (1 = normal). */
+  rate: number;
 }
 
 /** Longest text one request may carry (a long coach reply is about 700 characters). */

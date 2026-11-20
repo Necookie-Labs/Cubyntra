@@ -170,6 +170,9 @@ export class SlidingWindowLimiter {
 /** Coach requests: 30 per minute per token. */
 export const coachRateLimiter = new SlidingWindowLimiter(30, 60_000);
 
+/** "Ask the coach" questions: 20 per minute per token (per user when hosted), apart from hints. */
+export const chatRateLimiter = new SlidingWindowLimiter(20, 60_000);
+
 /**
  * Voice requests: 60 per minute per token. Twice the coach's, because the twin narrates each
  * move (the browser keeps clips it has fetched, so a step's moves are asked for once).

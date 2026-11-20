@@ -92,33 +92,51 @@ function* templateReply(facts: CoachFacts, mode: CoachMode, reason: FallbackReas
   yield { type: 'done', source: 'template', mode, reason, notice };
 }
 
-function logUsage(usage: UsageCounts, cost: number): void {
+function logUsage(usage: UsageCounts, cost: number, tag = 'coach'): void {
   console.info(
-    `[coach] usage input=${usage.input_tokens} output=${usage.output_tokens} ` +
+    `[${tag}] usage input=${usage.input_tokens} output=${usage.output_tokens} ` +
       `cache_read=${usage.cache_read_input_tokens ?? 0} cache_write=${usage.cache_creation_input_tokens ?? 0} ` +
       `cost=$${cost.toFixed(6)}`
   );
 }
 
-/** One coach reply as stream events: deltas (or a replace), then exactly one `done`. */
-export async function* coachReply(facts: CoachFacts, options: CoachReplyOptions = {}): AsyncGenerator<CoachStreamEvent> {
-  const tracker = options.tracker ?? getSpendTracker();
-  const mode = coachMode(tracker);
-  if (mode !== 'live') {
-    yield* templateReply(facts, mode, mode === 'mock' ? 'mock' : 'capped');
-    return;
-  }
+/** What `streamGuardedReply` needs to stream one Claude call through a guardrail. */
+export interface GuardedStreamOptions {
+  request: Anthropic.MessageStreamParams;
+  /** Characters of input, for the worst-case estimate when no usage arrives. */
+  inputChars: number;
+  /** The cost reserved for this call (released and replaced by the real usage at the end). */
+  estimate: number;
+  /** True when the text so far may be shown (the move guardrail). */
+  passes: (text: string) => boolean;
+  /** The built-in text shown instead whenever the reply cannot be trusted. */
+  fallbackText: () => string;
+  /** Notice sent with a fallback in live mode. */
+  fallbackNotice: string;
+  tracker: SpendTracker;
+  signal?: AbortSignal;
+  /** Log prefix, e.g. `coach` or `coach-chat`. */
+  tag?: string;
+  /**
+   * How much of the text so far may be checked and shown now (default `relayableLength`). The
+   * chat holds back an unfinished sentence that names a move outside the step, because the words
+   * that explain it ("means", "the other way") may still be coming.
+   */
+  relayable?: (text: string) => number;
+}
 
-  const request = buildCoachRequest(facts);
-  const inputChars = COACH_SYSTEM_PROMPT.length + JSON.stringify(request.messages).length;
-  const estimate = estimateCallCost(inputChars);
-  if (!tracker.reserve(estimate)) {
-    yield* templateReply(facts, 'capped', 'capped');
-    return;
-  }
-
-  const allowed = allowedMoves(facts);
-  const names = guardNames(facts);
+/**
+ * Streams one Claude call (already reserved against the cap) as coach stream events. Text is
+ * relayed as it arrives, holding back the last partial word (and a trailing bare move letter) so
+ * `passes` sees each token before the student does. A reply that fails `passes`, is refused, cut
+ * off, empty or errors becomes a `replace` with `fallbackText`. Usage is recorded from the
+ * stream events, so an aborted or failed call is still counted.
+ */
+export async function* streamGuardedReply(o: GuardedStreamOptions): AsyncGenerator<CoachStreamEvent> {
+  const { request, inputChars, estimate, passes, fallbackText, tracker, signal } = o;
+  const relayable = o.relayable ?? relayableLength;
+  const tag = o.tag ?? 'coach';
+  const maxTokens = request.max_tokens;
   // Usage is taken from the stream as it arrives, so a call that is aborted or fails part-way
   // is still counted: `message_start` carries the input and cache counts, `message_delta` the
   // (cumulative) output count.
@@ -131,7 +149,7 @@ export async function* coachReply(facts: CoachFacts, options: CoachReplyOptions 
   let rejected: FallbackReason | null = null;
 
   try {
-    const stream = getClient().messages.stream(request, { signal: options.signal });
+    const stream = getClient().messages.stream(request, { signal });
     for await (const event of stream) {
       if (event.type === 'message_start') {
         const u = event.message.usage;
@@ -158,12 +176,12 @@ export async function* coachReply(facts: CoachFacts, options: CoachReplyOptions 
       if (rejected || event.type !== 'content_block_delta' || event.delta.type !== 'text_delta') continue;
       full += event.delta.text;
       // Relay only complete tokens, holding back a bare letter that may start a run of moves.
-      const cut = relayableLength(full);
+      const cut = relayable(full);
       if (cut <= sent) continue;
-      if (!checkReplyMoves(full.slice(0, cut), allowed, names).ok) {
-        // Swap in the template now; keep reading so the call's usage can be recorded.
+      if (!passes(full.slice(0, cut))) {
+        // Swap in the fallback now; keep reading so the call's usage can be recorded.
         rejected = 'guard';
-        yield { type: 'replace', text: templateText(facts), reason: 'guard' };
+        yield { type: 'replace', text: fallbackText(), reason: 'guard' };
         continue;
       }
       yield { type: 'delta', text: full.slice(sent, cut) };
@@ -177,33 +195,64 @@ export async function* coachReply(facts: CoachFacts, options: CoachReplyOptions 
       if (message.stop_reason === 'refusal') rejected = 'refusal';
       else if (message.stop_reason === 'max_tokens') rejected = 'max-tokens';
       else if (!full.trim()) rejected = 'empty';
-      else if (!checkReplyMoves(full, allowed, names).ok) rejected = 'guard';
+      else if (!passes(full)) rejected = 'guard';
       if (rejected) {
-        yield { type: 'replace', text: templateText(facts), reason: rejected };
+        yield { type: 'replace', text: fallbackText(), reason: rejected };
       } else if (sent < full.length) {
         yield { type: 'delta', text: full.slice(sent) };
       }
     }
   } catch (error) {
     refusedByApi = error instanceof Anthropic.APIError && typeof error.status === 'number';
-    if (error instanceof Anthropic.APIUserAbortError || options.signal?.aborted) return;
+    if (error instanceof Anthropic.APIUserAbortError || signal?.aborted) return;
     rejected = fallbackReason(error);
-    console.warn(`[coach] falling back to the template (${rejected}): ${error instanceof Error ? error.name : 'error'}`);
-    yield { type: 'replace', text: templateText(facts), reason: rejected };
+    console.warn(`[${tag}] falling back to the built-in text (${rejected}): ${error instanceof Error ? error.name : 'error'}`);
+    yield { type: 'replace', text: fallbackText(), reason: rejected };
   } finally {
     // Cut off before the output count arrived: count the full output budget (it may have been
     // generated). Nothing arrived at all: count the worst-case estimate, unless the API refused.
     let counted: UsageCounts | null = usage;
-    if (counted && !outputCounted) counted = { ...counted, output_tokens: Math.max(counted.output_tokens, COACH_MAX_TOKENS) };
-    if (!counted && !refusedByApi) counted = estimateCallUsage(inputChars);
+    if (counted && !outputCounted) counted = { ...counted, output_tokens: Math.max(counted.output_tokens, maxTokens) };
+    if (!counted && !refusedByApi) counted = estimateCallUsage(inputChars, maxTokens);
     const cost = await tracker.settle(estimate, counted).catch((error: unknown) => {
-      console.error('[coach] Saving the usage failed:', error);
+      console.error(`[${tag}] Saving the usage failed:`, error);
       return 0;
     });
-    if (counted) logUsage(counted, cost);
+    if (counted) logUsage(counted, cost, tag);
   }
 
   yield rejected
-    ? { type: 'done', source: 'template', mode: 'live', reason: rejected, notice: NOTICES.fallback }
+    ? { type: 'done', source: 'template', mode: 'live', reason: rejected, notice: o.fallbackNotice }
     : { type: 'done', source: 'live', mode: 'live' };
+}
+
+/** One coach reply as stream events: deltas (or a replace), then exactly one `done`. */
+export async function* coachReply(facts: CoachFacts, options: CoachReplyOptions = {}): AsyncGenerator<CoachStreamEvent> {
+  const tracker = options.tracker ?? getSpendTracker();
+  const mode = coachMode(tracker);
+  if (mode !== 'live') {
+    yield* templateReply(facts, mode, mode === 'mock' ? 'mock' : 'capped');
+    return;
+  }
+
+  const request = buildCoachRequest(facts);
+  const inputChars = COACH_SYSTEM_PROMPT.length + JSON.stringify(request.messages).length;
+  const estimate = estimateCallCost(inputChars);
+  if (!tracker.reserve(estimate)) {
+    yield* templateReply(facts, 'capped', 'capped');
+    return;
+  }
+
+  const allowed = allowedMoves(facts);
+  const names = guardNames(facts);
+  yield* streamGuardedReply({
+    request,
+    inputChars,
+    estimate,
+    passes: (text) => checkReplyMoves(text, allowed, names).ok,
+    fallbackText: () => templateText(facts),
+    fallbackNotice: NOTICES.fallback,
+    tracker,
+    signal: options.signal,
+  });
 }

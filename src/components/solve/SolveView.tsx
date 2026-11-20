@@ -256,6 +256,7 @@ export function SolveView() {
               moves: voice.moves,
               say: voice.voice.say,
               replace: voice.voice.replace,
+              interrupt: voice.voice.interrupt,
             }}
           />
           <SaveDemo />

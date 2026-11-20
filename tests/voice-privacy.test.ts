@@ -2,9 +2,9 @@
  * Cubyntra - Voice privacy tests (ADR-015, ADR-016: only text goes to ElevenLabs)
  * Necookie Labs (c) 2026
  *
- * `/api/voice` accepts exactly `{ text, kind? }` and refuses images, data URLs and encoded blobs;
- * the browser builds its request from the text and kind only; what reaches ElevenLabs is the
- * text and the model id, nothing else.
+ * `/api/voice` accepts only `{ text, kind?, voiceId?, quality?, rate? }` and refuses images, data
+ * URLs and encoded blobs; the browser builds its request from the words and the voice choice
+ * only; what reaches ElevenLabs is the text, the model id and the voice settings, nothing else.
  */
 
 import fs from 'node:fs';
@@ -83,13 +83,14 @@ describe('/api/voice takes words only', () => {
     expect(res.status).toBe(413);
   });
 
-  it('sends ElevenLabs the text and model id, nothing else', async () => {
+  it('sends ElevenLabs the text, model id and voice settings, nothing else', async () => {
     const { bodies } = stubElevenLabs();
     expect((await post({ text: 'Turn the top to the left', kind: 'phrase' })).status).toBe(200);
-    expect((await post({ text: 'Look for the white edge.' })).status).toBe(200);
+    expect((await post({ text: 'Look for the white edge.', quality: 'fast' })).status).toBe(200);
+    const settings = { stability: 0.5, similarity_boost: 0.75, style: 0, use_speaker_boost: true, speed: 1 };
     expect(bodies).toEqual([
-      { text: 'Turn the top to the left', model_id: 'eleven_flash_v2_5' },
-      { text: 'Look for the white edge.', model_id: 'eleven_flash_v2_5' },
+      { text: 'Turn the top to the left', model_id: 'eleven_v4', voice_settings: settings },
+      { text: 'Look for the white edge.', model_id: 'eleven_v4_turbo', voice_settings: settings },
     ]);
   });
 
@@ -100,17 +101,20 @@ describe('/api/voice takes words only', () => {
   });
 });
 
-describe('the browser sends only { text, kind }', () => {
-  it('builds every voice request from the text and kind', () => {
+describe('the browser sends only the words and the voice choice', () => {
+  it('builds every voice request from the text, kind, voice, quality and speed', () => {
     expect(Object.keys(voiceRequestBody({ text: 'Hi', kind: 'phrase' }))).toEqual(['text', 'kind']);
     expect(Object.keys(voiceRequestBody({ text: 'Hi', kind: 'reply', premium: true }))).toEqual(['text', 'kind']);
+    expect(
+      Object.keys(voiceRequestBody({ text: 'Hi', kind: 'reply' }, { voiceId: 'Xb7hH8MSUJpSbSDYk0k2', quality: 'fast', rate: 1.25 }))
+    ).toEqual(['text', 'kind', 'voiceId', 'quality', 'rate']);
   });
 
   it('no voice source posts anything but voiceRequestBody', () => {
     const dir = path.join(process.cwd(), 'src', 'voice');
     const sources = fs.readdirSync(dir).map((f) => fs.readFileSync(path.join(dir, f), 'utf8'));
     const posts = sources.flatMap((s) => [...s.matchAll(/body:\s*JSON\.stringify\(([^)]*)\)/g)].map((m) => m[1]));
-    expect(posts.sort()).toEqual(['voiceRequestBody(item', '{ text, model_id: model }'].sort());
+    expect(posts.sort()).toEqual(['voiceRequestBody(item, { voiceId, quality, rate }', 'ttsRequestBody(text, model, speed'].sort());
     for (const source of sources) {
       expect(source).not.toMatch(/toDataURL|getImageData|canvas|<video|FormData/);
     }

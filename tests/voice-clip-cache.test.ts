@@ -23,6 +23,12 @@ describe('clip cache', () => {
     expect(clipHash('eleven_flash_v2_5', 'voice2', 'Nice work!')).not.toBe(a);
     expect(clipHash('eleven_multilingual_v2', 'voice1', 'Nice work!')).not.toBe(a);
     expect(clipHash('eleven_flash_v2_5', 'voice1', 'You got it!')).not.toBe(a);
+    // The new models and voices, and the speed, each make their own clip.
+    const alice = clipHash('eleven_v4', 'Xb7hH8MSUJpSbSDYk0k2', 'Nice work!');
+    expect(clipHash('eleven_v4_turbo', 'Xb7hH8MSUJpSbSDYk0k2', 'Nice work!')).not.toBe(alice);
+    expect(clipHash('eleven_v4', 'JBFqnCBsd6RMkjVDRZzb', 'Nice work!')).not.toBe(alice);
+    expect(clipHash('eleven_v4', 'Xb7hH8MSUJpSbSDYk0k2', 'Nice work!', 1.2)).not.toBe(alice);
+    expect(clipHash('eleven_v4', 'Xb7hH8MSUJpSbSDYk0k2', 'Nice work!', 1)).toBe(alice);
   });
 
   it('stores clips as data/voice/<hash>.mp3 and reads them back', async () => {

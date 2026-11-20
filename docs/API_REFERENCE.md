@@ -309,6 +309,7 @@ user's own token, §12). Rate limits count per token (local) or per user (hosted
 | Route | Auth | Body | Result |
 |:---|:---|:---|:---|
 | `POST /api/coach` | token, 30/min | `{ facts: CoachFacts }`, at most 8 KB | `text/event-stream`: `delta` → `{ text }`, `replace` → `{ text, reason }`, `done` → `{ source: 'live' \| 'template', mode, reason?, notice? }`. `400` bad body, `401` bad token, `413` too large, `429` rate limited (`Retry-After`). |
+| `POST /api/coach/chat` | token, 20/min (its own limit) | `{ facts: CoachFacts; question: string (1-400); history: { role: 'student' \| 'coach'; text: string (≤ 1,200) }[] }` only, at most 24 KB; the newest 8 turns are used; the server recomputes `moveWords` / `caseTip`; text that looks like a data URL or encoded blob is refused | The same `text/event-stream` contract as `/api/coach` (`delta`, `replace` with the built-in answer, `done`); the monthly cap is shared. `400` bad body or extra field, `401` bad token, `413` too large, `429` rate limited (`Retry-After`). |
 | `GET /api/coach/status` | token | – | `{ mode: 'live' \| 'mock' \| 'capped', monthSpendUsd, capUsd, month }` |
 | `GET /api/auth/token` | local: loopback Host only; hosted: signed in | – | Local: `{ token }`, or `403` from any other host. Hosted: `{ token, user: { name }, mode }`, or `401`. |
 
@@ -340,6 +341,25 @@ useCoach({ plan, token, attempts?, diagnosis?, endpoint? }): {
 checkReplyMoves(text: string, allowed: Set<string>, names?: string[]): { ok, tokens, offending }
 relayableLength(text: string): number   // how much of a streaming reply may be shown now
 templateText(facts: CoachFacts): string
+
+// Ask the coach (src/coach/chat.ts, pure; src/coach/chatService.ts, server; src/coach/useCoachChat.ts, browser)
+parseChatRequest(body: unknown): { ok: true; value: { facts, question, history } } | { ok: false; error }
+chatMessages(request): MessageParam[]   // history as user/assistant turns, then facts JSON + question
+CHAT_RULES: string                      // byte-stable second system block (after the cached prompt)
+buildChatRequest(request): MessageStreamParams   // claude-haiku-5-5, effort low, thinking off, 500 tokens
+coachChatReply(request, { signal?, tracker? }): AsyncGenerator<CoachStreamEvent>
+chatTemplate(facts, question): string   // built-in answer: why / spot it / a move's meaning / a slip / summary
+questionKind(question): 'mistake' | 'notation' | 'recognise' | 'why' | 'generic'
+suggestedQuestions(facts): string[]     // the chips; the notation one names a move of the step
+planSequence(facts): string[]           // setup then algorithm, canonical (src/coach/facts.ts)
+checkChatMoves(text, sequence, allowed, names?): { ok, runs, offending }
+  // a run of 2+ moves must be a contiguous run of `sequence`; a lone move outside the step only
+  // in a notation explanation ("D' means ..."); unparseable moves fail. checkReplyMoves is unchanged.
+checkChatAnswer(text, facts): { ok, runs, offending }   // checkChatMoves bound to one step
+useCoachChat({ plan, token, attempts?, diagnosis?, endpoint? }): {
+  messages: { id, role: 'student' | 'coach', text, status: 'streaming' | 'done' | 'stopped' | 'error', source?, mode?, notice? }[],
+  busy, error, stepChanged, facts, ask(question), stop(), clear()
+}   // history in memory per step; a new step clears it and sets stepChanged
 
 // Server only (src/lib/localAuth.ts)
 getAppSecret(): string          // creates data/app-secret on first use
@@ -450,14 +470,18 @@ parseProfileOps(body): { ok: true; ops; batchId } | { ok: false; error }
 // src/lib/studentProfile.ts (shared; no Node or DOM)
 type HintUse = 0 | 1 | 2 | 3;                     // highest coach hint asked for (src/learn/types.ts)
 interface StudentProfile {
-  version: 4;
+  version: 5;
   name: string;                                   // ≤ 40 characters
   settings: { methodDefault: MethodId; plainLanguage: boolean; stickerLetters: boolean;
               reducedMotion: boolean; theme: 'light' | 'dark' | 'system';
               lastLayer: '2-look' | 'full';       // CFOP only; v2
               voiceMode: 'off' | 'device' | 'elevenlabs';  // v3, default 'off' (ADR-016)
               voiceRate: 0.75 | 1 | 1.25;         // v3, default 1
-              voiceMoves: 'words' | 'notation' };  // v3, default 'words'
+              voiceMoves: 'words' | 'notation';   // v3, default 'words'
+              voiceId: string;                    // v5, default Alice 'Xb7hH8MSUJpSbSDYk0k2' (a voice id)
+              voiceQuality: 'high' | 'fast';      // v5, default 'high' (eleven_v4; fast = eleven_v4_turbo)
+              talkToCoach: boolean;               // v5, default false: the mic in Ask the coach
+              chatAutoSend: boolean };            // v5, default true: send when speech ends
   palette: StudentPalette | null;                 // src/vision/palette.ts
   currentSolve: { method: MethodId; state: CubeState; grip: Grip; stepIndex: number;
                   attempts: AttemptRecord[];      // ≤ 20
@@ -486,10 +510,11 @@ interface SavedCube {
 }
 // 30 saved cubes are about 20 KB of JSON, well inside MAX_STUDENT_BYTES (128 KB).
 parseStudentProfile(input: unknown): { ok: true; profile: StudentProfile } | { ok: false; error: string }
-  // version 1, 2 and 3 profiles are migrated first (migrateProfileV1, V2, then V3); version 5+ is rejected
+  // version 1-4 profiles are migrated first (migrateProfileV1, V2, V3, then V4); version 6+ is rejected
 migrateProfileV1(input: unknown): unknown       // v1 -> v2: lastLayer '2-look', no stage records or days, empty trainer and timer
 migrateProfileV2(input: unknown): unknown       // v2 -> v3: voice off, normal speed, moves in words
 migrateProfileV3(input: unknown): unknown       // v3 -> v4: no saved cubes
+migrateProfileV4(input: unknown): unknown       // v4 -> v5: talkToCoach off, chatAutoSend on, Alice, high quality
 
 // src/lib/savedCubes.ts (shared; no Node or DOM)
 defaultCubeName(source, date): string            // "Scan · 19 Nov, 14:32" (local time); "Demo · ..." for a demo
@@ -593,7 +618,7 @@ See [ADR-016](ADR/016-voice-tutoring.md). Routes need the header `x-cubyntra-tok
 
 | Route | Auth | Body | Result |
 |:---|:---|:---|:---|
-| `POST /api/voice` | token, 60/min | `{ text: string; kind?: 'phrase' \| 'reply' }` only (≤ 4 KB, read in chunks; text 1-1,200 characters, no data URL or encoded blob; a `phrase` must be a phrase-bank line) | `audio/mpeg` with `X-Voice-Cache: hit \| miss` (a cached phrase costs nothing). `400` bad body or extra field, `401` bad token, `413` too large, `429` rate limited (`Retry-After`); `503 { error, fallback: 'device', reason: 'no-key' \| 'capped' }`; `502 { error, fallback: 'device', reason: 'upstream' }`. |
+| `POST /api/voice` | token, 60/min | `{ text: string; kind?: 'phrase' \| 'reply'; voiceId?: string; quality?: 'high' \| 'fast'; rate?: 0.75 \| 1 \| 1.25 }` only (≤ 4 KB, read in chunks; text 1-1,200 characters, no data URL or encoded blob; a `phrase` must be a phrase-bank line; `voiceId` must be a curated voice or the laptop's `ELEVENLABS_VOICE_ID`) | `audio/mpeg` with `X-Voice-Cache: hit \| miss` (a cached phrase costs nothing). `400` bad body or extra field, `401` bad token, `413` too large, `429` rate limited (`Retry-After`); `503 { error, fallback: 'device', reason: 'no-key' \| 'capped' }`; `502 { error, fallback: 'device', reason: 'upstream' }`. |
 | `GET /api/voice/status[?preference=off\|device\|elevenlabs]` | token | – | `VoiceStatus` (below); `preference` defaults to the profile's `voiceMode` |
 
 ```typescript
@@ -608,12 +633,25 @@ interface VoiceStatus {
   warning: boolean;                        // ≥ 80% of the limit used
   reason?: 'no-key' | 'capped' | 'chosen' | 'upstream' | 'off';
   month: string;                           // YYYY-MM
+  laptopVoiceId?: string;                  // ELEVENLABS_VOICE_ID, when set and not a curated voice
 }
 
 // Text (pure)
 spokenMove(move, style: 'words' | 'notation'): string        // "Turn the right side up" / "R prime"
 speakableText(text, style): string                            // markdown stripped, moves spoken
 coachSpeech({ text, status }, { allowed, names? }, style): string | null  // only final, guard-approved text
+chatSpeech({ text, status }, passes: (text) => boolean, style): string | null  // a chat answer, after the chat guard
+
+// Models and voices (src/voice/catalog.ts, pure)
+VOICE_MODELS: Record<model, { creditsPerCharacter, label }>  // eleven_v4 1, eleven_v4_turbo 0.5, eleven_v3 1, eleven_multilingual_v2 1, eleven_flash_v2_5 0.5
+QUALITY_MODEL = { high: 'eleven_v4', fast: 'eleven_v4_turbo' }; DEFAULT_VOICE_MODEL = 'eleven_v4'
+CURATED_VOICES: { id, name, description }[]   // Alice (default), Matilda, Jessica, Will, George
+DEFAULT_VOICE_ID = 'Xb7hH8MSUJpSbSDYk0k2'; isCuratedVoiceId(id); modelForQuality(q); creditsPerCharacter(model)
+
+// Talk to the coach (src/voice/speechInput.ts, browser)
+speechRecognitionCtor(win?): RecognitionCtor | null   // SpeechRecognition or webkitSpeechRecognition
+createSpeechInput(ctor, { onTranscript, onEnd, onError }): { start(): boolean; stop(); abort(); listening }  // en-US
+speechErrorMessage(error): string | null              // not-allowed, no-speech, audio-capture, network ...
 
 // Phrase bank (pure): every move in both styles, stage intros, checkpoint lines
 PHRASES: Phrase[]; LINES; isPhraseText(text); phraseBankCharacters(); movePhrase(move, style)
@@ -623,20 +661,25 @@ narratedMove(prev, next, style): string | null; stageIntro(prevStage, stage, sta
 // Speaking (browser)
 new SpeechQueue(speaker): say(...items); replace(...items); setStep(key); interrupt(); setSpeaker(s)
 createDeviceSpeaker({ rate?, env? }); pickVoice(voices); isDeviceVoiceAvailable()
-createElevenLabsSpeaker({ token, rate?, endpoint? }); voiceRequestBody(item): { text, kind }
+createElevenLabsSpeaker({ token, rate?, voiceId?, quality?, endpoint? })
+voiceRequestBody(item, { voiceId?, quality?, rate? }?): { text, kind, voiceId?, quality?, rate? }
 createVoiceSpeaker({ mode, device, elevenlabs, onFallback? })   // ElevenLabs -> device -> off
-useVoice({ mode, rate, token, enabled? }): { active, say, replace, setStep, interrupt }
+useVoice({ mode, rate, token, voiceId?, quality?, enabled? }): { active, say, replace, setStep, interrupt }
 useVoiceStatus(token, preference); useOneSpeaker(target): boolean; new SpeakerArbiter(ownClientId)
 installAudioUnlock(); unlockAudio(); isAudioUnlocked()   // nothing is said before a user gesture
 
 // Server only
 new VoiceUsageTracker(file?, now?): reserve(credits, accountRemaining?); settle(credits, billedChars | null);
   remaining(accountRemaining?); isCapped(...); isWarning(...); monthCredits(); capCredits()
-creditsFor(characters, model?); CREDITS_PER_CHARACTER   // eleven_flash_v2_5: 0.5
-textToSpeech(text, { apiKey, voiceId, model, signal?, fetchImpl? }): Promise<Uint8Array>
+creditsFor(characters, model?); CREDITS_PER_CHARACTER   // from VOICE_MODELS; default model eleven_v4 (1 per character)
+textToSpeech(text, { apiKey, voiceId, model, speed?, signal?, fetchImpl? }): Promise<Uint8Array>
+ttsRequestBody(text, model, speed?)   // { text, model_id, voice_settings: { stability 0.5, similarity_boost 0.75, style 0, use_speaker_boost true, speed 0.7-1.2 } }
+elevenLabsConfig(): { apiKey, voiceId, model, envVoiceId }; allowedVoiceIds(config): Set<string>; apiSpeed(rate)
 fetchSubscription(apiKey, fetchImpl?): Promise<{ characterCount, characterLimit, remaining }>
-clipHash(model, voiceId, text); readClip(hash); writeClip(hash, audio)   // data/voice/<hash>.mp3
-parseVoiceRequest(body); speak({ text, kind }, deps?, signal?); voiceStatus(preference, deps?)
+clipHash(model, voiceId, text, speed?); readClip(hash); writeClip(hash, audio)   // data/voice/<hash>.mp3
+parseVoiceRequest(body, config?); resolveVoice(request, config); speak({ text, kind, voiceId?, quality?, rate? }, deps?, signal?)
+voiceStatus(preference, deps?)
+// npm run voice:prewarm -- [--yes] [--voice <name|id>] [--model <high|fast|model id>]  (scripts/voice-prewarm.ts)
 ```
 
 ---

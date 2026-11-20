@@ -119,3 +119,42 @@ on the laptop; the browser never sees it.
   500 Flash credits).
 - Changing the voice id or model makes new clips (the hash covers both); old clips stay on disk.
 - The device voice's quality and choice of voices depend on the browser and OS.
+
+## Addendum (2026-11-20): Eleven v4, curated voices and talking to the coach
+
+- **Models**: one table (`src/voice/catalog.ts`) holds every model with its credits per character:
+  `eleven_v4` 1.0, `eleven_v4_turbo` 0.5, `eleven_v3` 1.0, `eleven_multilingual_v2` 1.0,
+  `eleven_flash_v2_5` 0.5 (as listed for the owner's account). The default is now `eleven_v4`
+  ("High quality"); Settings offers "Faster, half the credits" (`eleven_v4_turbo`) as
+  `settings.voiceQuality` (`high` | `fast`, profile v5). Estimates, reservations, the usage file,
+  status and the prewarm totals all use the table: the 142-line bank (3,118 characters) costs
+  3,118 credits with v4 and 1,559 with v4 Turbo.
+- **Voice settings**: the request now sends `voice_settings` with stability 0.5, similarity_boost
+  0.75, style 0, use_speaker_boost true and `speed` from the Speed setting, kept within
+  ElevenLabs' 0.7-1.2 (1.25 becomes 1.2), and the browser plays the clip at its own pace. Checked
+  against the text-to-speech API reference on 2026-11-20: `voice_settings` is a per-request
+  override for every model (no v4 restriction is listed except `clone_strength`, which is for
+  professional clones and is not sent); the output format stays `mp3_44100_128`.
+- **Voices**: five premade stock voices (`CURATED_VOICES`): Alice (British, clear and engaging
+  teacher; the new default), Matilda, Jessica, Will and George (the old default). The student
+  picks one in Settings → Voice (`settings.voiceId`). `ELEVENLABS_VOICE_ID` still overrides the
+  default when set and is offered as "Laptop voice". `/api/voice` accepts `voiceId`, `quality` and
+  `rate` next to `text` and `kind`, and refuses any voice id that is not curated or the laptop's
+  own, so a client cannot spend credits on arbitrary voices.
+- **Clip cache**: the key is `sha256(model, voice, text)` at normal speed and
+  `sha256(model, voice, text, speed)` otherwise, so changing the voice, quality or speed makes new
+  clips. `npm run voice:prewarm -- --voice <name|id> --model <high|fast|model id>` makes the bank
+  for a chosen voice and model and prints credits at that model's rate.
+- **Chat answers** ("Ask the coach", ADR-014 addendum): with the voice on, a finished answer that
+  passes the chat guardrail again (`chatSpeech`) is read aloud, with ElevenLabs in ElevenLabs mode
+  (falling back to the device voice) and with the device voice otherwise. One speaker when paired;
+  a new question stops the reading.
+- **Talk to the coach** (speech to text): push-to-talk in "Ask the coach" with the browser's own
+  `SpeechRecognition` / `webkitSpeechRecognition`, `en-US`, feature-detected (no mic button where
+  there is none). Off until the student turns on "Talk to the coach" (`settings.talkToCoach`,
+  default off); Settings says, in one line, that the browser's speech service turns speech into
+  text and Cubyntra never records or stores audio. "Send when I stop talking"
+  (`settings.chatAutoSend`, default on) sends the transcript when speech ends. Cubyntra itself
+  never opens the microphone stream, records, keeps or uploads audio; only the transcript, as the
+  question text, goes to the laptop and on to Anthropic (`tests/chat-privacy.test.ts`). A blocked
+  microphone or no speech is explained in words, and typing always works.

@@ -133,3 +133,14 @@ export function coachSpeech(shown: CoachShown, step: CoachStepMoves, style: Move
   const spoken = speakableText(shown.text, style);
   return spoken || null;
 }
+
+/**
+ * A finished "Ask the coach" answer to speak, or null. As for hints, only the final text is
+ * read (after any `replace`), and only when it still passes the chat guardrail for the step
+ * (`passes`, see `checkChatAnswer`), which allows single moves explained as notation.
+ */
+export function chatSpeech(shown: CoachShown, passes: (text: string) => boolean, style: MoveSpeech): string | null {
+  if (shown.status !== 'done' || !shown.text.trim()) return null;
+  if (!passes(shown.text)) return null;
+  return speakableText(shown.text, style) || null;
+}

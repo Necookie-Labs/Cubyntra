@@ -158,3 +158,41 @@ step changes.
 - Stage ids and names have one source, the tutor's `METHODS`. A new stage needs a note in
   `STAGE_TIPS` (or matches a family) to pass the coverage test; until then it still gets the
   facts-based template.
+
+## Addendum (2026-11-20): Ask the coach
+
+A student often has one question the three hint levels do not answer ("what does R' mean?",
+"what if I mess up?"). "Ask the coach" is a short conversation about the step on screen.
+
+- **Route**: `POST /api/coach/chat` (`src/app/api/coach/chat/route.ts`). The same `guardUser`
+  identity guard and `x-cubyntra-token` as `/api/coach`, the same chunked body reader (cap 24 KB,
+  room for the 8 KB facts plus a full history), and its own limiter of 20 questions a minute per
+  token (per user when hosted), separate from the 30 hints a minute.
+- **Body**: `{ facts, question, history }`. `facts` is the usual `CoachFacts` (the browser builds
+  them at hint level 3, so `moveWords` are there for notation questions); the server parses them
+  with `parseCoachFacts`, which recomputes `moveWords` and `caseTip`. `question` is 1-400
+  characters; `history` holds `{ role: 'student' | 'coach', text }` turns of up to 1,200
+  characters, and only the newest eight are kept. Any other field, and any text that looks like
+  a data URL or an encoded blob, is refused (`src/coach/chat.ts`).
+- **Request** (`src/coach/chatService.ts`): `claude-haiku-5-5`, `thinking: disabled`,
+  `output_config: { effort: 'low' }`, `max_tokens: 500`, streaming. Two system blocks: the cached
+  coach prompt (first, with `cache_control`, so the cache is shared with hints) and the short,
+  byte-stable `CHAT_RULES`: answer about this step only, 2-5 short sentences for ages 10+, notation
+  may be explained, never invent moves, steer off-topic or personal questions back to the cube,
+  say so when unsure. History becomes earlier user/assistant turns (starting with the student,
+  same-side turns joined), and the last user turn is the facts JSON followed by the question.
+- **Same wire format** as `/api/coach` (`delta` / `replace` / `done`), the same monthly cap
+  (shared), and usage recorded from the stream events. The live loop is shared
+  (`streamGuardedReply` in `src/coach/service.ts`).
+- **Chat guardrail** (`checkChatMoves` in `src/coach/guard.ts`): any run of two or more moves must
+  be a contiguous run of the step's setup moves followed by its algorithm; a lone move outside the
+  step is allowed only in a notation explanation ("D' means ...", "a letter like U2 ..."); a move
+  that cannot be parsed always fails. The hint guard is unchanged. A failing answer is replaced,
+  before the offending token is shown, by the built-in answer.
+- **Built-in answers** (no key, the cap, refusal, cut off, guard): `chatTemplate` classifies the
+  question by keywords (why / how to spot it / what a move means / what if I mess up / anything
+  else) and answers from the facts and case notes, with a mode notice. They only name moves one
+  at a time to explain them, so they always pass the chat guard.
+- **Talk instead of type**: optional push-to-talk with the browser's own `SpeechRecognition`
+  (`src/voice/speechInput.ts`), off until "Talk to the coach" is on in Settings. Only the
+  transcript (text) is sent; see ADR-016.

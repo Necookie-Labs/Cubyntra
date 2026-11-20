@@ -29,6 +29,10 @@
  * ("R3" is `R'`); a count that comes to no turn at all ("R4") cannot be checked and so is
  * rejected. "F2L", "3x3" and possessives ("R's") stay words; `x` with a count other than 2 is a
  * repeat count ("x3").
+ *
+ * Chat answers ("Ask the coach") use `checkChatMoves` instead: any sequence of two or more moves
+ * must be a contiguous run of the step's setup and algorithm, and a lone move outside the step
+ * is allowed only where the sentence explains notation ("D' means ..."). See the end of the file.
  */
 
 import { parseMove } from '../cube/transforms';
@@ -315,4 +319,119 @@ export function checkReplyMoves(
   const tokens = extractMoveTokens(scanned);
   const offending = tokens.filter((t) => t.canonical === null || !allowed.has(t.canonical));
   return { ok: offending.length === 0, tokens, offending };
+}
+
+// ---------------------------------------------------------------------------------------------
+// Chat guardrail ("Ask the coach")
+// ---------------------------------------------------------------------------------------------
+
+/** A run of move tokens written together ("R U R' U'", "RUR'U'"). */
+export interface MoveRun {
+  tokens: MoveToken[];
+  /** Canonical notation of each token (null where it cannot be parsed). */
+  moves: (string | null)[];
+}
+
+export interface ChatGuardResult {
+  ok: boolean;
+  runs: MoveRun[];
+  /** Runs that broke a rule (a sequence that is not the plan's, or a lone move out of context). */
+  offending: MoveRun[];
+}
+
+// Between two tokens of one run: spaces, commas, brackets or the hyphen of "R-U-R'".
+const CHAT_RUN_GAP = /^[\s,()[\]-]*$/;
+// "R' means ...", "R = ...", "R stands for ...", "R is short for ...", "R is the right side".
+const NOTATION_AFTER = /^\s*["'”]?\s*(?:means\b|meaning\b|stands\s+for\b|is\s+short\s+for\b|=|is\s+(?:a|an|the|one|just|when|how|what|where)\b|tells\s+you\b|says\b|turns\b)/i;
+// "a letter like R'", "for example R2", "written as U'", "the move R'".
+const NOTATION_BEFORE =
+  /(?:\bletters?|\bnotation|\bwritten(?:\s+as)?|\blike|\bsuch\s+as|\bexample,?|\be\.g\.,?|\bcalled|\bsymbol|\bversus|\bvs\.?)\s*["'“`]?\s*$/i;
+
+// A sentence that explains what moves mean, e.g. "F' undoes F", "F is clockwise, F' is counter-clockwise".
+const NOTATION_SENTENCE =
+  /\b(?:means?|meaning|prime|clockwise|counter-?clockwise|anti-?clockwise|opposite|reverses?|reversed|undoes|undo|inverse|the\s+other\s+way|other\s+direction|stands\s+for|notation|letter)\b/i;
+// A move named only to say the step does not use it ("so you don't need R2").
+const NOT_NEEDED_SENTENCE =
+  /\b(?:(?:do|does|did|will|would)\s*n[o']?t\s+need|(?:do|does|will)\s+not\s+need|won'?t\s+need|no\s+need\s+for|(?:is|are)\s*n[o']?t\s+(?:part\s+of|in|used\s+in)|not\s+part\s+of|not\s+(?:in|used\s+in)\s+this\s+step|(?:does|do)\s*n[o']?t\s+use|never\s+uses?)\b/i;
+// An instruction right before a move ("do D", "now turn D2", "then try L") is never an explanation.
+// A negated verb ("doesn't use L2", "never turn D") is not an instruction.
+const INSTRUCTION_BEFORE =
+  /(?<!(?:n't|\bnot|\bnever)\s+)\b(?:do|doing|turn|turning|now|then|next|try|make|perform|apply|use|start\s+with|finish\s+with)\s+(?:the\s+|a\s+)?["'“`(]?\s*$/i;
+
+/** The sentence around `index` (split at . ! ? and line breaks). */
+function sentenceAround(text: string, index: number): { sentence: string; start: number } {
+  const start = Math.max(text.lastIndexOf('.', index - 1), text.lastIndexOf('!', index - 1), text.lastIndexOf('?', index - 1), text.lastIndexOf('\n', index - 1)) + 1;
+  const ends = ['.', '!', '?', '\n'].map((c) => text.indexOf(c, index)).filter((i) => i !== -1);
+  const end = ends.length ? Math.min(...ends) : text.length;
+  return { sentence: text.slice(start, end), start };
+}
+
+/** Splits move tokens into runs written together (only spaces, commas, brackets or hyphens between them). */
+export function moveRuns(text: string, tokens: readonly MoveToken[]): MoveRun[] {
+  const runs: MoveRun[] = [];
+  let prevEnd = -1;
+  for (const t of tokens) {
+    const run = runs.at(-1);
+    if (run && CHAT_RUN_GAP.test(text.slice(prevEnd, t.index))) {
+      run.tokens.push(t);
+      run.moves.push(t.canonical);
+    } else {
+      runs.push({ tokens: [t], moves: [t.canonical] });
+    }
+    prevEnd = t.index + t.raw.length;
+  }
+  return runs;
+}
+
+/** True when `run` appears, in order and without gaps, inside `sequence`. */
+export function isContiguousRun(run: readonly string[], sequence: readonly string[]): boolean {
+  if (!run.length || run.length > sequence.length) return false;
+  for (let start = 0; start + run.length <= sequence.length; start++) {
+    if (run.every((m, i) => sequence[start + i] === m)) return true;
+  }
+  return false;
+}
+
+/**
+ * The chat guardrail. Claude may answer questions about notation, so the rules differ from the
+ * hint guard (`checkReplyMoves`, unchanged):
+ * - a sequence of two or more moves must be a contiguous run of the plan's own moves (`sequence`:
+ *   setup moves then the algorithm, canonical), so no invented or reordered sequence can appear;
+ * - a single move is allowed when it is one of the step's moves (`allowed`), or, for any other
+ *   move, when the sentence explains notation around it ("R' means turn the right side down",
+ *   "a letter like U2", "F' undoes F", "F is clockwise, F' is counter-clockwise"). A lone move
+ *   outside the step with no such context, or one told as an instruction ("Now do D.",
+ *   "Turn D the other way."), fails.
+ * Moves that cannot be parsed always fail. `names` (case and stage names) are blanked first.
+ */
+export function checkChatMoves(
+  text: string,
+  sequence: readonly string[],
+  allowed: ReadonlySet<string>,
+  names: readonly string[] = []
+): ChatGuardResult {
+  let scanned = text;
+  for (const name of names.filter((n) => n.trim().length > 1)) {
+    scanned = scanned.replace(new RegExp(escapeRegExp(name), 'gi'), (match) => ' '.repeat(match.length));
+  }
+  const normalised = codeSpans(scanned).text.replace(PRIMES, "'");
+  const runs = moveRuns(normalised, extractMoveTokens(scanned));
+  const offending = runs.filter((run) => {
+    if (run.moves.some((m) => m === null)) return true;
+    const moves = run.moves as string[];
+    if (moves.length >= 2) return !isContiguousRun(moves, sequence);
+    const [token] = run.tokens;
+    if (allowed.has(moves[0])) return false;
+    const end = token.index + token.raw.length;
+    const after = normalised.slice(end, end + 24);
+    const before = normalised.slice(Math.max(0, token.index - 24), token.index);
+    if (NOTATION_AFTER.test(after) || NOTATION_BEFORE.test(before)) return false;
+    // A sentence that explains notation may name moves next to each other's meaning
+    // ("F' undoes F"), unless the move is being told to the student ("now do D").
+    const { sentence, start } = sentenceAround(normalised, token.index);
+    const lead = sentence.slice(0, token.index - start);
+    const explains = NOTATION_SENTENCE.test(sentence) || NOT_NEEDED_SENTENCE.test(sentence);
+    return !(explains && !INSTRUCTION_BEFORE.test(lead));
+  });
+  return { ok: offending.length === 0, runs, offending };
 }

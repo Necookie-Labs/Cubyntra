@@ -4,38 +4,82 @@
  *
  * Two calls, made with `fetch` (no SDK: two plain HTTP requests do not need one):
  * - text to speech, `POST /v1/text-to-speech/{voice_id}?output_format=mp3_44100_128` with the
- *   `xi-api-key` header and `{ text, model_id }`, answering with MP3 bytes;
+ *   `xi-api-key` header and `{ text, model_id, voice_settings }`, answering with MP3 bytes;
  * - the subscription, `GET /v1/user/subscription`, whose `character_limit - character_count`
  *   is the account's remaining balance in credits.
  * Checked against https://elevenlabs.io/docs/api-reference/text-to-speech/convert and
- * https://elevenlabs.io/docs/api-reference/user/subscription/get (2026-11-18).
+ * https://elevenlabs.io/docs/api-reference/user/subscription/get (2026-11-18), and again for
+ * Eleven v4 on 2026-11-20: `voice_settings` (stability 0.5, similarity_boost 0.75, style 0,
+ * use_speaker_boost true and speed 1 by default) is a per-request override for every
+ * text-to-speech model, and the page names no v4 restriction except `clone_strength` (for
+ * professional clones; not sent). `mp3_44100_128` is still the default output format.
  *
  * The key comes only from `ELEVENLABS_API_KEY` in `.env.local` and is never sent to the browser.
- * Only the text to speak is sent: no images, cube state or student data. Stock voices only.
+ * Only the text to speak is sent: no images, cube state or student data. Stock voices only: one
+ * of the curated voices (`src/voice/catalog.ts`) or the laptop's own `ELEVENLABS_VOICE_ID`
+ * (`allowedVoiceIds`); `/api/voice` refuses any other id.
  */
 
+import { CURATED_VOICES, DEFAULT_VOICE_ID, VOICE_ID_PATTERN } from './catalog';
 import { VOICE_MODEL } from './credits';
 
+export { DEFAULT_VOICE_ID } from './catalog';
+
 export const ELEVENLABS_API = 'https://api.elevenlabs.io';
-/** "George", a premade stock voice (the voice in the API reference examples). No cloning. */
-export const DEFAULT_VOICE_ID = 'JBFqnCBsd6RMkjVDRZzb';
 export const OUTPUT_FORMAT = 'mp3_44100_128';
 /** How long the account balance is trusted before it is read again. */
 export const BALANCE_TTL_MS = 10 * 60_000;
 
-const VOICE_ID = /^[A-Za-z0-9]{8,40}$/;
+/**
+ * How the voice sounds: a clear, warm, steady teaching voice. Middle stability (steady, not
+ * flat), the documented similarity default, no extra style (style adds latency and drama) and
+ * speaker boost on for clarity. `speed` is added per request from the student's Speed setting.
+ */
+export const VOICE_SETTINGS = {
+  stability: 0.5,
+  similarity_boost: 0.75,
+  style: 0,
+  use_speaker_boost: true,
+} as const;
+
+/** The speeds ElevenLabs accepts (`voice_settings.speed`, 1 = normal). */
+export const MIN_API_SPEED = 0.7;
+export const MAX_API_SPEED = 1.2;
+
+/** The Speed setting (0.75, 1, 1.25) as an ElevenLabs speed, kept inside what the API accepts. */
+export function apiSpeed(rate: number): number {
+  if (!Number.isFinite(rate)) return 1;
+  return Math.min(MAX_API_SPEED, Math.max(MIN_API_SPEED, rate));
+}
+
+/** The exact JSON body of a text-to-speech call: the words, the model and the voice settings. */
+export function ttsRequestBody(text: string, model: string, speed = 1) {
+  return { text, model_id: model, voice_settings: { ...VOICE_SETTINGS, speed: apiSpeed(speed) } };
+}
 
 export interface ElevenLabsConfig {
   apiKey: string | null;
+  /** The voice used when a request names none: `ELEVENLABS_VOICE_ID`, else Alice. */
   voiceId: string;
+  /** The model used when a request names no quality (Eleven v4). */
   model: string;
+  /** `ELEVENLABS_VOICE_ID`, when it is set and looks like a voice id. */
+  envVoiceId?: string | null;
 }
 
 /** The key and voice from the environment (`ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID`). */
 export function elevenLabsConfig(): ElevenLabsConfig {
   const apiKey = process.env.ELEVENLABS_API_KEY?.trim() || null;
   const voice = process.env.ELEVENLABS_VOICE_ID?.trim() ?? '';
-  return { apiKey, voiceId: VOICE_ID.test(voice) ? voice : DEFAULT_VOICE_ID, model: VOICE_MODEL };
+  const envVoiceId = VOICE_ID_PATTERN.test(voice) ? voice : null;
+  return { apiKey, voiceId: envVoiceId ?? DEFAULT_VOICE_ID, model: VOICE_MODEL, envVoiceId };
+}
+
+/** The voice ids a request may ask for: the curated stock voices and the laptop's own. */
+export function allowedVoiceIds(config: Pick<ElevenLabsConfig, 'envVoiceId'>): Set<string> {
+  const ids = new Set(CURATED_VOICES.map((v) => v.id));
+  if (config.envVoiceId) ids.add(config.envVoiceId);
+  return ids;
 }
 
 export class ElevenLabsError extends Error {
@@ -57,12 +101,17 @@ export interface TtsOptions {
   apiKey: string;
   voiceId: string;
   model: string;
+  /** ElevenLabs speed (1 = normal), kept within 0.7 to 1.2. */
+  speed?: number;
   signal?: AbortSignal;
   fetchImpl?: FetchLike;
 }
 
 /** Speaks `text` with ElevenLabs and returns the MP3 bytes. Throws `ElevenLabsError`. */
-export async function textToSpeech(text: string, { apiKey, voiceId, model, signal, fetchImpl }: TtsOptions): Promise<Uint8Array> {
+export async function textToSpeech(
+  text: string,
+  { apiKey, voiceId, model, speed = 1, signal, fetchImpl }: TtsOptions
+): Promise<Uint8Array> {
   const doFetch = fetchImpl ?? globalThis.fetch;
   const url = `${ELEVENLABS_API}/v1/text-to-speech/${encodeURIComponent(voiceId)}?output_format=${OUTPUT_FORMAT}`;
   let res: Response;
@@ -70,7 +119,7 @@ export async function textToSpeech(text: string, { apiKey, voiceId, model, signa
     res = await doFetch(url, {
       method: 'POST',
       headers: { 'xi-api-key': apiKey, 'Content-Type': 'application/json', Accept: 'audio/mpeg' },
-      body: JSON.stringify({ text, model_id: model }),
+      body: JSON.stringify(ttsRequestBody(text, model, speed)),
       signal,
     });
   } catch (error) {

@@ -3,7 +3,8 @@
  * Necookie Labs (c) 2026
  *
  * `createElevenLabsSpeaker` asks the laptop's `/api/voice` for a clip (sending only
- * `{ text, kind }`) and plays it. Phrase clips are kept in memory once fetched, so replaying a
+ * `{ text, kind, voiceId, quality, rate }`: the words and the student's voice choice) and plays
+ * it. ElevenLabs applies the speed, so the clip plays at its own pace. Phrase clips are kept in memory once fetched, so replaying a
  * step asks the laptop once per move. Anything but audio back (no key, the cap, ElevenLabs down,
  * no network, autoplay blocked) is an error, and `createVoiceSpeaker` then says the line with the
  * device voice: ElevenLabs, then the device voice, then nothing.
@@ -14,15 +15,30 @@
  */
 
 import type { VoiceMode } from '../lib/studentProfile';
+import type { VoiceQuality } from './catalog';
 import type { Speaker, SpeechItem } from './speechQueue';
 import type { VoiceFallbackReason, VoiceRequestBody } from './types';
 
 /** Same header as `src/lib/localAuth.ts` (server only, so not imported here). */
 const APP_TOKEN_HEADER = 'x-cubyntra-token';
 
-/** The only body the browser sends to `/api/voice`: the words and what kind of line they are. */
-export function voiceRequestBody(item: SpeechItem): VoiceRequestBody {
-  return { text: item.text, kind: item.kind };
+/** The student's ElevenLabs voice choice (Settings). */
+export interface VoiceChoice {
+  voiceId?: string;
+  quality?: VoiceQuality;
+  rate?: number;
+}
+
+/**
+ * The only body the browser sends to `/api/voice`: the words, what kind of line they are, and
+ * the voice, quality and speed to say them with.
+ */
+export function voiceRequestBody(item: SpeechItem, choice: VoiceChoice = {}): VoiceRequestBody {
+  const body: VoiceRequestBody = { text: item.text, kind: item.kind };
+  if (choice.voiceId) body.voiceId = choice.voiceId;
+  if (choice.quality) body.quality = choice.quality;
+  if (choice.rate !== undefined && choice.rate !== 1) body.rate = choice.rate;
+  return body;
 }
 
 export class VoiceUnavailableError extends Error {
@@ -45,6 +61,8 @@ export interface AudioLike {
 export interface ElevenLabsSpeakerOptions {
   token: string | null;
   rate?: number;
+  voiceId?: string;
+  quality?: VoiceQuality;
   endpoint?: string;
   fetchImpl?: typeof fetch;
   createAudio?: () => AudioLike;
@@ -58,6 +76,8 @@ const MAX_MEMORY_CLIPS = 200;
 export function createElevenLabsSpeaker({
   token,
   rate = 1,
+  voiceId,
+  quality,
   endpoint = '/api/voice',
   fetchImpl,
   createAudio = () => new Audio() as AudioLike,
@@ -76,7 +96,7 @@ export function createElevenLabsSpeaker({
       res = await (fetchImpl ?? globalThis.fetch)(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', [APP_TOKEN_HEADER]: token },
-        body: JSON.stringify(voiceRequestBody(item)),
+        body: JSON.stringify(voiceRequestBody(item, { voiceId, quality, rate })),
         signal,
       });
     } catch {
@@ -118,7 +138,8 @@ export function createElevenLabsSpeaker({
           };
           signal.addEventListener('abort', onAbort);
           audio.src = url;
-          audio.playbackRate = rate;
+          // ElevenLabs already spoke at the chosen speed (voice_settings.speed).
+          audio.playbackRate = 1;
           // Autoplay blocked (no tap yet) or a broken clip: let the device voice try.
           audio.play().catch(() => {
             signal.removeEventListener('abort', onAbort);

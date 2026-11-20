@@ -26,6 +26,7 @@ import type { TrainerSetId } from '@/learn/types';
 import { useTutorStore } from '@/stores/useTutorStore';
 import { TeachingTwin } from '@/components/twin/TeachingTwin';
 import { CoachPanel } from '@/components/solve/CoachPanel';
+import { useChatVoice } from '@/components/coach/useChatVoice';
 import { CheckpointSheetView } from '@/components/solve/CheckpointSheet';
 import { CaseLegend, CaseTiles, caseLevel } from '@/components/learn/CaseTiles';
 import { BlockButton, Chip, Panel, cx } from '@/components/ui';
@@ -138,6 +139,8 @@ function Notation({ moves, label }: { moves: string; label: string }) {
 
 export function TrainerView() {
   const token = useTutorStore((s) => s.token);
+  // Ask the coach answers are read aloud with the student's voice settings.
+  const chatVoice = useChatVoice(null);
   const settings = useTutorStore((s) => s.profile.settings);
   const palette = useTutorStore((s) => s.profile.palette);
   const savedSet = useTutorStore((s) => s.profile.trainer.set);
@@ -310,7 +313,7 @@ export function TrainerView() {
                     icon={<MessageSquare aria-hidden className="h-4 w-4" />}
                     onClick={() => setCoachOpen((o) => !o)}
                   >
-                    Ask the coach
+                    Show the coach
                   </BlockButton>
                 </div>
               </DrillStep>
@@ -360,7 +363,7 @@ export function TrainerView() {
             )}
           </Panel>
 
-          {coachOpen && <CoachPanel plan={plan} token={token} attempts={[]} />}
+          {coachOpen && <CoachPanel plan={plan} token={token} attempts={[]} chatVoice={chatVoice} />}
         </div>
       </div>
 

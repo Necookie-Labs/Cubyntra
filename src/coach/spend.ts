@@ -14,6 +14,8 @@ import { dataPath, writeFileAtomic } from '../lib/dataDir';
 
 export const COACH_MODEL = 'claude-haiku-5-5';
 export const COACH_MAX_TOKENS = 400;
+/** Output budget of one "Ask the coach" answer (2 to 5 short sentences, with room to spare). */
+export const CHAT_MAX_TOKENS = 500;
 export const DEFAULT_MONTHLY_CAP_USD = 10;
 
 export interface ModelPrice {
@@ -58,18 +60,18 @@ export function costOfUsage(usage: UsageCounts, model: string = COACH_MODEL): nu
  * Worst-case usage of one call: input counted at 3 characters per token (pessimistic for
  * English), all of it billed as a cache write, plus a full `max_tokens` of output.
  */
-export function estimateCallUsage(inputChars: number): UsageCounts {
+export function estimateCallUsage(inputChars: number, maxTokens: number = COACH_MAX_TOKENS): UsageCounts {
   return {
     input_tokens: 0,
-    output_tokens: COACH_MAX_TOKENS,
+    output_tokens: maxTokens,
     cache_creation_input_tokens: Math.ceil(inputChars / 3),
     cache_read_input_tokens: 0,
   };
 }
 
 /** Worst-case cost of one call (see `estimateCallUsage`). */
-export function estimateCallCost(inputChars: number, model: string = COACH_MODEL): number {
-  return costOfUsage(estimateCallUsage(inputChars), model);
+export function estimateCallCost(inputChars: number, model: string = COACH_MODEL, maxTokens: number = COACH_MAX_TOKENS): number {
+  return costOfUsage(estimateCallUsage(inputChars, maxTokens), model);
 }
 
 /** The monthly cap in US dollars: `COACH_MONTHLY_CAP_USD` if it is a valid number, else $10. */

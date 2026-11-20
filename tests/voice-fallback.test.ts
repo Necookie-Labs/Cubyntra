@@ -128,15 +128,32 @@ describe('createVoiceSpeaker (the chain)', () => {
 });
 
 describe('createElevenLabsSpeaker', () => {
-  it('sends only { text, kind } with the token and plays the clip at the chosen speed', async () => {
+  it('sends only the words and the voice choice with the token; ElevenLabs applies the speed', async () => {
     const fetchImpl = vi.fn(async () => audioResponse());
     await elevenSpeaker(fetchImpl as unknown as typeof fetch).speak(phrase, signal());
     const [url, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe('/api/voice');
-    expect(JSON.parse(init.body as string)).toEqual({ text: 'Nice work!', kind: 'phrase' });
+    expect(JSON.parse(init.body as string)).toEqual({ text: 'Nice work!', kind: 'phrase', rate: 1.25 });
     expect((init.headers as Record<string, string>)['x-cubyntra-token']).toBe('tok');
     expect(FakeAudio.played).toHaveLength(1);
-    expect(FakeAudio.played[0].playbackRate).toBe(1.25);
+    expect(FakeAudio.played[0].playbackRate).toBe(1);
+  });
+
+  it('sends the chosen voice and quality', async () => {
+    const fetchImpl = vi.fn(async () => audioResponse());
+    FakeAudio.played = [];
+    const speaker = createElevenLabsSpeaker({
+      token: 'tok',
+      voiceId: 'cgSgspJ2msm6clMCkdW9',
+      quality: 'fast',
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      createAudio: () => new FakeAudio(),
+      createUrl: () => 'blob:clip',
+      revokeUrl: () => {},
+    });
+    await speaker.speak(phrase, signal());
+    const init = (fetchImpl.mock.calls[0] as unknown as [string, RequestInit])[1];
+    expect(JSON.parse(init.body as string)).toEqual({ text: 'Nice work!', kind: 'phrase', voiceId: 'cgSgspJ2msm6clMCkdW9', quality: 'fast' });
   });
 
   it('keeps phrase clips in memory, not replies', async () => {

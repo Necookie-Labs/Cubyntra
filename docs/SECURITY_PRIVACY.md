@@ -105,11 +105,29 @@ Only from the laptop's server (`src/coach/service.ts`), only when the student as
   look-for / why sentences, up to five earlier attempt results (matched / mismatch / unsure and
   mistake kinds) and an optional diagnosis (mistake kinds, move positions, confidences).
 
+**Ask the coach** (`POST /api/coach/chat`, `src/coach/chatService.ts`) sends, only when the student
+asks a question: the same fixed system prompt plus a fixed chat-rules block, the same facts JSON,
+the student's question exactly as typed or as transcribed by the browser (at most 400
+characters), and up to eight earlier turns of that step's conversation (the student's questions
+and the coach's answers, at most 1,200 characters each). The conversation is kept only in the
+browser tab's memory and is cleared on a new step; the server does not store it.
+
 ### 5.2 What is never sent
-Camera frames, photos, sticker colors or the cube state, the student's name, profile or progress,
-device or network details, the app token, and anything typed by the student. The server
-validates incoming facts against a strict shape and drops unknown fields before anything leaves
-the machine.
+Camera frames, photos, audio, sticker colors or the cube state, the student's name, profile or
+progress, device or network details and the app token. The only words the student writes that
+leave the laptop are "Ask the coach" questions (and that step's earlier turns), sent as text. The
+server validates incoming facts and chat bodies against a strict shape, drops or refuses unknown
+fields, and refuses text that looks like a data URL or an encoded blob, before anything leaves the
+machine (`tests/chat-privacy.test.ts`).
+
+### 5.2.1 Talking to the coach (speech to text)
+"Talk to the coach" is off by default. When the student turns it on, the mic button in "Ask the
+coach" uses the browser's own speech recognition (`SpeechRecognition` /
+`webkitSpeechRecognition`): the browser and its speech service (for example Google's in Chrome,
+Apple's in Safari) turn the student's speech into text under the browser's own privacy terms.
+Cubyntra never opens an audio stream, records, keeps or uploads audio; it only receives the
+transcript, which becomes the question text above. Settings says this in one line next to the
+switch, and the browser asks for microphone permission the first time.
 
 ### 5.3 Local files and access
 - `data/coach-usage.json`: token counts and cost per month (no content of any reply), including
@@ -120,7 +138,9 @@ the machine.
   the client's socket address, so this is a header check: a device on the home network that
   forges `Host: localhost` could obtain it. The phone receives the token through the pairing QR
   code or the typed code (section 6).
-- Replies are not stored. The server log shows token counts and cost only.
+- Replies, questions and conversations are not stored. The server log shows token counts and
+  cost only. `/api/coach/chat` needs the same token and identity as `/api/coach` and is limited
+  to 20 questions a minute per token (per user when hosted).
 
 ---
 
@@ -167,23 +187,29 @@ in `.env.local` on the laptop and the student chose it.
 
 ### 7.1 What is sent to ElevenLabs
 Only from the laptop's server (`src/voice/elevenlabs.ts`):
-- `POST /v1/text-to-speech/{voice_id}` with `{ text, model_id }`: the line being spoken (a
-  phrase-bank line such as "Turn the top to the left", or a coach reply the student asked to hear
-  with "Read with ElevenLabs", which already passed the move guardrail) and `eleven_flash_v2_5`;
+- `POST /v1/text-to-speech/{voice_id}` with `{ text, model_id, voice_settings }`: the line being
+  spoken (a phrase-bank line such as "Turn the top to the left", a coach reply the student asked
+  to hear with "Read with ElevenLabs", or an "Ask the coach" answer, both of which already passed
+  the move guardrail), the model (`eleven_v4` or `eleven_v4_turbo`) and fixed voice settings
+  (stability, similarity, style, speaker boost and the speed). ElevenLabs receives only text:
+  never the student's question, audio or anything else;
 - `GET /v1/user/subscription` with no body, to read the remaining balance (at most every 10
   minutes).
 
 ### 7.2 What is never sent
 Camera frames, photos, sticker colors, the cube state, the student's name, profile or progress,
 device or network details and the app token. The browser sends `/api/voice` only
-`{ text, kind }` (`voiceRequestBody`). The route refuses any other field and any text that looks
-like a data URL or an encoded blob, reads at most 4 KB and needs the app token; tests assert this
-(`tests/voice-privacy.test.ts`). No voice is cloned: the voice is a stock premade voice id.
+`{ text, kind, voiceId?, quality?, rate? }` (`voiceRequestBody`): the words and the voice choice.
+The route refuses any other field, any voice id that is not one of the five curated stock voices
+or the laptop's own `ELEVENLABS_VOICE_ID`, and any text that looks like a data URL or an encoded
+blob; it reads at most 4 KB and needs the app token; tests assert this
+(`tests/voice-privacy.test.ts`). No voice is cloned: every voice is a stock premade voice.
 
 ### 7.3 Local files and access
 - `data/voice-usage.json`: characters, credits and request counts per month (no text).
-- `data/voice/<hash>.mp3`: phrase-bank clips, named by a SHA-256 of model, voice and text. Only
-  phrase-bank lines are stored; coach replies are not.
+- `data/voice/<hash>.mp3`: phrase-bank clips, named by a SHA-256 of model, voice, text (and the
+  speed, when it is not normal). Only phrase-bank lines are stored; coach replies and chat answers
+  are not.
 - `/api/voice` and `/api/voice/status` require the app token (section 5.3) and are rate limited
   (60 requests a minute per token).
 - Sound never plays before a user gesture on the page.

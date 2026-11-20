@@ -255,7 +255,7 @@ whole cube over (a whole-cube turn appears as a move chip).
 4. Try **Speed** (Slow / Normal / Fast) and **Moves** (In words / As letters).
 
 Expected: you hear each voice. The ElevenLabs credits meter shows "x of 20,000" this month and
-the credits left.
+the credits left. (Choosing among the ElevenLabs voices and the quality is Test 14.8.)
 
 - [ ] Pass
 
@@ -324,7 +324,7 @@ Expected: a fresh solve starts with the method chosen on Home (not a continuatio
 1. Open **Trainer** and pick a set (Beginner's algorithms, F2L, 2-look OLL and PLL, Full OLL, Full
    PLL). Optionally filter by group.
 2. Follow the drill card: *Set it up* (do the setup moves on a solved cube), *Name it* (**Show
-   the name**), *Solve it* (**Show the algorithm**, or **Ask the coach**), *Check it* (**Got it** /
+   the name**), *Solve it* (**Show the algorithm**, or **Show the coach**), *Check it* (**Got it** /
    **Missed it**, or **Check with the camera**).
 
 Expected: the twin shows the case with its pieces lit; the case grid updates; a missed case comes
@@ -597,17 +597,123 @@ Home.
 
 - [ ] Pass
 
-## 14. Quick accessibility checks
+## 14. Ask the coach and the voice
+
+Ask the coach is a short conversation about the step on screen: what a move means, why it works,
+how to spot the case, what to do after a slip. It is on the solve screen (under the hint
+buttons), under the selected step of a full solution, and in the trainer's coach panel. Without
+an API key the answers come from the built-in step notes, with a note saying so.
+
+### Test 14.1 Ask with a suggested question
+
+1. Start a demo solve. In the coach panel, press **Ask the coach** to open it.
+2. Press **What does R' mean?** (the chip names a move of this step, so it may be another move).
+3. Press **Why does this work?**.
+
+Expected: each question shows on the right and the coach's answer appears on the left, a few
+short sentences about this step. "R' means turn the right side down" (or the step's move in
+words). With no API key, a note says it is a built-in answer from the step notes.
+
+- [ ] Pass
+
+### Test 14.2 Type a question
+
+1. Click in **Your question** and type "How do I hold the cube for this?". Press **Shift+Enter**,
+   then type a second line.
+2. Press **Enter**.
+3. Ask something off-topic, such as "What is your favourite food?".
+
+Expected: Shift+Enter makes a new line and Enter sends. The answer is about this step. The
+off-topic question is kindly steered back to the cube (live coach) or gets a short summary of the
+step (built-in answer). No answer ever gives moves that are not part of the step.
+
+- [ ] Pass
+
+### Test 14.3 Stop, Clear and a new step
+
+1. Ask a question and, while the answer is still appearing, press **Stop**.
+2. Press **Clear**.
+3. Ask one more question, then finish the step (**I did it**, then **It matches**).
+
+Expected: Stop cuts the answer short and shows "Stopped."; Clear empties the conversation. On the
+next step the chat says "New step, new conversation." and starts empty.
+
+- [ ] Pass
+
+### Test 14.4 Ask about a full solution and a trainer case
+
+1. Open **My cubes**, a cube's **Show the solution**, and **Ask the coach** under the selected
+   step. Ask "How do I spot this case?". Then press **Next step**.
+2. Open **Trainer**, press **Show the coach**, then **Ask the coach**, and ask "What if I mess up?".
+
+Expected: the answers are about the selected step and the current case. Moving to the next step
+starts a new conversation. The trainer answer says to undo a slip or show the cube to the camera.
+
+- [ ] Pass
+
+### Test 14.5 Talk to the coach
+
+1. Open **Settings → Talk to the coach** and read the line under the switch. Turn it on.
+2. On the solve screen, open **Ask the coach**. Hold the mic button, say "Why does this work?",
+   and let go.
+3. Tap the mic once, say "What does U2 mean?", and tap it again.
+4. In Settings, turn off **Send when I stop talking** and ask by voice once more.
+
+Expected: the line says your browser's own speech service turns speech into text and Cubyntra
+never records or stores audio. Your words appear in the box as you speak and are sent when you
+stop; with auto-send off they wait in the box until you press Send. In a browser without speech
+recognition (for example Firefox) there is no mic button, and Settings says so.
+
+- [ ] Pass
+
+### Test 14.6 A blocked microphone
+
+1. Block the microphone for the site in the browser's address bar, then press the mic button.
+
+Expected: a sentence says the microphone is blocked and how to allow it; typing still works.
+
+- [ ] Pass
+
+### Test 14.7 Answers read aloud
+
+1. Turn the voice on (the speaker button in the coach panel) with **Device voice**, and ask a
+   question.
+2. While it is being read, ask another question.
+3. Switch Settings → Voice to **ElevenLabs** and ask again.
+
+Expected: each finished answer is read aloud once; a new question stops the reading. In
+ElevenLabs mode the answer is read in your chosen ElevenLabs voice (the device voice if
+ElevenLabs is unavailable). When paired, only the device driving the solve speaks.
+
+- [ ] Pass
+
+### Test 14.8 Choose an ElevenLabs voice and quality
+
+1. In **Settings → Voice**, choose **ElevenLabs**.
+2. Under **ElevenLabs voice**, pick each voice (Alice, Matilda, Jessica, Will, George) and press
+   **Test voice**.
+3. Under **Quality**, choose **Faster, half the credits** and press **Test voice**; then go back
+   to **High quality**.
+
+Expected: Alice is chosen at first. Each voice sounds different and says the sample. The quality
+line says one credit per character for High quality and half for Faster. The credits meter goes
+up after a test the first time in each voice and quality, and not when you repeat it (the clip
+is saved). Your choice is kept after a reload.
+
+- [ ] Pass
+
+## 15. Quick accessibility checks
 
 | Check | Expected | Pass |
 |---|---|---|
 | Use only the keyboard (Tab, Enter, Space, Escape) on Home, Solve and Timer | Everything is reachable, focus is visible, dialogs close with Escape | [ ] |
+| With a screen reader, ask the coach a question | The finished answer is read once, not word by word while it appears | [ ] |
 | On a full solution, Tab into the list of steps and use the arrow keys, Home and End | One Tab stop; the arrows move the selected step and the twin follows | [ ] |
 | Turn on Letters on stickers | Every sticker shows its letter (W, Y, R, O, G, B) | [ ] |
 | Turn on Reduce motion | The twin turns instantly, nothing bounces | [ ] |
 | Dark theme | All text is readable | [ ] |
 
-## 15. Troubleshooting
+## 16. Troubleshooting
 
 | Problem | What to do |
 |---|---|
@@ -617,10 +723,12 @@ Home.
 | Colors read wrong | Brighter, even light; avoid glare; fix tiles on Review. |
 | Coach shows "Templates" | No key, the monthly cap is reached, or no internet. The built-in notes still work. |
 | No ElevenLabs voice | No key, the credit cap is reached, or ElevenLabs is down; the device voice takes over. |
+| No mic button in Ask the coach | Turn on Settings → Talk to the coach; use Chrome, Edge or Safari (some browsers cannot turn speech into text). |
+| "That is a lot of questions" | Ask the coach takes 20 questions a minute; wait a minute. |
 | Hosted site asks for a code each time | Cloudflare Access session expired; sign in again with your email. |
 | Laptop feels slow | Close other dev servers and browser tabs; Cubyntra's production server uses about 110 MB. |
 
-## 16. Sign-off
+## 17. Sign-off
 
 | Area | Tests | Pass |
 |---|---|---|
@@ -638,6 +746,7 @@ Home.
 | Phone | 11.1-11.5 | [ ] |
 | Hosted site | 12.1-12.3 | [ ] |
 | My cubes and full solutions | 13.1-13.9 | [ ] |
-| Accessibility | 14 | [ ] |
+| Ask the coach and the voice | 14.1-14.8 | [ ] |
+| Accessibility | 15 | [ ] |
 
 Tested by: ____________________ Date: ____________ Notes: ______________________________

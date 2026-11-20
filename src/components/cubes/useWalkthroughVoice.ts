@@ -24,7 +24,7 @@ export function useWalkthroughVoice(playback: PlaybackController | null, plan: S
   const token = useTutorStore((s) => s.token);
   const isSpeaker = useOneSpeaker(useCompanion());
   // Off while not playing all: a line still queued is dropped when Play all pauses or stops.
-  const voice = useVoice({ mode: settings.voiceMode, rate: settings.voiceRate, token, enabled: isSpeaker && active });
+  const voice = useVoice({ mode: settings.voiceMode, rate: settings.voiceRate, voiceId: settings.voiceId, quality: settings.voiceQuality, token, enabled: isSpeaker && active });
 
   const latest = useRef({ voice, moves: settings.voiceMoves, active });
   useEffect(() => {

@@ -54,6 +54,10 @@ describe('student profile v2', () => {
       voiceMode: 'off',
       voiceRate: 1,
       voiceMoves: 'words',
+      voiceId: 'Xb7hH8MSUJpSbSDYk0k2',
+      voiceQuality: 'high',
+      talkToCoach: false,
+      chatAutoSend: true,
     });
     expect(parsed.profile.stats).toEqual({ ...v1Profile().stats, stages: {}, activeDays: [] });
     expect(parsed.profile.trainer).toEqual({ turn: 0, cards: {}, set: null });

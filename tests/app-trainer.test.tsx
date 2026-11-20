@@ -109,7 +109,7 @@ describe('Trainer', () => {
   it('opens the coach on request', () => {
     render(<TrainerView />);
     expect(screen.queryByRole('heading', { name: 'Coach' })).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'Ask the coach' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Show the coach' }));
     expect(screen.getByRole('heading', { name: 'Coach' })).toBeTruthy();
   });
 });

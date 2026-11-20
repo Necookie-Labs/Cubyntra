@@ -36,8 +36,8 @@ function serverApply(profile: StudentProfile, ops: Parameters<typeof applyProfil
 }
 
 describe('student profile v4 (saved cubes)', () => {
-  it('is version 4 with no saved cubes by default', () => {
-    expect(STUDENT_PROFILE_VERSION).toBe(4);
+  it('is version 4 or later with no saved cubes by default', () => {
+    expect(STUDENT_PROFILE_VERSION).toBeGreaterThanOrEqual(4);
     expect(defaultStudentProfile().savedCubes).toEqual([]);
   });
 
@@ -47,7 +47,7 @@ describe('student profile v4 (saved cubes)', () => {
     const parsed = parseStudentProfile(v3);
     expect(parsed.ok).toBe(true);
     if (!parsed.ok) return;
-    expect(parsed.profile.version).toBe(4);
+    expect(parsed.profile.version).toBe(STUDENT_PROFILE_VERSION);
     expect(parsed.profile.savedCubes).toEqual([]);
     expect(parsed.profile.currentSolve).toEqual(v3.currentSolve);
     expect(parsed.profile.settings).toEqual(v3.settings);
@@ -63,13 +63,13 @@ describe('student profile v4 (saved cubes)', () => {
       stats: { solvesCompleted: 1, stepsCompleted: 2, checkpointsPassed: 2, lastSolveAt: null },
     };
     const parsed = parseStudentProfile(v1);
-    expect(parsed.ok && parsed.profile.version).toBe(4);
+    expect(parsed.ok && parsed.profile.version).toBe(STUDENT_PROFILE_VERSION);
     expect(parsed.ok && parsed.profile.savedCubes).toEqual([]);
   });
 
   it('leaves other versions alone when migrating', () => {
-    const v4 = defaultStudentProfile();
-    expect(migrateProfileV3(v4)).toBe(v4);
+    const current = defaultStudentProfile();
+    expect(migrateProfileV3(current)).toBe(current);
     expect(migrateProfileV3(null)).toBeNull();
   });
 

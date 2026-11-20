@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as route from '../src/app/api/student/route';
 import { APP_TOKEN_HEADER, getAppSecret } from '../src/lib/localAuth';
 import type { ProfileOp } from '../src/lib/profileOps';
-import { MAX_STUDENT_BYTES, defaultStudentProfile, type CurrentSolve, type StudentProfile } from '../src/lib/studentProfile';
+import { MAX_STUDENT_BYTES, STUDENT_PROFILE_VERSION, defaultStudentProfile, type CurrentSolve, type StudentProfile } from '../src/lib/studentProfile';
 import { useScratchDataDir } from './helpers/scratchData';
 import { sampleProfile } from './helpers/studentProfile';
 
@@ -134,7 +134,7 @@ describe('/api/student', () => {
     const res = await patch([{ op: 'addTimerSolve', solve: timerSolve('a1') }]);
     expect(res.status).toBe(200);
     const saved = JSON.parse(fs.readFileSync(studentFile(), 'utf8')) as StudentProfile;
-    expect(saved.version).toBe(4);
+    expect(saved.version).toBe(STUDENT_PROFILE_VERSION);
     expect(saved.name).toBe('Sam');
     expect(saved.settings).toMatchObject({ lastLayer: '2-look', voiceMode: 'off', voiceMoves: 'words' });
     expect(saved.stats).toMatchObject({ solvesCompleted: 4, stepsCompleted: 30, stages: {}, activeDays: [] });
