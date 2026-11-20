@@ -266,7 +266,8 @@ describe('Solve screen voice', () => {
     expect(spoken.filter((t) => t === COACH_REPLY)).toHaveLength(1);
     fireEvent.click(screen.getByRole('button', { name: 'Read with ElevenLabs' }));
     await flush();
-    expect(voicePosts).toContainEqual({ text: COACH_REPLY, kind: 'reply' });
+    // The reply text and the voice choice only (Alice, high quality by default).
+    expect(voicePosts).toContainEqual({ text: COACH_REPLY, kind: 'reply', voiceId: 'Xb7hH8MSUJpSbSDYk0k2', quality: 'high' });
     // ElevenLabs failed here, so the device voice read it again.
     expect(spoken.filter((t) => t === COACH_REPLY)).toHaveLength(2);
   });
